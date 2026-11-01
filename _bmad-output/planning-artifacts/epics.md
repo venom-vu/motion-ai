@@ -1,18 +1,26 @@
 ---
 status: final
-stepsCompleted: ['step-01-validate-prerequisites', 'step-02-design-epics', 'step-03-create-stories', 'step-04-final-validation']
+stepsCompleted:
+  [
+    "step-01-validate-prerequisites",
+    "step-02-design-epics",
+    "step-03-create-stories",
+    "step-04-final-validation",
+  ]
 inputDocuments:
   - _bmad-output/planning-artifacts/prds/prd-motion-ai-2026-10-31/prd.md
   - _bmad-output/planning-artifacts/prds/prd-motion-ai-2026-10-31/addendum.md
   - _bmad-output/planning-artifacts/architecture/architecture-motion-ai-2026-11-01/ARCHITECTURE-SPINE.md
   - _bmad-output/specs/spec-motion-ai/SPEC.md
+  - _bmad-output/planning-artifacts/ux-designs/ux-motion-ai-2026-11-01/DESIGN.md
+  - _bmad-output/planning-artifacts/ux-designs/ux-motion-ai-2026-11-01/EXPERIENCE.md
 ---
 
 # motion-ai - Epic Breakdown
 
 ## Overview
 
-Tài liệu này phân rã yêu cầu từ PRD, kiến trúc (ARCHITECTURE-SPINE) và SPEC thành epic và story có thể triển khai. Không có tài liệu UX (DESIGN.md/EXPERIENCE.md); các story giao diện dựa vào hành trình người dùng UJ-1..UJ-4 của PRD. Mã FR/NFR giữ nguyên số của PRD (FR1 = FR-1). PRD không có NFR5 nên danh sách NFR bỏ qua số này.
+Tài liệu này phân rã yêu cầu từ PRD, kiến trúc (ARCHITECTURE-SPINE), SPEC và bộ đôi hợp đồng UX (DESIGN.md, EXPERIENCE.md tại `_bmad-output/planning-artifacts/ux-designs/ux-motion-ai-2026-11-01/`) thành epic và story có thể triển khai. Toàn bộ các story giao diện (frontend) tuân thủ nghiêm ngặt nhận diện thị giác Slate Cyber, chuẩn icon vector Lucide (`nuxt-icon`, tuyệt đối không dùng emoji UTF-8 trong UI chrome), vùng chạm tối thiểu 48px và các quy chuẩn hành vi (Before/After split slider, 1s video trimmer, VietQR in-context sheet, microcopy minh bạch tài chính). Mã FR/NFR giữ nguyên số của PRD (FR1 = FR-1). PRD không có NFR5 nên danh sách NFR bỏ qua số này.
 
 ## Requirements Inventory
 
@@ -116,6 +124,7 @@ NFR1: Epic 2 · NFR2: Epic 2, 6 · NFR3: Epic 1 · NFR4: Epic 1 · NFR6: Epic 2,
 ### Quy ước hai luồng song song (BE và FE)
 
 Mỗi epic gồm story **[CONTRACT]** (nếu có), các story **[BE]** và **[FE]** tách riêng, và có thể có story **[INTEGRATION]** cuối epic.
+
 - **Hợp đồng trước:** `packages/contracts` là nguồn duy nhất cho DTO, schema validate, `reasonCode`, `ApiErrorCode`, bảng giá và Cap. Chỉ story [CONTRACT] hoặc [SHARED] mới sửa thư mục này; story [CONTRACT] của epic phải merge trước khi hai luồng của epic đó rẽ nhánh.
 - **FE chạy trên mock:** FE gọi API qua client có kiểu sinh từ `packages/contracts` và dữ liệu giả cùng schema; một test hợp đồng ở CI kiểm tra phản hồi của mock và của BE đều khớp schema.
 - **Ranh giới thư mục:** luồng BE chỉ sửa `apps/api` và `deploy/`; luồng FE chỉ sửa `apps/web`. Muốn đổi hợp đồng, luồng FE ghi yêu cầu cho luồng BE thay vì tự sửa.
@@ -123,30 +132,36 @@ Mỗi epic gồm story **[CONTRACT]** (nếu có), các story **[BE]** và **[FE
 - **Mỗi luồng một nhánh git/worktree**, merge thường xuyên.
 
 ### Epic 1: Nền tảng, đăng nhập và credit dùng thử
+
 Người dùng đăng nhập bằng Google, nhận 500 credit tặng có kiểm soát lạm dụng và thấy số dư cùng Tier của mình. Epic này dựng monorepo (`apps/web`, `apps/api` với hai entrypoint, `packages/contracts`, `deploy/compose.yml`, CI) và hợp đồng chung để hai luồng làm độc lập.
 **FRs covered:** FR9, FR11, FR12, FR19 (phần đăng ký)
 **Ghi chú:** dự án greenfield nên Story 1.1 là bộ khung monorepo; gồm sổ cái, ràng buộc DB, Tier Snapshot (AD-1, AD-2, AD-10, AD-12, AD-16), AR1–AR5, AR19, AR25.
 
 ### Epic 2: Face Swap một lần bấm, hoàn credit khi lỗi
+
 Người dùng ghép mặt chỉ bằng một lần bấm, nhận ảnh kết quả trên R2, tải về hoặc chia sẻ, và được hoàn credit tự động khi hệ thống lỗi. Epic này dựng động cơ xử lý Task dùng chung cho mọi pipeline: upload, hàng đợi, worker, RunningHub, máy trạng thái, HOLD/CAPTURED/RELEASED, bộ quét.
 **FRs covered:** FR1, FR2, FR8, FR10, FR15, FR17, FR19 (trước mỗi lần tải lên)
 **Ghi chú:** epic nặng nhất, gồm AR8–AR12 (kể cả cổng đồng thời RunningHub và cửa sổ job mồ côi, vì job mồ côi phát sinh từ mọi pipeline), AR13; có phần chia sẻ kết quả bằng token và Open Graph. Việc đo SLA 60 giây của Face Swap nằm ở benchmark Epic 6, vì smoke test dùng RunningHub giả.
 
 ### Epic 3: Nạp credit bằng VietQR
+
 Người dùng nạp credit bằng VietQR và lên Tier; Admin duyệt đơn trên dashboard. Epic này chỉ cần Epic 1, không phụ thuộc Epic 2.
 **FRs covered:** FR13, FR14, FR19 (khi nạp tiền)
 **Ghi chú:** AR17, AR23 (Discord báo đơn mới), `admin_audit`, `bank_ref`; dashboard Admin là phần FE độc lập nhất.
 
 ### Epic 4: Body Retouch
+
 Người dùng chỉnh dáng ảnh theo mức `intensity` 1–10 và xem so sánh trước/sau. Epic này dùng lại động cơ Task của Epic 2 nên nhỏ.
 **FRs covered:** FR3, FR4
 
 ### Epic 5: Motion Control
+
 Người dùng cho nhân vật chuyển động theo video mẫu, cắt đoạn bằng thanh trượt Trim và thấy giá theo thời gian thực, giới hạn thời lượng theo Tier.
 **FRs covered:** FR5, FR6, FR7
 **Ghi chú:** `ffprobe` ở API, khóa ffmpeg một tiến trình ở worker và hạn chuẩn bị 120 giây gồm cả thời gian chờ khóa (AR15). Cổng đồng thời RunningHub và job mồ côi đã làm ở Epic 2.
 
 ### Epic 6: Vận hành an toàn, tuân thủ và cổng mở bán
+
 Admin được bảo vệ ngân sách GPU và có công cụ xử lý vi phạm; hệ thống sẵn sàng bật VietQR thương mại sau khi qua các bước kiểm thử bắt buộc.
 **FRs covered:** FR16, FR18, FR21, FR22
 **Ghi chú:** ngắt mạch, cảnh báo Discord, khóa tài khoản, gỡ file R2, `pg_dump` lên R2 và 5 bước kiểm thử trước khi mở bán (AR18, AR22, AR23, AR24). Cần Epic 1–3 (adapter Discord ở Story 3.4, dịch vụ `audit` ở Story 3.5); story cổng mở bán cần thêm Epic 4–5 vì benchmark chạy cả ba pipeline.
@@ -271,9 +286,10 @@ So that tôi dựng giao diện mà không cần chờ BE.
 **Then** preset Nitro là `cloudflare-pages` (hoặc `cloudflare_module`) và thư mục đầu ra đúng định dạng của Cloudflare
 **And** kết quả kiểm tra được ghi vào README trước khi đẩy lên git.
 
-**Given** viewport rộng 360 px
+**Given** viewport di động rộng 360 px và viewport máy tính `>= 1024 px`
 **When** mở trang `/`, `/login`, `/history` (trang khung)
-**Then** không có thanh cuộn ngang và bố cục dùng được bằng một tay
+**Then** ở 360 px không có thanh cuộn ngang, điều hướng bằng Bottom Navigation Bar và dùng được bằng một tay
+**And** ở `>= 1024 px` giao diện người dùng sử dụng **Top Header** (không dùng Sidebar trái), trang chủ hiển thị lưới Card tính năng có ảnh minh họa toàn màn hình và khi click vào card mở Dialog làm việc của chức năng đó (riêng `/admin` dùng Left Sidebar tối giản phong cách Vercel) theo mục `Responsive & Platform` của `EXPERIENCE.md`
 **And** giao diện chỉ có tiếng Việt.
 
 **Given** biến môi trường chế độ API `mock` hoặc `live`
@@ -288,6 +304,12 @@ So that tôi dựng giao diện mà không cần chờ BE.
 **Given** giá và Cap theo Tier
 **When** FE cần hiển thị
 **Then** FE lấy từ `GET /config/pricing`, không hardcode.
+
+**Given** hợp đồng UX tại `_bmad-output/planning-artifacts/ux-designs/ux-motion-ai-2026-11-01/DESIGN.md` và `EXPERIENCE.md`
+**When** dựng khung giao diện và cấu hình Tailwind
+**Then** bảng màu kế thừa đầy đủ Design Tokens Slate Cyber (nền `#0F172A`, thẻ `#1E293B`, viền `#334155`, primary `#8B5CF6`, accent `#06B6D4`)
+**And** tích hợp `nuxt-icon` với iconset `lucide`, nghiêm cấm sử dụng icon ký tự UTF-8/emoji trong UI chrome
+**And** mọi vùng chạm bấm đạt tối thiểu 48px cho thao tác ngón cái trên di động.
 
 **Given** story này
 **When** xem diff
@@ -1479,7 +1501,8 @@ So that tôi nạp credit nhanh và biết khi nào credit về.
 
 **Given** danh sách đơn của người dùng
 **When** mở
-**Then** hiển thị mới nhất trước, tải thêm khi cuộn, có trạng thái rỗng và trạng thái lỗi.
+**Then** hiển thị mới nhất trước, tải thêm khi cuộn, có trạng thái rỗng và trạng thái lỗi
+**And** giao diện nạp tiền và modal QR tuân thủ đặc tả tại `mockups/vietqr-modal.html` và `EXPERIENCE.md`: hỗ trợ mở dạng In-Context Bottom Sheet khi thiếu credit để giữ nguyên dữ liệu đang thao tác, toàn bộ icon sử dụng vector Lucide (`lucide:copy`, `lucide:clock`, `lucide:x`, `lucide:check`).
 
 **Given** story này
 **When** chạy
@@ -1776,7 +1799,8 @@ So that tôi thấy rõ phần được thay đổi.
 
 **Given** thành phần so sánh
 **When** thiết kế
-**Then** dùng lại được cho pipeline khác có ảnh gốc, và thao tác được bằng bàn phím (mũi tên di chuyển thanh) cũng như có nhãn đọc màn hình.
+**Then** dùng lại được cho pipeline khác có ảnh gốc, và thao tác được bằng bàn phím (mũi tên di chuyển thanh) cũng như có nhãn đọc màn hình
+**And** tuân thủ đặc tả UX tại `mockups/split-compare.html` và `EXPERIENCE.md`: núm trượt 36px chứa vector icon `lucide:arrow-left-right`, nút Tải HD không watermark dùng `lucide:download`, nút sao chép dùng `lucide:link`, tuyệt đối không dùng icon emoji.
 
 **Given** story này
 **When** chạy
@@ -1828,6 +1852,7 @@ Người dùng cho nhân vật trong ảnh chuyển động theo video mẫu: t�
 **Thứ tự và hai luồng:** 5.1 làm trước, rồi hai luồng rẽ nhánh. BE: 5.2 → 5.3 → 5.4 → 5.5 → 5.6. FE (chạy trên mock): 5.7 → 5.8. Story 5.9 chỉ bắt đầu khi cả hai luồng xong. Các story được phát triển trên nhánh và epic chỉ triển khai lên môi trường thật sau 5.9 (route tạo Task Motion có trước khi worker xử lý được pipeline này).
 
 **Lưu ý chung:**
+
 - Cổng đồng thời RunningHub, job mồ côi, bộ quét và nhánh khôi phục đã có từ Epic 2; epic này chỉ thêm bước chuẩn bị (ffmpeg) phía trước và pipeline `motion`.
 - Giá Motion = 50 credit × số giây nguyên; dung sai ±0,5 giây của file đầu ra không đổi số credit đã giữ và không có hoàn phần lẻ (FR7).
 - Cap kiểm theo Tier Snapshot lúc bấm Tạo, phía server là bên quyết định; FE chỉ hiển thị lại lỗi khi Cap đã đổi.
@@ -2217,7 +2242,9 @@ So that tôi biết trước mình trả bao nhiêu và xem, tải, chia sẻ vi
 
 **Given** nút "Tạo"
 **When** đánh giá điều kiện
-**Then** bị vô hiệu khi chưa tải xong ảnh hoặc video, chưa tích cam kết, độ dài vượt Cap, hoặc giá lớn hơn số dư (kèm thông báo cần nạp credit)
+**Then** bị vô hiệu khi chưa tải xong ảnh hoặc video, chưa tích cam kết, độ dài vượt Cap
+**And** khi giá lớn hơn số dư, hiển thị thông báo ngữ cảnh thông minh: "Bạn đang có {balance} credit (cần {required} cr để tạo đoạn {duration}s). Nạp nhanh gói Starter 49k (+5.000 cr) nhé?" kèm nút mở Modal VietQR nạp nhanh tại chỗ mà không làm mất form nhập liệu (theo UX `mockups/studio.html` và `EXPERIENCE.md`)
+**And** toàn bộ nút bấm, timeline trimmer và badge sử dụng vector icon Lucide (`lucide:clapperboard`, `lucide:zap`, `lucide:play`, `lucide:alert-circle`), không sử dụng emoji Unicode
 **And** bấm hai lần liên tiếp chỉ gửi một yêu cầu `POST /tasks/motion`.
 
 **Given** server trả `VALIDATION_FAILED` với `details.reason = TRIM_EXCEEDS_CAP` (Cap đã đổi sau khi tải video)
@@ -2325,6 +2352,7 @@ Admin được bảo vệ ngân sách GPU và có công cụ xử lý vi phạm;
 **Thứ tự và hai luồng:** 6.1 làm trước, rồi hai luồng rẽ nhánh. BE: 6.2 → 6.3 → 6.4 → 6.5 → 6.6 → 6.7. FE (chạy trên mock): 6.8 → 6.9. Story 6.10 chỉ bắt đầu khi cả hai luồng xong. Story 6.11 làm cuối cùng, chạy trên hệ thống đã nối ghép và có người vận hành thật tham gia.
 
 **Lưu ý chung:**
+
 - Các route tạo Task của Epic 2, 4, 5 chưa kiểm cờ `intake_paused` và worker chưa kiểm cờ `rh_budget_exhausted`. Epic này thêm một guard dùng chung gắn vào các route đã có (không viết lại các epic trước), nên trước khi Epic 6 xong thì ngắt mạch chưa có tác dụng. Điều này chấp nhận được vì chưa mở bán trước đó.
 - Báo cáo vi phạm (FR22) chỉ dùng liên kết `mailto:` ở chân trang; không có form và không có bảng báo cáo. Admin nhận email rồi dùng chức năng gỡ bỏ ở Story 6.5.
 - Hệ thống ticket hỗ trợ nằm ngoài MVP (PRD §7.2); khiếu nại về chất lượng được Admin xử lý thủ công bằng bút toán `ADJUST` (Story 6.4).

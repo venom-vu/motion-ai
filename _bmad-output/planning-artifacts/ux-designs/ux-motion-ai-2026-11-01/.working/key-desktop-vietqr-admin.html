@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Motion AI — Admin Dashboard (Vercel Style Sidebar) & Desktop VietQR Modal</title>
+  <style>
+    /*
+      1. Màn Admin (/admin): Sidebar đơn giản, tối giản chuẩn phong cách Vercel (monochrome + viền mảnh 1px, bảng dữ liệu rõ ràng, thao tác nhanh).
+      2. Modal VietQR trên Desktop: Hộp thoại căn giữa màn hình.
+    */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #05070D;
+      color: #F8FAFC;
+      padding: 28px 24px 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 40px;
+    }
+    .icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .section-label {
+      width: 100%;
+      max-width: 1360px;
+      font-size: 12px;
+      font-weight: 800;
+      color: #94A3B8;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    /* =========================================================================
+       VERCEL-STYLE MINIMAL ADMIN DASHBOARD (/admin) WITH SIMPLE LEFT SIDEBAR
+       ========================================================================= */
+    .vercel-admin-frame {
+      width: 100%;
+      max-width: 1360px;
+      min-height: 680px;
+      background: #0A0A0A;
+      border: 1px solid #262626;
+      border-radius: 14px;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85);
+    }
+
+    /* Simple Vercel-style Left Sidebar */
+    .v-sidebar {
+      background: #0A0A0A;
+      border-right: 1px solid #262626;
+      padding: 18px 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .v-brand {
+      padding: 4px 10px 16px;
+      border-bottom: 1px solid #1F1F1F;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 14px;
+      font-weight: 700;
+      color: #EDEDED;
+    }
+    .v-tag {
+      font-size: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: #1F1F1F;
+      color: #A1A1AA;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid #2E2E2E;
+    }
+    .v-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .v-nav-item {
+      height: 36px;
+      padding: 0 10px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 500;
+      color: #A1A1AA;
+      cursor: pointer;
+    }
+    .v-nav-item:hover {
+      background: #141414;
+      color: #EDEDED;
+    }
+    .v-nav-item.active {
+      background: #1F1F1F;
+      color: #FFFFFF;
+      font-weight: 600;
+    }
+    .v-count {
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      background: rgba(245, 158, 11, 0.15);
+      color: #FBBF24;
+      padding: 1px 6px;
+      border-radius: 999px;
+    }
+    .v-sidebar-foot {
+      padding: 10px;
+      border-top: 1px solid #1F1F1F;
+      font-size: 12px;
+      color: #71717A;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+    }
+
+    /* Main Admin Content */
+    .v-main {
+      background: #0A0A0A;
+      display: flex;
+      flex-direction: column;
+    }
+    .v-topbar {
+      height: 56px;
+      border-bottom: 1px solid #262626;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .v-breadcrumb {
+      font-size: 14px;
+      font-weight: 600;
+      color: #EDEDED;
+    }
+    .v-breaker-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: #A1A1AA;
+    }
+    .v-btn-outline {
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 6px;
+      background: #141414;
+      border: 1px solid #2E2E2E;
+      color: #EDEDED;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .v-content {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .v-stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border: 1px solid #262626;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #262626;
+      gap: 1px;
+    }
+    .v-stat-cell {
+      background: #0F0F0F;
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .v-stat-label {
+      font-size: 11px;
+      color: #71717A;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .v-stat-val {
+      font-size: 20px;
+      font-weight: 700;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      color: #EDEDED;
+    }
+
+    .v-table-wrap {
+      border: 1px solid #262626;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #0F0F0F;
+    }
+    .v-table-head {
+      padding: 12px 16px;
+      border-bottom: 1px solid #262626;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th {
+      text-align: left;
+      padding: 10px 16px;
+      background: #141414;
+      color: #71717A;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      border-bottom: 1px solid #262626;
+    }
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #1F1F1F;
+      color: #D4D4D8;
+    }
+    .v-mono {
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 12px;
+      background: #18181B;
+      border: 1px solid #27272A;
+      padding: 3px 7px;
+      border-radius: 4px;
+      color: #E4E4E7;
+    }
+    .v-input {
+      height: 32px;
+      width: 165px;
+      background: #09090B;
+      border: 1px solid #27272A;
+      border-radius: 6px;
+      padding: 0 10px;
+      color: #FAFAFA;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 12px;
+    }
+    .v-btn-approve {
+      height: 30px;
+      padding: 0 12px;
+      border-radius: 6px;
+      border: none;
+      background: #EDEDED;
+      color: #09090B;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .v-btn-reject {
+      height: 30px;
+      padding: 0 10px;
+      border-radius: 6px;
+      border: 1px solid #3F3F46;
+      background: transparent;
+      color: #A1A1AA;
+      font-size: 12px;
+      cursor: pointer;
+      margin-left: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="section-label">
+    Màn Hình Admin (/admin) — Sidebar Đơn Giản Phong Cách Vercel (Tập Trung Tốc Độ Duyệt Đơn &amp; Vận Hành)
+  </div>
+
+  <div class="vercel-admin-frame">
+    <!-- Left Sidebar (Vercel style) -->
+    <aside class="v-sidebar">
+      <div>
+        <div class="v-brand">
+          <span>motion-ai / ops</span>
+          <span class="v-tag">ADMIN</span>
+        </div>
+        <nav class="v-nav">
+          <div class="v-nav-item active">
+            <span>Duyệt đơn VietQR</span>
+            <span class="v-count">2</span>
+          </div>
+          <div class="v-nav-item">
+            <span>Ngắt mạch &amp; Hàng đợi</span>
+          </div>
+          <div class="v-nav-item">
+            <span>Tài khoản &amp; Cộng bù</span>
+          </div>
+          <div class="v-nav-item">
+            <span>Gỡ nội dung R2</span>
+          </div>
+          <div class="v-nav-item">
+            <span>Nhật ký Admin (Audit)</span>
+          </div>
+        </nav>
+      </div>
+      <div class="v-sidebar-foot">
+        admin@motion.ai<br/>
+        PG16 + Redis7: OK
+      </div>
+    </aside>
+
+    <!-- Main Area -->
+    <main class="v-main">
+      <header class="v-topbar">
+        <div class="v-breadcrumb">Duyệt đơn nạp VietQR (pending / needs_review / expired)</div>
+        <div class="v-breaker-status">
+          <span>Intake: <strong style="color: #10B981;">ACTIVE</strong> (Error 30m: 1.8%)</span>
+          <button class="v-btn-outline">Tạm dừng nhận Task</button>
+        </div>
+      </header>
+
+      <div class="v-content">
+        <div class="v-stats-row">
+          <div class="v-stat-cell">
+            <span class="v-stat-label">Pending Topups</span>
+            <span class="v-stat-val" style="color: #FBBF24;">2</span>
+          </div>
+          <div class="v-stat-cell">
+            <span class="v-stat-label">RunningHub Balance</span>
+            <span class="v-stat-val">$48.50</span>
+          </div>
+          <div class="v-stat-cell">
+            <span class="v-stat-label">Queue (2 Lanes)</span>
+            <span class="v-stat-val">2 run / 1 wait</span>
+          </div>
+          <div class="v-stat-cell">
+            <span class="v-stat-label">Ledger Reconcile</span>
+            <span class="v-stat-val" style="color: #10B981;">0 drift</span>
+          </div>
+        </div>
+
+        <div class="v-table-wrap">
+          <div class="v-table-head">
+            <span>Đơn chờ duyệt (Bắt buộc nhập `bank_ref` duy nhất)</span>
+            <span style="font-size: 12px; color: #71717A;">Khung giờ SLA: 08:00–23:00 (15 phút)</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>User Email</th>
+                <th>Pack / Amount</th>
+                <th>Approve By</th>
+                <th>Bank Ref (Unique)</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="v-mono">NAP M9X4K2</span></td>
+                <td>minh.dance@gmail.com</td>
+                <td>Starter • 49.000đ (+5.000 cr)</td>
+                <td style="color: #10B981; font-family: ui-monospace, monospace;">11m left</td>
+                <td><input class="v-input" type="text" value="FT26305991820" /></td>
+                <td>
+                  <button class="v-btn-approve">Approve</button>
+                  <button class="v-btn-reject">Reject</button>
+                </td>
+              </tr>
+              <tr>
+                <td><span class="v-mono">NAP K7P2Q9</span></td>
+                <td>ha.shop@gmail.com</td>
+                <td>Pro • 99.000đ (+12.000 cr)</td>
+                <td style="color: #10B981; font-family: ui-monospace, monospace;">14m left</td>
+                <td><input class="v-input" type="text" placeholder="Enter bank_ref..." /></td>
+                <td>
+                  <button class="v-btn-approve">Approve</button>
+                  <button class="v-btn-reject">Reject</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+</body>
+</html>

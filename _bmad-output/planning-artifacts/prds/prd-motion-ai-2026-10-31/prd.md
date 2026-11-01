@@ -8,7 +8,7 @@ status: final
 *Tên tạm — cần xác nhận.*
 
 ## 0. Mục đích tài liệu
-PRD kỹ thuật cho bản MVP thương mại của Motion AI, dành cho PM, người ra quyết định ngân sách và các workflow downstream (UX, kiến trúc, epics). Tài liệu chỉ chuẩn hóa spec và luồng dữ liệu, không chứa code. Cấu trúc: Glossary làm gốc từ vựng, tính năng gom nhóm với FR đánh số toàn cục, giả định gắn thẻ `[ASSUMPTION]` ngay tại chỗ và được tổng hợp ở §10. Chi phí GPU và chi tiết kỹ thuật nằm trong `addendum.md`.
+PRD kỹ thuật cho bản MVP thương mại của Motion AI, dành cho PM, người ra quyết định ngân sách và các workflow downstream (UX, kiến trúc, epics). Tài liệu chỉ chuẩn hóa spec và luồng dữ liệu, không chứa code. Cấu trúc: Glossary làm gốc từ vựng, tính năng gom nhóm với FR đánh số toàn cục, giả định gắn thẻ `[ASSUMPTION]` ngay tại chỗ và được tổng hợp ở §10. Chi phí GPU và chi tiết kỹ thuật nằm trong `addendum.md`. Đặc tả thiết kế giao diện & trải nghiệm người dùng hoàn chỉnh (DESIGN.md, EXPERIENCE.md và mockups) nằm tại `_bmad-output/planning-artifacts/ux-designs/ux-motion-ai-2026-11-01/`.
 
 ## 1. Tầm nhìn
 Motion AI là web responsive (ưu tiên mobile web) cho phép người dùng Việt Nam tạo ảnh/video AI chỉ bằng một lần bấm: ghép khuôn mặt, chỉnh dáng cơ thể, và điều khiển chuyển động nhân vật theo video mẫu. Việc xử lý chạy trên RunningHub qua API, không giữ server GPU nhàn rỗi.

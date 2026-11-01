@@ -4,10 +4,12 @@ companions:
   - ../../planning-artifacts/prds/prd-motion-ai-2026-10-31/prd.md
   - ../../planning-artifacts/prds/prd-motion-ai-2026-10-31/addendum.md
   - ../../planning-artifacts/architecture/architecture-motion-ai-2026-11-01/ARCHITECTURE-SPINE.md
+  - ../../planning-artifacts/ux-designs/ux-motion-ai-2026-11-01/DESIGN.md
+  - ../../planning-artifacts/ux-designs/ux-motion-ai-2026-11-01/EXPERIENCE.md
 sources: []
 ---
 
-> **Canonical contract.** SPEC này và các file trong `companions:` là hợp đồng đầy đủ về cái cần xây, kiểm thử và xác nhận. PRD giữ các bảng tham số, bảng lỗi và bảng kinh tế đơn vị; ARCHITECTURE-SPINE giữ các quyết định AD-1..AD-18. Khi hai bên lệch nhau, PRD thắng về hành vi sản phẩm, spine thắng về cơ chế kỹ thuật.
+> **Canonical contract.** SPEC này và các file trong `companions:` là hợp đồng đầy đủ về cái cần xây, kiểm thử và xác nhận. PRD giữ các bảng tham số, bảng lỗi và bảng kinh tế đơn vị; ARCHITECTURE-SPINE giữ các quyết định kỹ thuật AD-1..AD-18; DESIGN.md và EXPERIENCE.md (trong `planning-artifacts/ux-designs/ux-motion-ai-2026-11-01/`) chuẩn hóa toàn diện nhận diện thị giác Slate Cyber, quy chuẩn icon vector Lucide (`nuxt-icon`) và kiến trúc trải nghiệm di động 7 màn hình. Khi hai bên lệch nhau, PRD thắng về hành vi sản phẩm, spine thắng về cơ chế kỹ thuật, và hai UX spine thắng về diện mạo/trải nghiệm người dùng.
 
 # Motion AI MVP
 

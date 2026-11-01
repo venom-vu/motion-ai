@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Motion AI — Mobile Feature Hub Cards & Feature Workspace Dialog (Đồng Bộ Style Desktop)</title>
+  <style>
+    /*
+      Spine Sections Governed:
+      - DESIGN.md: Colors (Slate Cyber), Icons (Lucide via nuxt-icon), Layout & Spacing (Mobile 360px-412px đồng bộ 100% với Desktop: Danh mục Card Tính Năng Có Ảnh Minh Họa -> Click mở Dialog/Sheet làm việc của chức năng đó)
+      - EXPERIENCE.md: Foundation, Information Architecture (Kho Công Cụ AI / + FeatureWorkspaceDialog), Component Patterns
+    */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #060911;
+      color: #F8FAFC;
+      min-height: 100vh;
+      padding: 28px 16px 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      vertical-align: middle;
+    }
+
+    .page-title-bar {
+      text-align: center;
+      max-width: 880px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .sync-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      align-self: center;
+      font-size: 11px;
+      font-weight: 800;
+      color: #22D3EE;
+      background: rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.35);
+      padding: 4px 12px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Side-by-Side 2 Mobile States Container */
+    .phones-showcase {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 36px;
+      width: 100%;
+      max-width: 920px;
+    }
+    .phone-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .phone-step-label {
+      font-size: 12px;
+      font-weight: 800;
+      color: #C4B5FD;
+      background: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      padding: 5px 14px;
+      border-radius: 999px;
+    }
+
+    .mobile-frame {
+      width: 392px;
+      height: 820px;
+      background: #0F172A;
+      border: 2px solid #334155;
+      border-radius: 40px;
+      overflow: hidden;
+      box-shadow: 0 25px 60px -15px rgba(0,0,0,0.85), 0 0 30px rgba(139, 92, 246, 0.15);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .status-bar {
+      height: 42px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 24px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #94A3B8;
+      flex-shrink: 0;
+    }
+    .dynamic-island {
+      width: 104px;
+      height: 22px;
+      background: #000;
+      border-radius: 20px;
+    }
+
+    /* Unified Top App Header */
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 16px 12px;
+      border-bottom: 1px solid #1E293B;
+      flex-shrink: 0;
+    }
+    .logo {
+      font-size: 17px;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #F8FAFC;
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .credit-pill {
+      background: rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.35);
+      color: #22D3EE;
+      font-size: 12px;
+      font-weight: 800;
+      padding: 5px 10px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .btn-plus-topup {
+      height: 28px;
+      padding: 0 9px;
+      border-radius: 999px;
+      border: none;
+      background: linear-gradient(135deg, #8B5CF6, #06B6D4);
+      color: #FFF;
+      font-size: 11px;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .user-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #1E293B;
+      border: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+      color: #FFF;
+    }
+
+    /* =========================================================================
+       PHONE 1: MOBILE FEATURE CARDS CATALOG (ĐỒNG BỘ VỚI DESKTOP)
+       ========================================================================= */
+    .catalog-scroll {
+      flex: 1;
+      padding: 14px 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      overflow-y: auto;
+    }
+
+    /* Search & Category Pills */
+    .mobile-search {
+      height: 42px;
+      background: #1E293B;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #64748B;
+      flex-shrink: 0;
+    }
+    .cat-strip {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      flex-shrink: 0;
+    }
+    .cat-chip {
+      height: 34px;
+      padding: 0 12px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+      background: #1E293B;
+      border: 1px solid #334155;
+      color: #94A3B8;
+      display: inline-flex;
+      align-items: center;
+    }
+    .cat-chip.active {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.28), rgba(6, 182, 212, 0.14));
+      border-color: #8B5CF6;
+      color: #F8FAFC;
+    }
+
+    /* Mobile Feature Cards List (Visual Before/After Cards) */
+    .mobile-cards-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .m-feature-card {
+      background: #1E293B;
+      border: 1px solid #334155;
+      border-radius: 18px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+    }
+    .m-feature-card.featured {
+      border-color: rgba(139, 92, 246, 0.65);
+      box-shadow: 0 8px 22px -6px rgba(139, 92, 246, 0.28);
+    }
+    .m-card-visual {
+      height: 102px;
+      background: radial-gradient(circle at 75% 30%, #2E1D4A 0%, #0B1120 85%);
+      border-bottom: 1px solid #334155;
+      padding: 10px 12px;
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .m-visual-split {
+      width: 100%;
+      height: 100%;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: linear-gradient(90deg, rgba(15, 23, 42, 0.9) 0%, rgba(15, 23, 42, 0.9) 49.5%, #06B6D4 50%, rgba(139, 92, 246, 0.24) 50.5%, rgba(6, 182, 212, 0.18) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+    }
+    .v-tag-l {
+      font-size: 10px;
+      font-weight: 700;
+      color: #94A3B8;
+      background: rgba(15, 23, 42, 0.85);
+      padding: 3px 7px;
+      border-radius: 5px;
+      border: 1px solid #334155;
+    }
+    .v-tag-r {
+      font-size: 10px;
+      font-weight: 800;
+      color: #22D3EE;
+      background: rgba(15, 23, 42, 0.9);
+      padding: 3px 7px;
+      border-radius: 5px;
+      border: 1px solid rgba(6, 182, 212, 0.45);
+    }
+    .m-card-body {
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+    .m-card-info {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .m-card-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: #F8FAFC;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .m-card-title .icon { color: #8B5CF6; }
+    .m-card-sub {
+      font-size: 11px;
+      color: #94A3B8;
+    }
+    .m-card-action {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .m-rate-pill {
+      font-size: 10px;
+      font-weight: 800;
+      color: #06B6D4;
+      background: rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.35);
+      padding: 2px 7px;
+      border-radius: 999px;
+    }
+    .m-open-btn {
+      font-size: 11px;
+      font-weight: 800;
+      color: #C4B5FD;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    /* Bottom Navigation */
+    .bottom-bar {
+      height: 64px;
+      background: #0F172A;
+      border-top: 1px solid #334155;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding: 0 8px;
+      flex-shrink: 0;
+    }
+    .nav-tab {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748B;
+    }
+    .nav-tab.active {
+      color: #8B5CF6;
+      font-weight: 700;
+    }
+
+    /* =========================================================================
+       PHONE 2: KHI CLICK VÀO CARD -> MỞ CENTERED DIALOG LÀM VIỆC CỦA CHỨC NĂNG ĐÓ
+       ========================================================================= */
+    .mobile-dialog-backdrop {
+      flex: 1;
+      background: rgba(8, 12, 22, 0.82);
+      backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 14px;
+      position: relative;
+    }
+    .mobile-workspace-dialog {
+      width: 100%;
+      background: #1E293B;
+      border: 1.5px solid #475569;
+      border-radius: 22px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85), 0 0 28px rgba(139, 92, 246, 0.2);
+    }
+    .m-dialog-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .m-dialog-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: #F8FAFC;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .m-dialog-sub {
+      font-size: 11px;
+      color: #06B6D4;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+    .btn-close-sm {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: #0F172A;
+      border: 1px solid #334155;
+      color: #94A3B8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Inputs inside Mobile Dialog */
+    .inputs-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .media-box {
+      background: #0F172A;
+      border: 1.5px solid #8B5CF6;
+      border-radius: 14px;
+      height: 108px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      background: radial-gradient(circle at center, #26354D 0%, #0F172A 100%);
+    }
+    .media-box .icon { color: #8B5CF6; }
+    .file-tag {
+      font-size: 10px;
+      font-weight: 700;
+      color: #22D3EE;
+      background: rgba(0,0,0,0.6);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .media-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #94A3B8;
+    }
+
+    /* Video Trimmer */
+    .trimmer-container {
+      background: #0F172A;
+      border: 1px solid #334155;
+      border-radius: 14px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .trimmer-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+    }
+    .meta-cost {
+      font-weight: 800;
+      color: #06B6D4;
+      background: rgba(6, 182, 212, 0.12);
+      padding: 2px 8px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .track-wrapper {
+      height: 44px;
+      background: #1E293B;
+      border-radius: 10px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      border: 1px solid #334155;
+      overflow: hidden;
+    }
+    .trim-selection {
+      position: absolute;
+      left: 15%;
+      width: 60%;
+      height: 100%;
+      border: 2px solid #8B5CF6;
+      background: rgba(139, 92, 246, 0.25);
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 4px;
+    }
+    .handle-bar {
+      width: 6px;
+      height: 22px;
+      background: #FFF;
+      border-radius: 3px;
+    }
+
+    /* ToS & CTA */
+    .tos-container {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 10px;
+      font-size: 11px;
+      line-height: 1.4;
+      color: #94A3B8;
+    }
+    .custom-checkbox {
+      width: 17px;
+      height: 17px;
+      border-radius: 5px;
+      background: #8B5CF6;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #FFF;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .cta-button {
+      width: 100%;
+      min-height: 50px;
+      border-radius: 14px;
+      border: none;
+      background: linear-gradient(135deg, #8B5CF6 0%, #06B6D4 100%);
+      color: #FFFFFF;
+      font-size: 15px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 6px 22px -4px rgba(139, 92, 246, 0.5);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="page-title-bar">
+    <span class="sync-badge">ĐỒNG BỘ 100% VỚI DESKTOP — KHO CARD TÍNH NĂNG &amp; DIALOG LÀM VIỆC</span>
+    <h1 style="font-size: 20px; font-weight: 800;">Giao Diện Mobile (`360px – 412px`) Đồng Bộ Theo Style Desktop</h1>
+    <p style="font-size: 13px; color: #94A3B8;">Màn hình chính hiển thị danh sách <strong>Card Tính Năng Có Ảnh Minh Họa</strong> (có lọc danh mục &amp; tìm kiếm). Khi chạm vào một Card sẽ mở <strong>Dialog làm việc (`FeatureWorkspaceDialog`)</strong> của chức năng đó.</p>
+  </div>
+
+  <div class="phones-showcase">
+
+    <!-- =====================================================================
+         TRẠNG THÁI 1: TRANG CHỦ KHO CÔNG CỤ AI TRÊN MOBILE (LIST CARD)
+         ===================================================================== -->
+    <div class="phone-col">
+      <span class="phone-step-label">1. Màn hình chính (`/`): Danh sách Card Tính Năng</span>
+
+      <div class="mobile-frame">
+        <div class="status-bar">
+          <span>9:41</span>
+          <div class="dynamic-island"></div>
+          <span>5G 100%</span>
+        </div>
+
+        <header class="app-header">
+          <div class="logo">
+            <span class="icon" style="color: #8B5CF6;">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </span>
+            MOTION.AI
+          </div>
+          <div class="header-actions">
+            <div class="credit-pill">
+              <span class="icon">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              </span>
+              250 cr
+            </div>
+            <button class="btn-plus-topup">+ Nạp</button>
+            <div class="user-avatar">M</div>
+          </div>
+        </header>
+
+        <div class="catalog-scroll">
+          <!-- Search Bar -->
+          <div class="mobile-search">
+            <span class="icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            </span>
+            Tìm công cụ AI (Ghép mặt, Nhảy, Chỉnh dáng...)
+          </div>
+
+          <!-- Horizontal Category Filter Strip -->
+          <div class="cat-strip">
+            <span class="cat-chip active">Tất cả (24)</span>
+            <span class="cat-chip">Hot Trend</span>
+            <span class="cat-chip">Khuôn mặt</span>
+            <span class="cat-chip">Vóc dáng</span>
+            <span class="cat-chip">Video AI</span>
+          </div>
+
+          <!-- Visual Feature Cards List -->
+          <div class="mobile-cards-list">
+            <!-- Card 1: Face Swap -->
+            <div class="m-feature-card featured">
+              <div class="m-card-visual">
+                <div class="m-visual-split">
+                  <span class="v-tag-l">Ảnh gốc</span>
+                  <span class="v-tag-r">→ Ghép Mặt AI</span>
+                </div>
+              </div>
+              <div class="m-card-body">
+                <div class="m-card-info">
+                  <div class="m-card-title">
+                    <span class="icon">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01"/><path d="M15 9h.01"/></svg>
+                    </span>
+                    Ghép Mặt 1 Chạm
+                  </div>
+                  <span class="m-card-sub">Đổi khuôn mặt giữ nguyên ánh sáng</span>
+                </div>
+                <div class="m-card-action">
+                  <span class="m-rate-pill">100 cr</span>
+                  <span class="m-open-btn">Mở ngay →</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 2: Body Retouch -->
+            <div class="m-feature-card featured">
+              <div class="m-card-visual">
+                <div class="m-visual-split">
+                  <span class="v-tag-l">Dáng gốc</span>
+                  <span class="v-tag-r">→ Eo Thon AI</span>
+                </div>
+              </div>
+              <div class="m-card-body">
+                <div class="m-card-info">
+                  <div class="m-card-title">
+                    <span class="icon">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                    </span>
+                    Chỉnh Vóc Dáng (Body Retouch)
+                  </div>
+                  <span class="m-card-sub">Thon eo 10 mức độ, không méo nền</span>
+                </div>
+                <div class="m-card-action">
+                  <span class="m-rate-pill">100 cr</span>
+                  <span class="m-open-btn">Mở ngay →</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 3: Motion Control -->
+            <div class="m-feature-card featured">
+              <div class="m-card-visual">
+                <div class="m-visual-split">
+                  <span class="v-tag-l">Ảnh + Clip</span>
+                  <span class="v-tag-r">→ Video Nhảy AI</span>
+                </div>
+              </div>
+              <div class="m-card-body">
+                <div class="m-card-info">
+                  <div class="m-card-title">
+                    <span class="icon">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.2 6 3 11l-.9-2.4c-.4-1.1.2-2.4 1.3-2.8l13.6-4.9c1.1-.4 2.4.2 2.8 1.3Z"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>
+                    </span>
+                    Chuyển Động Theo Video
+                  </div>
+                  <span class="m-card-sub">Nhân vật nhảy theo video mẫu (3–20s)</span>
+                </div>
+                <div class="m-card-action">
+                  <span class="m-rate-pill">50 cr/s</span>
+                  <span class="m-open-btn">Mở ngay →</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Navigation Bar -->
+        <div class="bottom-bar">
+          <div class="nav-tab active">
+            <span class="icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+            </span>
+            <span>Kho AI</span>
+          </div>
+          <div class="nav-tab">
+            <span class="icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+            </span>
+            <span>Lịch sử</span>
+          </div>
+          <div class="nav-tab">
+            <span class="icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+            </span>
+            <span>Bảng giá</span>
+          </div>
+          <div class="nav-tab">
+            <span class="icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </span>
+            <span>Tôi</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =====================================================================
+         TRẠNG THÁI 2: KHI CHẠM VÀO 1 CARD -> MỞ DIALOG LÀM VIỆC CỦA TÍNH NĂNG ĐÓ
+         ===================================================================== -->
+    <div class="phone-col">
+      <span class="phone-step-label">2. Khi bấm vào Card: Mở Dialog Làm Việc (`FeatureWorkspaceDialog`)</span>
+
+      <div class="mobile-frame">
+        <div class="status-bar">
+          <span>9:41</span>
+          <div class="dynamic-island"></div>
+          <span>5G 100%</span>
+        </div>
+
+        <header class="app-header">
+          <div class="logo">
+            <span class="icon" style="color: #8B5CF6;">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </span>
+            MOTION.AI
+          </div>
+          <div class="header-actions">
+            <div class="credit-pill">250 cr</div>
+            <div class="user-avatar">M</div>
+          </div>
+        </header>
+
+        <div class="mobile-dialog-backdrop">
+          <div class="mobile-workspace-dialog" role="dialog" aria-label="Dialog làm việc Chuyển Động Theo Video">
+            <div class="m-dialog-head">
+              <div>
+                <div class="m-dialog-title">
+                  <span class="icon" style="color: #8B5CF6;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.2 6 3 11l-.9-2.4c-.4-1.1.2-2.4 1.3-2.8l13.6-4.9c1.1-.4 2.4.2 2.8 1.3Z"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>
+                  </span>
+                  Chuyển Động Theo Video
+                </div>
+                <div class="m-dialog-sub">Đơn giá: 50 credit / giây • Hoàn 100% nếu lỗi</div>
+              </div>
+              <button class="btn-close-sm" aria-label="Đóng">
+                <span class="icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </span>
+              </button>
+            </div>
+
+            <!-- 2 Media Input Boxes -->
+            <div class="inputs-grid">
+              <div class="media-box">
+                <span class="icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </span>
+                <span class="file-tag">anh_nhanvat.png</span>
+                <span class="media-label">1. Ảnh nhân vật</span>
+              </div>
+              <div class="media-box">
+                <span class="icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2"/></svg>
+                </span>
+                <span class="file-tag">dance_idol.mp4 (15s)</span>
+                <span class="media-label">2. Video mẫu</span>
+              </div>
+            </div>
+
+            <!-- Video Trimmer -->
+            <div class="trimmer-container">
+              <div class="trimmer-meta">
+                <span>Đoạn chọn: <strong>00:03 – 00:09 (6s)</strong></span>
+                <div class="meta-cost">
+                  <span class="icon">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                  </span>
+                  300 credit
+                </div>
+              </div>
+
+              <div class="track-wrapper">
+                <div class="trim-selection">
+                  <div class="handle-bar"></div>
+                  <span style="font-size: 11px; font-weight: 800; color: #FFF;">6 giây (Bước 1s)</span>
+                  <div class="handle-bar"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ToS Checkbox -->
+            <div class="tos-container">
+              <div class="custom-checkbox">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div>
+                Tôi xác nhận người trong ảnh đủ 18 tuổi, sở hữu quyền hình ảnh và đồng ý với <a href="/terms" style="color: #22D3EE;">Điều khoản dịch vụ</a>.
+              </div>
+            </div>
+
+            <!-- CTA Button -->
+            <button class="cta-button">
+              <span class="icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              </span>
+              Tạo Video Chuyển Động (300 cr)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

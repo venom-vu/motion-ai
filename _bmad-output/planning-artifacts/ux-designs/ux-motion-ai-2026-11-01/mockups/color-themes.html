@@ -1,0 +1,2692 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Motion AI — Color Theme Explorations (Sleek Creator Tool + Dark Studio Accent)</title>
+  <style>
+    /* ==========================================================================
+       GLOBAL LAYOUT & SYSTEM RESET
+       ========================================================================== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #06080E;
+      color: #E2E8F0;
+      line-height: 1.5;
+      padding: 24px 16px 60px;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Container for the page */
+    .page-wrapper {
+      max-width: 1720px;
+      margin: 0 auto;
+    }
+
+    /* Top presentation banner */
+    .showcase-header {
+      background: linear-gradient(180deg, #101625 0%, #0A0E17 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 28px 32px;
+      margin-bottom: 28px;
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7);
+    }
+
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: rgba(139, 92, 246, 0.15);
+      color: #C4B5FD;
+      border: 1px solid rgba(139, 92, 246, 0.35);
+      margin-bottom: 12px;
+    }
+
+    .showcase-title {
+      font-size: 28px;
+      font-weight: 800;
+      color: #FFFFFF;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+
+    .showcase-desc {
+      font-size: 15px;
+      color: #94A3B8;
+      max-width: 960px;
+      line-height: 1.6;
+    }
+
+    /* Controller Bar */
+    .controller-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.07);
+    }
+
+    .tabs-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      background: #090C14;
+      padding: 5px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: #94A3B8;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn:hover {
+      color: #FFFFFF;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .tab-btn.active {
+      color: #FFFFFF;
+      background: rgba(255, 255, 255, 0.12);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    .interactive-slider-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #090C14;
+      padding: 8px 16px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 13px;
+    }
+
+    .interactive-slider-box input[type="range"] {
+      width: 120px;
+      accent-color: #8B5CF6;
+      cursor: pointer;
+    }
+
+    /* Responsive Grid for 4 Themes */
+    .themes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(370px, 1fr));
+      gap: 32px;
+      justify-content: center;
+    }
+
+    /* Column Container for each theme */
+    .theme-column {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    .theme-meta-card {
+      background: #0E121D;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 18px 20px;
+    }
+
+    .theme-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .theme-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: #FFFFFF;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .theme-tag {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .theme-tag-1 { background: rgba(139, 92, 246, 0.2); color: #C4B5FD; border: 1px solid rgba(139, 92, 246, 0.4); }
+    .theme-tag-2 { background: rgba(0, 240, 255, 0.2); color: #00F0FF; border: 1px solid rgba(0, 240, 255, 0.4); }
+    .theme-tag-3 { background: rgba(16, 185, 129, 0.2); color: #6EE7B7; border: 1px solid rgba(16, 185, 129, 0.4); }
+    .theme-tag-4 { background: rgba(99, 102, 241, 0.2); color: #A5B4FC; border: 1px solid rgba(99, 102, 241, 0.4); }
+
+    .theme-summary {
+      font-size: 13px;
+      color: #94A3B8;
+      margin-bottom: 14px;
+      line-height: 1.45;
+    }
+
+    /* Color Swatches Grid */
+    .swatches-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+    }
+
+    .swatch-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: #94A3B8;
+      text-align: center;
+    }
+
+    .swatch-color {
+      width: 100%;
+      height: 28px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .swatch-code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 10px;
+      font-weight: 600;
+      color: #CBD5E1;
+    }
+
+    /* ==========================================================================
+       MOBILE DEVICE FRAME (380px wide standard mobile creator viewport)
+       ========================================================================== */
+    .mobile-frame-wrapper {
+      display: flex;
+      justify-content: center;
+    }
+
+    .mobile-device {
+      width: 100%;
+      max-width: 390px;
+      border-radius: 38px;
+      padding: 12px;
+      position: relative;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.85),
+                  0 0 0 1px rgba(255, 255, 255, 0.1);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .device-screen {
+      border-radius: 28px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 740px;
+      position: relative;
+    }
+
+    /* Status Bar */
+    .device-status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px 6px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      user-select: none;
+    }
+
+    .status-left {
+      font-weight: 700;
+    }
+
+    .status-dynamic-island {
+      width: 86px;
+      height: 20px;
+      background: #000000;
+      border-radius: 14px;
+    }
+
+    .status-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* App Header */
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 18px;
+      border-bottom-width: 1px;
+      border-bottom-style: solid;
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-icon {
+      width: 26px;
+      height: 26px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 14px;
+      color: #FFFFFF;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .credit-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 700;
+      border-width: 1px;
+      border-style: solid;
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+
+    .credit-badge:hover {
+      transform: scale(1.03);
+    }
+
+    .credit-add-btn {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 900;
+      margin-left: 2px;
+    }
+
+    .user-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 12px;
+      color: #FFFFFF;
+      border: 1.5px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .user-online-dot {
+      position: absolute;
+      bottom: -1px;
+      right: -1px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10B981;
+      border: 1.5px solid #000;
+    }
+
+    /* Screen Main Content */
+    .screen-content {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      flex: 1;
+    }
+
+    /* Workflow Step Progress Bar */
+    .step-stepper {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 4px 4px;
+    }
+
+    .step-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .step-dot {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .step-divider {
+      flex: 1;
+      height: 2px;
+      margin: 0 8px;
+      border-radius: 1px;
+    }
+
+    /* Feature Card */
+    .feature-card {
+      border-radius: 14px;
+      padding: 12px 14px;
+      border-width: 1px;
+      border-style: solid;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .feature-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .feature-tag-mini {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .feature-title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .feature-pill-ai {
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Video Player & Motion Canvas Mockup */
+    .video-viewport {
+      position: relative;
+      width: 100%;
+      height: 180px;
+      border-radius: 14px;
+      overflow: hidden;
+      border-width: 1px;
+      border-style: solid;
+      background-size: cover;
+      background-position: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 10px;
+    }
+
+    /* Motion mesh visual representation inside video */
+    .motion-overlay {
+      position: absolute;
+      inset: 0;
+      opacity: 0.35;
+      background: radial-gradient(circle at 50% 40%, rgba(255,255,255,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .viewport-top-badge {
+      align-self: flex-start;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      backdrop-filter: blur(8px);
+      background: rgba(0, 0, 0, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #FFFFFF;
+      z-index: 2;
+    }
+
+    .viewport-center-play {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(10px);
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+      transition: transform 0.15s ease;
+      z-index: 2;
+    }
+
+    .viewport-center-play:hover {
+      transform: translate(-50%, -50%) scale(1.08);
+    }
+
+    .viewport-bottom-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 600;
+      backdrop-filter: blur(8px);
+      background: rgba(0, 0, 0, 0.65);
+      padding: 4px 8px;
+      border-radius: 6px;
+      color: #E2E8F0;
+      z-index: 2;
+    }
+
+    /* Dual-handle Video Trimmer Container */
+    .trimmer-container {
+      border-radius: 14px;
+      padding: 12px;
+      border-width: 1px;
+      border-style: solid;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .trimmer-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+
+    .trimmer-title {
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .trimmer-range-chip {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 5px;
+    }
+
+    /* Scrubber Strip with Filmstrip frames */
+    .trimmer-filmstrip {
+      position: relative;
+      height: 46px;
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      border-width: 1px;
+      border-style: solid;
+    }
+
+    .filmstrip-frame {
+      flex: 1;
+      height: 100%;
+      border-right: 1px solid rgba(0, 0, 0, 0.3);
+      background-size: cover;
+      background-position: center;
+      opacity: 0.65;
+    }
+
+    /* Active selection box overlay */
+    .trimmer-selection-window {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 15%;
+      width: 65%; /* Representing 6s out of 9s */
+      border-width: 2px;
+      border-style: solid;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      display: flex;
+      justify-content: space-between;
+      align-items: stretch;
+      pointer-events: none;
+    }
+
+    .trimmer-handle {
+      width: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: ew-resize;
+      pointer-events: auto;
+    }
+
+    .trimmer-handle::after {
+      content: "";
+      width: 3px;
+      height: 14px;
+      border-radius: 2px;
+      background: #FFFFFF;
+    }
+
+    .trimmer-handle-left {
+      margin-left: -2px;
+      border-radius: 4px 0 0 4px;
+    }
+
+    .trimmer-handle-right {
+      margin-right: -2px;
+      border-radius: 0 4px 4px 0;
+    }
+
+    /* Live Cost Calculation Bar */
+    .cost-calc-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      border-width: 1px;
+      border-style: solid;
+    }
+
+    .cost-formula {
+      font-weight: 500;
+    }
+
+    .cost-total-badge {
+      font-weight: 800;
+      font-size: 13px;
+      letter-spacing: -0.01em;
+    }
+
+    /* Smart Context Insufficient Credit Alert */
+    .credit-alert-card {
+      border-radius: 12px;
+      padding: 12px 14px;
+      border-width: 1px;
+      border-style: solid;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      position: relative;
+    }
+
+    .alert-icon-box {
+      font-size: 18px;
+      line-height: 1;
+      padding-top: 1px;
+    }
+
+    .alert-body {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      flex: 1;
+    }
+
+    .alert-headline {
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    .alert-subtext {
+      font-size: 11.5px;
+      line-height: 1.45;
+    }
+
+    .alert-subtext strong {
+      font-weight: 700;
+    }
+
+    /* Action Buttons Area */
+    .action-group {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      margin-top: 4px;
+    }
+
+    .btn-primary {
+      width: 100%;
+      min-height: 50px; /* Meets >= 48px touch target */
+      border: none;
+      border-radius: 12px;
+      font-size: 14.5px;
+      font-weight: 800;
+      color: #FFFFFF;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      letter-spacing: 0.01em;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1.5px);
+    }
+
+    .btn-primary:active {
+      transform: translateY(1px);
+    }
+
+    .btn-secondary {
+      width: 100%;
+      min-height: 44px;
+      background: transparent;
+      border-width: 1px;
+      border-style: solid;
+      border-radius: 12px;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.15s ease;
+    }
+
+    /* Bottom Nav Bar */
+    .device-bottom-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 10px 14px 14px;
+      border-top-width: 1px;
+      border-top-style: solid;
+      margin-top: auto;
+    }
+
+    .nav-tab-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .nav-tab-icon {
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .nav-center-create {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 800;
+      color: #FFFFFF;
+      margin-top: -12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    }
+
+    /* ==========================================================================
+       THEME 1: "SLATE CYBER"
+       Slate Base (#0F172A), Electric Violet (#8B5CF6) + Neon Cyan (#06B6D4)
+       ========================================================================== */
+    .theme-slate-cyber .mobile-device {
+      background: #090E17;
+      border: 1px solid rgba(139, 92, 246, 0.25);
+    }
+
+    .theme-slate-cyber .device-screen {
+      background-color: #0F172A; /* Slate base */
+      color: #F8FAFC;
+    }
+
+    .theme-slate-cyber .device-status-bar {
+      color: #94A3B8;
+    }
+
+    .theme-slate-cyber .app-header {
+      background-color: #0F172A;
+      border-bottom-color: #1E293B;
+    }
+
+    .theme-slate-cyber .brand-icon {
+      background: linear-gradient(135deg, #8B5CF6 0%, #06B6D4 100%);
+      box-shadow: 0 0 12px rgba(139, 92, 246, 0.5);
+    }
+
+    .theme-slate-cyber .brand-logo span {
+      background: linear-gradient(135deg, #FFFFFF 30%, #C4B5FD 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .theme-slate-cyber .credit-badge {
+      background: rgba(6, 182, 212, 0.12);
+      border-color: rgba(6, 182, 212, 0.35);
+      color: #22D3EE;
+    }
+
+    .theme-slate-cyber .credit-add-btn {
+      background: #06B6D4;
+      color: #0F172A;
+    }
+
+    .theme-slate-cyber .user-avatar {
+      background: linear-gradient(135deg, #334155, #1E293B);
+    }
+
+    .theme-slate-cyber .step-dot.done {
+      background: #1E293B;
+      color: #10B981;
+      border: 1px solid #334155;
+    }
+
+    .theme-slate-cyber .step-dot.active {
+      background: #8B5CF6;
+      color: #FFFFFF;
+      box-shadow: 0 0 10px rgba(139, 92, 246, 0.6);
+    }
+
+    .theme-slate-cyber .step-dot.pending {
+      background: #1E293B;
+      color: #64748B;
+    }
+
+    .theme-slate-cyber .step-divider {
+      background: #334155;
+    }
+
+    .theme-slate-cyber .step-item {
+      color: #94A3B8;
+    }
+
+    .theme-slate-cyber .step-item.active {
+      color: #F8FAFC;
+    }
+
+    .theme-slate-cyber .feature-card {
+      background: #1E293B; /* Surface 1 */
+      border-color: #334155;
+    }
+
+    .theme-slate-cyber .feature-tag-mini {
+      color: #06B6D4;
+    }
+
+    .theme-slate-cyber .feature-pill-ai {
+      background: rgba(139, 92, 246, 0.2);
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      color: #C4B5FD;
+    }
+
+    .theme-slate-cyber .video-viewport {
+      background-color: #141E33;
+      border-color: #334155;
+      background-image: radial-gradient(circle at 70% 30%, rgba(6, 182, 212, 0.15), transparent 60%),
+                        linear-gradient(180deg, #1E293B 0%, #0F172A 100%);
+    }
+
+    .theme-slate-cyber .viewport-center-play {
+      background: rgba(139, 92, 246, 0.85);
+      color: #FFFFFF;
+      box-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
+    }
+
+    .theme-slate-cyber .trimmer-container {
+      background: #1E293B;
+      border-color: #334155;
+    }
+
+    .theme-slate-cyber .trimmer-title {
+      color: #F8FAFC;
+    }
+
+    .theme-slate-cyber .trimmer-range-chip {
+      background: #0F172A;
+      color: #22D3EE;
+      border: 1px solid rgba(6, 182, 212, 0.3);
+    }
+
+    .theme-slate-cyber .trimmer-filmstrip {
+      background: #0F172A;
+      border-color: #334155;
+    }
+
+    .theme-slate-cyber .trimmer-selection-window {
+      border-color: #06B6D4;
+      background: rgba(6, 182, 212, 0.15);
+      box-shadow: 0 0 16px rgba(6, 182, 212, 0.25);
+    }
+
+    .theme-slate-cyber .trimmer-handle {
+      background: #06B6D4;
+    }
+
+    .theme-slate-cyber .cost-calc-bar {
+      background: #0F172A;
+      border-color: #334155;
+      color: #94A3B8;
+    }
+
+    .theme-slate-cyber .cost-total-badge {
+      color: #22D3EE;
+    }
+
+    .theme-slate-cyber .credit-alert-card {
+      background: rgba(245, 158, 11, 0.08);
+      border-color: rgba(245, 158, 11, 0.35);
+      color: #F8FAFC;
+    }
+
+    .theme-slate-cyber .alert-headline {
+      color: #FBBF24;
+    }
+
+    .theme-slate-cyber .alert-subtext {
+      color: #CBD5E1;
+    }
+
+    .theme-slate-cyber .alert-subtext strong {
+      color: #22D3EE;
+    }
+
+    .theme-slate-cyber .btn-primary {
+      background: linear-gradient(135deg, #8B5CF6 0%, #06B6D4 100%);
+      box-shadow: 0 4px 20px rgba(139, 92, 246, 0.45), 0 0 10px rgba(6, 182, 212, 0.3);
+    }
+
+    .theme-slate-cyber .btn-primary:hover {
+      box-shadow: 0 6px 26px rgba(139, 92, 246, 0.6), 0 0 15px rgba(6, 182, 212, 0.4);
+    }
+
+    .theme-slate-cyber .btn-secondary {
+      border-color: #334155;
+      color: #94A3B8;
+    }
+
+    .theme-slate-cyber .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.04);
+      color: #F8FAFC;
+    }
+
+    .theme-slate-cyber .device-bottom-nav {
+      background: #0F172A;
+      border-top-color: #1E293B;
+    }
+
+    .theme-slate-cyber .nav-tab-item {
+      color: #64748B;
+    }
+
+    .theme-slate-cyber .nav-tab-item.active {
+      color: #22D3EE;
+    }
+
+    .theme-slate-cyber .nav-center-create {
+      background: linear-gradient(135deg, #8B5CF6, #06B6D4);
+      box-shadow: 0 0 16px rgba(139, 92, 246, 0.5);
+    }
+
+
+    /* ==========================================================================
+       THEME 2: "OBSIDIAN STUDIO"
+       True Charcoal/Obsidian base (#0B0C10), Vivid Purple (#A855F7) + Acid Cyan (#00F0FF)
+       ========================================================================== */
+    .theme-obsidian-studio .mobile-device {
+      background: #050608;
+      border: 1px solid rgba(0, 240, 255, 0.25);
+    }
+
+    .theme-obsidian-studio .device-screen {
+      background-color: #0B0C10; /* True Obsidian base */
+      color: #FFFFFF;
+    }
+
+    .theme-obsidian-studio .device-status-bar {
+      color: #8E95A5;
+    }
+
+    .theme-obsidian-studio .app-header {
+      background-color: #0B0C10;
+      border-bottom-color: #1F232E;
+    }
+
+    .theme-obsidian-studio .brand-icon {
+      background: linear-gradient(135deg, #A855F7 0%, #00F0FF 100%);
+      box-shadow: 0 0 14px rgba(0, 240, 255, 0.6);
+    }
+
+    .theme-obsidian-studio .brand-logo span {
+      background: linear-gradient(135deg, #FFFFFF 20%, #E9D5FF 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .theme-obsidian-studio .credit-badge {
+      background: rgba(0, 240, 255, 0.1);
+      border-color: rgba(0, 240, 255, 0.4);
+      color: #00F0FF;
+    }
+
+    .theme-obsidian-studio .credit-add-btn {
+      background: #00F0FF;
+      color: #0B0C10;
+    }
+
+    .theme-obsidian-studio .user-avatar {
+      background: linear-gradient(135deg, #222634, #16181F);
+    }
+
+    .theme-obsidian-studio .step-dot.done {
+      background: #16181F;
+      color: #00F0FF;
+      border: 1px solid #2A2F40;
+    }
+
+    .theme-obsidian-studio .step-dot.active {
+      background: #A855F7;
+      color: #FFFFFF;
+      box-shadow: 0 0 12px rgba(168, 85, 247, 0.7);
+    }
+
+    .theme-obsidian-studio .step-dot.pending {
+      background: #16181F;
+      color: #555E70;
+    }
+
+    .theme-obsidian-studio .step-divider {
+      background: #222634;
+    }
+
+    .theme-obsidian-studio .step-item {
+      color: #8E95A5;
+    }
+
+    .theme-obsidian-studio .step-item.active {
+      color: #FFFFFF;
+    }
+
+    .theme-obsidian-studio .feature-card {
+      background: #16181F; /* Surface 1 */
+      border-color: #2A2F40;
+    }
+
+    .theme-obsidian-studio .feature-tag-mini {
+      color: #00F0FF;
+    }
+
+    .theme-obsidian-studio .feature-pill-ai {
+      background: rgba(168, 85, 247, 0.2);
+      border: 1px solid rgba(168, 85, 247, 0.45);
+      color: #E9D5FF;
+    }
+
+    .theme-obsidian-studio .video-viewport {
+      background-color: #0E1015;
+      border-color: #2A2F40;
+      background-image: radial-gradient(circle at 60% 40%, rgba(168, 85, 247, 0.18), transparent 65%),
+                        linear-gradient(180deg, #16181F 0%, #0B0C10 100%);
+    }
+
+    .theme-obsidian-studio .viewport-center-play {
+      background: rgba(0, 240, 255, 0.9);
+      color: #0B0C10;
+      box-shadow: 0 0 24px rgba(0, 240, 255, 0.6);
+    }
+
+    .theme-obsidian-studio .trimmer-container {
+      background: #16181F;
+      border-color: #2A2F40;
+    }
+
+    .theme-obsidian-studio .trimmer-title {
+      color: #FFFFFF;
+    }
+
+    .theme-obsidian-studio .trimmer-range-chip {
+      background: #0B0C10;
+      color: #00F0FF;
+      border: 1px solid rgba(0, 240, 255, 0.35);
+    }
+
+    .theme-obsidian-studio .trimmer-filmstrip {
+      background: #0B0C10;
+      border-color: #2A2F40;
+    }
+
+    .theme-obsidian-studio .trimmer-selection-window {
+      border-color: #00F0FF;
+      background: rgba(0, 240, 255, 0.12);
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+    }
+
+    .theme-obsidian-studio .trimmer-handle {
+      background: #00F0FF;
+    }
+
+    .theme-obsidian-studio .cost-calc-bar {
+      background: #0B0C10;
+      border-color: #2A2F40;
+      color: #8E95A5;
+    }
+
+    .theme-obsidian-studio .cost-total-badge {
+      color: #00F0FF;
+    }
+
+    .theme-obsidian-studio .credit-alert-card {
+      background: rgba(255, 176, 32, 0.08);
+      border-color: rgba(255, 176, 32, 0.4);
+      color: #FFFFFF;
+    }
+
+    .theme-obsidian-studio .alert-headline {
+      color: #FFB020;
+    }
+
+    .theme-obsidian-studio .alert-subtext {
+      color: #D1D5DB;
+    }
+
+    .theme-obsidian-studio .alert-subtext strong {
+      color: #00F0FF;
+    }
+
+    .theme-obsidian-studio .btn-primary {
+      background: linear-gradient(135deg, #A855F7 0%, #00F0FF 100%);
+      color: #080A0F;
+      box-shadow: 0 4px 22px rgba(0, 240, 255, 0.45), 0 0 15px rgba(168, 85, 247, 0.3);
+    }
+
+    .theme-obsidian-studio .btn-primary:hover {
+      box-shadow: 0 6px 28px rgba(0, 240, 255, 0.65), 0 0 20px rgba(168, 85, 247, 0.45);
+    }
+
+    .theme-obsidian-studio .btn-secondary {
+      border-color: #2A2F40;
+      color: #8E95A5;
+    }
+
+    .theme-obsidian-studio .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.04);
+      color: #FFFFFF;
+    }
+
+    .theme-obsidian-studio .device-bottom-nav {
+      background: #0B0C10;
+      border-top-color: #1F232E;
+    }
+
+    .theme-obsidian-studio .nav-tab-item {
+      color: #555E70;
+    }
+
+    .theme-obsidian-studio .nav-tab-item.active {
+      color: #00F0FF;
+    }
+
+    .theme-obsidian-studio .nav-center-create {
+      background: linear-gradient(135deg, #A855F7, #00F0FF);
+      color: #0B0C10;
+      box-shadow: 0 0 18px rgba(0, 240, 255, 0.5);
+    }
+
+
+    /* ==========================================================================
+       THEME 3: "CARBON MINIMAL"
+       Pitch Black/Carbon (#121212), Neon Violet (#7C3AED) + Electric Mint/Turquoise (#10B981)
+       ========================================================================== */
+    .theme-carbon-minimal .mobile-device {
+      background: #070707;
+      border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+
+    .theme-carbon-minimal .device-screen {
+      background-color: #121212; /* Carbon / Pitch Black */
+      color: #FAFAFA;
+    }
+
+    .theme-carbon-minimal .device-status-bar {
+      color: #A1A1AA;
+    }
+
+    .theme-carbon-minimal .app-header {
+      background-color: #121212;
+      border-bottom-color: #262626;
+    }
+
+    .theme-carbon-minimal .brand-icon {
+      background: linear-gradient(135deg, #7C3AED 0%, #10B981 100%);
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.45);
+    }
+
+    .theme-carbon-minimal .brand-logo span {
+      background: linear-gradient(135deg, #FFFFFF 30%, #D8B4FE 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .theme-carbon-minimal .credit-badge {
+      background: rgba(16, 185, 129, 0.12);
+      border-color: rgba(16, 185, 129, 0.35);
+      color: #34D399;
+    }
+
+    .theme-carbon-minimal .credit-add-btn {
+      background: #10B981;
+      color: #121212;
+    }
+
+    .theme-carbon-minimal .user-avatar {
+      background: linear-gradient(135deg, #2A2A2A, #1E1E1E);
+    }
+
+    .theme-carbon-minimal .step-dot.done {
+      background: #1E1E1E;
+      color: #10B981;
+      border: 1px solid #383838;
+    }
+
+    .theme-carbon-minimal .step-dot.active {
+      background: #7C3AED;
+      color: #FFFFFF;
+      box-shadow: 0 0 10px rgba(124, 58, 237, 0.6);
+    }
+
+    .theme-carbon-minimal .step-dot.pending {
+      background: #1E1E1E;
+      color: #71717A;
+    }
+
+    .theme-carbon-minimal .step-divider {
+      background: #2E2E2E;
+    }
+
+    .theme-carbon-minimal .step-item {
+      color: #A1A1AA;
+    }
+
+    .theme-carbon-minimal .step-item.active {
+      color: #FAFAFA;
+    }
+
+    .theme-carbon-minimal .feature-card {
+      background: #1E1E1E; /* Surface 1 */
+      border-color: #333333;
+    }
+
+    .theme-carbon-minimal .feature-tag-mini {
+      color: #34D399;
+    }
+
+    .theme-carbon-minimal .feature-pill-ai {
+      background: rgba(124, 58, 237, 0.2);
+      border: 1px solid rgba(124, 58, 237, 0.45);
+      color: #DDD6FE;
+    }
+
+    .theme-carbon-minimal .video-viewport {
+      background-color: #171717;
+      border-color: #333333;
+      background-image: radial-gradient(circle at 75% 25%, rgba(16, 185, 129, 0.15), transparent 60%),
+                        linear-gradient(180deg, #1F1F1F 0%, #121212 100%);
+    }
+
+    .theme-carbon-minimal .viewport-center-play {
+      background: rgba(124, 58, 237, 0.9);
+      color: #FFFFFF;
+      box-shadow: 0 0 18px rgba(124, 58, 237, 0.5);
+    }
+
+    .theme-carbon-minimal .trimmer-container {
+      background: #1E1E1E;
+      border-color: #333333;
+    }
+
+    .theme-carbon-minimal .trimmer-title {
+      color: #FAFAFA;
+    }
+
+    .theme-carbon-minimal .trimmer-range-chip {
+      background: #121212;
+      color: #34D399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .theme-carbon-minimal .trimmer-filmstrip {
+      background: #121212;
+      border-color: #333333;
+    }
+
+    .theme-carbon-minimal .trimmer-selection-window {
+      border-color: #10B981;
+      background: rgba(16, 185, 129, 0.14);
+      box-shadow: 0 0 16px rgba(16, 185, 129, 0.25);
+    }
+
+    .theme-carbon-minimal .trimmer-handle {
+      background: #10B981;
+    }
+
+    .theme-carbon-minimal .cost-calc-bar {
+      background: #121212;
+      border-color: #333333;
+      color: #A1A1AA;
+    }
+
+    .theme-carbon-minimal .cost-total-badge {
+      color: #34D399;
+    }
+
+    .theme-carbon-minimal .credit-alert-card {
+      background: rgba(245, 158, 11, 0.08);
+      border-color: rgba(245, 158, 11, 0.35);
+      color: #FAFAFA;
+    }
+
+    .theme-carbon-minimal .alert-headline {
+      color: #FBBF24;
+    }
+
+    .theme-carbon-minimal .alert-subtext {
+      color: #D4D4D8;
+    }
+
+    .theme-carbon-minimal .alert-subtext strong {
+      color: #34D399;
+    }
+
+    .theme-carbon-minimal .btn-primary {
+      background: linear-gradient(135deg, #7C3AED 0%, #10B981 100%);
+      box-shadow: 0 4px 20px rgba(124, 58, 237, 0.4), 0 0 12px rgba(16, 185, 129, 0.3);
+    }
+
+    .theme-carbon-minimal .btn-primary:hover {
+      box-shadow: 0 6px 26px rgba(124, 58, 237, 0.55), 0 0 18px rgba(16, 185, 129, 0.4);
+    }
+
+    .theme-carbon-minimal .btn-secondary {
+      border-color: #383838;
+      color: #A1A1AA;
+    }
+
+    .theme-carbon-minimal .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.04);
+      color: #FAFAFA;
+    }
+
+    .theme-carbon-minimal .device-bottom-nav {
+      background: #121212;
+      border-top-color: #262626;
+    }
+
+    .theme-carbon-minimal .nav-tab-item {
+      color: #71717A;
+    }
+
+    .theme-carbon-minimal .nav-tab-item.active {
+      color: #34D399;
+    }
+
+    .theme-carbon-minimal .nav-center-create {
+      background: linear-gradient(135deg, #7C3AED, #10B981);
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.4);
+    }
+
+
+    /* ==========================================================================
+       THEME 4: "MIDNIGHT PRO"
+       Deep Midnight Navy (#080D1A), High-voltage Indigo (#6366F1) + Sky Cyan (#38BDF8)
+       ========================================================================== */
+    .theme-midnight-pro .mobile-device {
+      background: #040710;
+      border: 1px solid rgba(99, 102, 241, 0.25);
+    }
+
+    .theme-midnight-pro .device-screen {
+      background-color: #080D1A; /* Deep Midnight Navy */
+      color: #F9FAFB;
+    }
+
+    .theme-midnight-pro .device-status-bar {
+      color: #9CA3AF;
+    }
+
+    .theme-midnight-pro .app-header {
+      background-color: #080D1A;
+      border-bottom-color: #172236;
+    }
+
+    .theme-midnight-pro .brand-icon {
+      background: linear-gradient(135deg, #6366F1 0%, #38BDF8 100%);
+      box-shadow: 0 0 12px rgba(99, 102, 241, 0.5);
+    }
+
+    .theme-midnight-pro .brand-logo span {
+      background: linear-gradient(135deg, #FFFFFF 20%, #C7D2FE 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .theme-midnight-pro .credit-badge {
+      background: rgba(56, 189, 248, 0.12);
+      border-color: rgba(56, 189, 248, 0.35);
+      color: #38BDF8;
+    }
+
+    .theme-midnight-pro .credit-add-btn {
+      background: #38BDF8;
+      color: #080D1A;
+    }
+
+    .theme-midnight-pro .user-avatar {
+      background: linear-gradient(135deg, #1E293B, #111827);
+    }
+
+    .theme-midnight-pro .step-dot.done {
+      background: #111827;
+      color: #38BDF8;
+      border: 1px solid #2B384E;
+    }
+
+    .theme-midnight-pro .step-dot.active {
+      background: #6366F1;
+      color: #FFFFFF;
+      box-shadow: 0 0 12px rgba(99, 102, 241, 0.65);
+    }
+
+    .theme-midnight-pro .step-dot.pending {
+      background: #111827;
+      color: #6B7280;
+    }
+
+    .theme-midnight-pro .step-divider {
+      background: #1F2C42;
+    }
+
+    .theme-midnight-pro .step-item {
+      color: #9CA3AF;
+    }
+
+    .theme-midnight-pro .step-item.active {
+      color: #F9FAFB;
+    }
+
+    .theme-midnight-pro .feature-card {
+      background: #111827; /* Surface 1 */
+      border-color: #243044;
+    }
+
+    .theme-midnight-pro .feature-tag-mini {
+      color: #38BDF8;
+    }
+
+    .theme-midnight-pro .feature-pill-ai {
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(99, 102, 241, 0.45);
+      color: #C7D2FE;
+    }
+
+    .theme-midnight-pro .video-viewport {
+      background-color: #0C1324;
+      border-color: #243044;
+      background-image: radial-gradient(circle at 65% 35%, rgba(99, 102, 241, 0.18), transparent 65%),
+                        linear-gradient(180deg, #111827 0%, #080D1A 100%);
+    }
+
+    .theme-midnight-pro .viewport-center-play {
+      background: rgba(99, 102, 241, 0.9);
+      color: #FFFFFF;
+      box-shadow: 0 0 20px rgba(99, 102, 241, 0.55);
+    }
+
+    .theme-midnight-pro .trimmer-container {
+      background: #111827;
+      border-color: #243044;
+    }
+
+    .theme-midnight-pro .trimmer-title {
+      color: #F9FAFB;
+    }
+
+    .theme-midnight-pro .trimmer-range-chip {
+      background: #080D1A;
+      color: #38BDF8;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+
+    .theme-midnight-pro .trimmer-filmstrip {
+      background: #080D1A;
+      border-color: #243044;
+    }
+
+    .theme-midnight-pro .trimmer-selection-window {
+      border-color: #38BDF8;
+      background: rgba(56, 189, 248, 0.15);
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.28);
+    }
+
+    .theme-midnight-pro .trimmer-handle {
+      background: #38BDF8;
+    }
+
+    .theme-midnight-pro .cost-calc-bar {
+      background: #080D1A;
+      border-color: #243044;
+      color: #9CA3AF;
+    }
+
+    .theme-midnight-pro .cost-total-badge {
+      color: #38BDF8;
+    }
+
+    .theme-midnight-pro .credit-alert-card {
+      background: rgba(251, 191, 36, 0.08);
+      border-color: rgba(251, 191, 36, 0.35);
+      color: #F9FAFB;
+    }
+
+    .theme-midnight-pro .alert-headline {
+      color: #FBBF24;
+    }
+
+    .theme-midnight-pro .alert-subtext {
+      color: #D1D5DB;
+    }
+
+    .theme-midnight-pro .alert-subtext strong {
+      color: #38BDF8;
+    }
+
+    .theme-midnight-pro .btn-primary {
+      background: linear-gradient(135deg, #6366F1 0%, #38BDF8 100%);
+      box-shadow: 0 4px 22px rgba(99, 102, 241, 0.45), 0 0 12px rgba(56, 189, 248, 0.3);
+    }
+
+    .theme-midnight-pro .btn-primary:hover {
+      box-shadow: 0 6px 28px rgba(99, 102, 241, 0.6), 0 0 18px rgba(56, 189, 248, 0.45);
+    }
+
+    .theme-midnight-pro .btn-secondary {
+      border-color: #243044;
+      color: #9CA3AF;
+    }
+
+    .theme-midnight-pro .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.04);
+      color: #F9FAFB;
+    }
+
+    .theme-midnight-pro .device-bottom-nav {
+      background: #080D1A;
+      border-top-color: #172236;
+    }
+
+    .theme-midnight-pro .nav-tab-item {
+      color: #6B7280;
+    }
+
+    .theme-midnight-pro .nav-tab-item.active {
+      color: #38BDF8;
+    }
+
+    .theme-midnight-pro .nav-center-create {
+      background: linear-gradient(135deg, #6366F1, #38BDF8);
+      box-shadow: 0 0 16px rgba(99, 102, 241, 0.5);
+    }
+
+    /* ==========================================================================
+       TOAST NOTIFICATION (Interactive Feedback)
+       ========================================================================== */
+    .toast-notification {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #111827;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #FFFFFF;
+      padding: 14px 20px;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 1000;
+      opacity: 0;
+      transform: translateY(20px);
+      pointer-events: none;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .toast-notification.show {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+  </style>
+</head>
+<body>
+
+<div class="page-wrapper">
+
+  <!-- ==========================================================================
+       SHOWCASE HEADER
+       ========================================================================== -->
+  <header class="showcase-header">
+    <div class="badge-pill">UX Design System • Step 2 Visual Artifact</div>
+    <h1 class="showcase-title">Motion AI — Color Palette & Theme Explorations</h1>
+    <p class="showcase-desc">
+      Hướng thiết kế: <strong>Sleek Creator Tool + Dark Studio Accent (Hybrid)</strong>.
+      Nền Dark Slate / Charcoal / Obsidian giúp nổi bật video preview và giảm mỏi mắt cho creator làm việc nhiều giờ.
+      Các điểm nhấn AI Accents kết hợp giữa Electric Violet (AI Creative) và Neon Cyan / Mint (Technology & Precision) để kích thích hành động tạo video và nạp credit.
+    </p>
+
+    <div class="controller-bar">
+      <!-- Tabs to switch theme focus -->
+      <div class="tabs-group" id="themeTabs">
+        <button class="tab-btn active" onclick="switchView('all')">✨ So sánh cả 4 Themes (Side-by-side)</button>
+        <button class="tab-btn" onclick="switchView('slate-cyber')">1. Slate Cyber</button>
+        <button class="tab-btn" onclick="switchView('obsidian-studio')">2. Obsidian Studio</button>
+        <button class="tab-btn" onclick="switchView('carbon-minimal')">3. Carbon Minimal</button>
+        <button class="tab-btn" onclick="switchView('midnight-pro')">4. Midnight Pro</button>
+      </div>
+
+      <!-- Live Interactive Trimmer Simulation -->
+      <div class="interactive-slider-box">
+        <label for="durationRange"><strong>Mô phỏng độ dài cắt:</strong></label>
+        <input type="range" id="durationRange" min="3" max="10" value="6" step="1" oninput="updateTrimDuration(this.value)">
+        <span id="sliderValueText" style="font-weight: 700; color: #38BDF8; font-family: monospace;">6 giây (300 cr)</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==========================================================================
+       THEMES GRID CONTAINER
+       ========================================================================== -->
+  <main class="themes-grid" id="themesGrid">
+
+    <!-- ----------------------------------------------------------------------
+         THEME 1: SLATE CYBER
+         ---------------------------------------------------------------------- -->
+    <section class="theme-column theme-slate-cyber" id="col-slate-cyber">
+      
+      <!-- Metadata & Palette Swatches -->
+      <div class="theme-meta-card">
+        <div class="theme-header-row">
+          <div class="theme-name">
+            <span>1. Slate Cyber</span>
+          </div>
+          <span class="theme-tag theme-tag-1">Modern Creator</span>
+        </div>
+        <p class="theme-summary">
+          Tone xanh Slate cân bằng, tạo cảm giác chuyên nghiệp giống Linear / Supabase. Tương phản sắc nét với Electric Violet và Neon Cyan.
+        </p>
+        <div class="swatches-grid">
+          <div class="swatch-item">
+            <div class="swatch-color" style="background: #0F172A;"></div>
+            <span>Base</span>
+            <span class="swatch-code">#0F172A</span>
+          </div>
+          <div class="swatch-item">
+            <div class="swatch-color" style="background: #1E293B;"></div>
+            <span>Surface</span>
+            <span class="swatch-code">#1E293B</span>
+          </div>
+          <div class="swatch-item">
+            <div class="swatch-color" style="background: #8B5CF6;"></div>
+            <span>Violet</span>
+            <span class="swatch-code">#8B5CF6</span>
+          </div>
+          <div class="swatch-item">
+            <div class="swatch-color" style="background: #06B6D4;"></div>
+            <span>Cyan</span>
+            <span class="swatch-code">#06B6D4</span>
+          </div>
+          <div class="swatch-item">
+            <div class="swatch-color" style="background: #334155;"></div>
+            <span>Border</span>
+            <span class="swatch-code">#334155</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile Device Frame -->
+      <div class="mobile-frame-wrapper">
+        <div class="mobile-device">
+          <div class="device-screen">
+            
+            <!-- Status Bar -->
+            <div class="device-status-bar">
+              <span class="status-left">9:41</span>
+              <div class="status-dynamic-island"></div>
+              <div class="status-right">
+                <svg width="14" height="10" viewBox="0 0 14 10" fill="currentColor">
+                  <path d="M1 9h2V5H1v4zm4 0h2V3H5v6zm4 0h2V1H9v8zm4 0h2V0h-2v9z"/>
+                </svg>
+                <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="0.75" y="0.75" width="12" height="9.5" rx="2.25"/>
+                  <path d="M14.5 4v3" stroke-linecap="round"/>
+                </svg>
+              </div>
+            </div>
+
+            <!-- Motion AI Header -->
+            <header class="app-header">
+              <div class="brand-logo">
+                <div class="brand-icon">M</div>
+                <span>Motion AI</span>
+              </div>
+              <div class="header-actions">
+                <div class="credit-badge" onclick="triggerToast('Mở nạp credit nhanh...')">
+                  <span>🪙 250 cr</span>
+                  <div class="credit-add-btn">+</div>
+                </div>
+                <div class="user-avatar">
+                  <span>HQ</span>
+                  <div class="user-online-dot"></div>
+                </div>
+              </div>
+            </header>
+
+            <!-- Screen Content -->
+            <div class="screen-content">
+              
+              <!-- Step Progress Indicator -->
+              <div class="step-stepper">
+                <div class="step-item">
+                  <div class="step-dot done">✓</div>
+                  <span>Chọn video</span>
+                </div>
+                <div class="step-divider"></div>
+                <div class="step-item active">
+                  <div class="step-dot active">2</div>
+                  <span>Cắt & Cấu hình</span>
+                </div>
+                <div class="step-divider"></div>
+                <div class="step-item">
+                  <div class="step-dot pending">3</div>
+                  <span>Tạo video</span>
+                </div>
+              </div>
+
+              <!-- Feature Card -->
+              <div class="feature-card">
+                <div class="feature-info">
+                  <span class="feature-tag-mini">Tính năng chính</span>
+                  <h2 class="feature-title">Tạo Video Chuyển Động (Motion Control)</h2>
+                </div>
+                <div class="feature-pill-ai">
+                  <span>✨ AI v2</span>
+                </div>
+              </div>
+
+              <!-- Video Trimmer Preview Window -->
+              <div class="video-viewport">
+                <div class="motion-overlay"></div>
+                <div class="viewport-top-badge">
+                  <span>🔴 Preview pose track</span>
+                </div>
+                
+                <!-- Play button -->
+                <div class="viewport-center-play" onclick="triggerToast('Phát preview video...')">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                  </svg>
+                </div>
+
+                <div class="viewport-bottom-controls">
+                  <span class="preview-timestamp">00:02.4 / 00:06.0</span>
+                  <span>1080 × 1920 • 30fps</span>
+                </div>
+              </div>
+
+              <!-- Video Trimmer Dual-Handle Bar -->
+              <div class="trimmer-container">
+                <div class="trimmer-header-row">
+                  <span class="trimmer-title">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>
+                      <line x1="20" y1="4" x2="8.12" y2="15.88"/>
+                      <line x1="14.47" y1="14.48" x2="20" y2="20"/>
+                      <line x1="8.12" y1="8.12" x2="12" y2="12"/>
+                    </svg>
+                    Đoạn cắt đã chọn
+                  </span>
+                  <span class="trimmer-range-chip range-chip-text">00:01.0 - 00:07.0 (6.0s)</span>
+                </div>
+
+                <!-- Filmstrip scrubber -->
+                <div class="trimmer-filmstrip">
+                  <div class="filmstrip-frame" style="background-color: #1a2234;"></div>
+                  <div class="filmstrip-frame" style="background-color: #232d45;"></div>
+                  <div class="filmstrip-frame" style="background-color: #2a3754;"></div>
+                  <div class="filmstrip-frame" style="background-color: #232d45;"></div>
+                  <div class="filmstrip-frame" style="background-color: #1a2234;"></div>
+                  <div class="filmstrip-frame" style="background-color: #161c2c;"></div>
+
+                  <!-- Active selected range window with dual handles -->
+                  <div class="trimmer-selection-window dynamic-selection-window">
+                    <div class="trimmer-handle trimmer-handle-left"></div>
+                    <div class="trimmer-handle trimmer-handle-right"></div>
+                  </div>
+                </div>
+
+                <!-- Live Cost Calculation Bar -->
+                <div class="cost-calc-bar">
+                  <span class="cost-formula formula-calc-text">6s × 50 cr/s</span>
+                  <span class="cost-total-badge cost-total-text">Chi phí: 300 credit</span>
+                </div>
+              </div>
+
+              <!-- Smart Context Alert (Insufficient Credit) -->
+              <div class="credit-alert-card dynamic-alert-card">
+                <div class="alert-icon-box">⚠️</div>
+                <div class="alert-body">
+                  <div class="alert-headline dynamic-alert-headline">Bạn có 250 credit (thiếu 50 credit)</div>
+                  <div class="alert-subtext">
+                    Nạp nhanh gói <strong>Starter 49k (5.000 cr)</strong> để render ngay không gián đoạn!
+                  </div>
+                </div>
+              </div>
+
+              <!-- Primary & Secondary Buttons -->
+              <div class="action-group">
+                <button class="btn-primary" onclick="triggerToast('Mở thanh toán gói Starter 49.000đ...')">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                  </svg>
+                  <span>Nạp & Tạo Video (49k)</span>
+                </button>
+
+                <button class="btn-secondary" onclick="triggerToast('Đã lưu bản nháp')">
+                  <span>Lưu bản nháp & Hủy</span>
+                </button>
+              </div>
+
+            </div>
+
+            <!-- Bottom Navigation -->
+            <nav class="device-bottom-nav">
+              <div class="nav-tab-item">
+                <div class="nav-tab-icon">🏠</div>
+                <span>Trang chủ</span>
+              </div>
+              <div class="nav-tab-item active">
+                <div class="nav-tab-icon">✨</div>
+                <span>Studio</span>
+              </div>
+              <div class="nav-center-create">+</div>
+              <div class="nav-tab-item">
+                <div class="nav-tab-icon">📁</div>
+                <span>Dự án</span>
+              </div>
+              <div class="nav-tab-item">
+                <div class="nav-tab-icon">👤</div>
+                <span>Tài khoản</span>
+              </div>
+            </nav>
+
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ----------------------------------------------------------------------
+         THEME 2: OBSIDIAN STUDIO
+         ---------------------------------------------------------------------- -->
+    <section class="theme-column theme-obsidian-studio" id="col-obsidian-studio">
+      
+      <!-- Metadata & Palette Swatches -->
+      <div class="theme-meta-card">
+        <div class="theme-header-row">
+          <div class="theme-name">
+            <span>2. Obsidian Studio</span>
+          </div>
+          <span class="theme-tag theme-tag-2">High Contrast</span>
+        </div>
+        <p class="theme-summary">
+          Tone đen than Obsidian chuyên dụng cho video editing suite. Điểm nhấn Vivid Purple & Acid Cyan cực kỳ nổi bật trên nền siêu tối.
+        </p>
+        <div class="swatches-grid">
+          <div class="swatch-item">
+            <div class="swatch-color" style="background: #0B0C10;"></div>
+            <span>Base</span>
+            <span class="swatch-code">#0B0C10</span>
+          </div>
+          <div class="swatch-item">
+            <div class="swatch-color" style="background: #16181F;"></div>
+            <span>Surface</span>
+            <span class="swatch-code">#16181F</span>
+          </div>
+          <div class="swatch-item">
+            <div class="swatch-color" style="background: #A855F7;"></div>
+            <span>Purple</span>
+            <span class="swatch-code">#A855F7</span>
+          </div>
+          <div class="swatch-item">
+            <div class="swatch-color" style="background: #00F0FF;"></div>
+            <span>Acid Cyan</span>
+            <span class="swatch-code">#00F0FF</span>
+          </div>
+          <div class="swatch-item">
+            <div class="swatch-color" style="background: #2A2F40;"></div>
+            <span>Border</span>
+            <span class="swatch-code">#2A2F40</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile Device Frame -->
+      <div class="mobile-frame-wrapper">
+        <div class="mobile-device">
+          <div class="device-screen">
+            
+            <!-- Status Bar -->
+            <div class="device-status-bar">
+              <span class="status-left">9:41</span>
+              <div class="status-dynamic-island"></div>
+              <div class="status-right">
+                <svg width="14" height="10" viewBox="0 0 14 10" fill="currentColor">
+                  <path d="M1 9h2V5H1v4zm4 0h2V3H5v6zm4 0h2V1H9v8zm4 0h2V0h-2v9z"/>
+                </svg>
+                <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="0.75" y="0.75" width="12" height="9.5" rx="2.25"/>
+                  <path d="M14.5 4v3" stroke-linecap="round"/>
+                </svg>
+              </div>
+            </div>
+
+            <!-- Motion AI Header -->
+            <header class="app-header">
+              <div class="brand-logo">
+                <div class="brand-icon">M</div>
+                <span>Motion AI</span>
+              </div>
+              <div class="header-actions">
+                <div class="credit-badge" onclick="triggerToast('Mở nạp credit nhanh...')">
+                  <span>⚡ 250 cr</span>
+                  <div class="credit-add-btn">+</div>
+                </div>
+                <div class="user-avatar">
+                  <span>HQ</span>
+                  <div class="user-online-dot"></div>
+                </div>
+              </div>
+            </header>
+
+            <!-- Screen Content -->
+            <div class="screen-content">
+              
+              <!-- Step Progress Indicator -->
+              <div class="step-stepper">
+                <div class="step-item">
+                  <div class="step-dot done">✓</div>
+                  <span>Chọn video</span>
+                </div>
+                <div class="step-divider"></div>
+                <div class="step-item active">
+                  <div class="step-dot active">2</div>
+                  <span>Cắt & Cấu hình</span>
+                </div>
+                <div class="step-divider"></div>
+                <div class="step-item">
+                  <div class="step-dot pending">3</div>
+                  <span>Tạo video</span>
+                </div>
+              </div>
+
+              <!-- Feature Card -->
+              <div class="feature-card">
+                <div class="feature-info">
+                  <span class="feature-tag-mini">Studio Engine</span>
+                  <h2 class="feature-title">Tạo Video Chuyển Động (Motion Control)</h2>
+                </div>
+                <div class="feature-pill-ai">
+                  <span>⚡ PRO v2</span>
+                </div>
+              </div>
+
+              <!-- Video Trimmer Preview Window -->
+              <div class="video-viewport">
+                <div class="motion-overlay"></div>
+                <div class="viewport-top-badge">
+                  <span>🔮 Neural Pose Mesh</span>
+                </div>
+                
+                <!-- Play button -->
+                <div class="viewport-center-play" onclick="triggerToast('Phát preview video...')">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                  </svg>
+                </div>
+
+                <div class="viewport-bottom-controls">
+                  <span class="preview-timestamp">00:02.4 / 00:06.0</span>
+                  <span>4K 60fps ready</span>
+                </div>
+              </div>
+
+              <!-- Video Trimmer Dual-Handle Bar -->
+              <div class="trimmer-container">
+                <div class="trimmer-header-row">
+                  <span class="trimmer-title">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>
+                      <line x1="20" y1="4" x2="8.12" y2="15.88"/>
+                      <line x1="14.47" y1="14.48" x2="20" y2="20"/>
+                      <line x1="8.12" y1="8.12" x2="12" y2="12"/>
+                    </svg>
+                    Đoạn cắt đã chọn
+                  </span>
+                  <span class="trimmer-range-chip range-chip-text">00:01.0 - 00:07.0 (6.0s)</span>
+                </div>
+
+                <!-- Filmstrip scrubber -->
+                <div class="trimmer-filmstrip">
+                  <div class="filmstrip-frame" style="background-color: #12141c;"></div>
+                  <div class="filmstrip-frame" style="background-color: #1c202d;"></div>
+                  <div class="filmstrip-frame" style="background-color: #242a3c;"></div>
+                  <div class="filmstrip-frame" style="background-color: #1c202d;"></div>
+                  <div class="filmstrip-frame" style="background-color: #12141c;"></div>
+                  <div class="filmstrip-frame" style="background-color: #0c0e14;"></div>
+
+                  <!-- Active selected range window with dual handles -->
+                  <div class="trimmer-selection-window dynamic-selection-window">
+                    <div class="trimmer-handle trimmer-handle-left"></div>
+                    <div class="trimmer-handle trimmer-handle-right"></div>
+                  </div>
+                </div>
+
+                <!-- Live Cost Calculation Bar -->
+                <div class="cost-calc-bar">
+                  <span class="cost-formula formula-calc-text">6s × 50 cr/s</span>
+                  <span class="cost-total-badge cost-total-text">Chi phí: 300 credit</span>
+                </div>
+              </div>
+
+              <!-- Smart Context Alert (Insufficient Credit) -->
+              <div class="credit-alert-card dynamic-alert-card">
+                <div class="alert-icon-box">⚠️</div>
+                <div class="alert-body">
+                  <div class="alert-headline dynamic-alert-headline">Bạn có 250 credit (thiếu 50 credit)</div>
+                  <div class="alert-subtext">
+                    Nạp nhanh gói <strong>Starter 49k (5.000 cr)</strong> để render ngay không gián đoạn!
+                  </div>
+                </div>
+              </div>
+
+              <!-- Primary & Secondary Buttons -->
+              <div class="action-group">
+                <button class="btn-primary" onclick="triggerToast('Mở thanh toán gói Starter 49.000đ...')">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                  </svg>
+                  <span>Nạp & Tạo Video (49k)</span>
+                </button>
+
+                <button class="btn-secondary" onclick="triggerToast('Đã lưu bản nháp')">
+                  <span>Lưu bản nháp & Hủy</span>
+                </button>
+              </div>
+
+            </div>
+
+            <!-- Bottom Navigation -->
+            <nav class="device-bottom-nav">
+              <div class="nav-tab-item">
+                <div class="nav-tab-icon">🏠</div>
+                <span>Trang chủ</span>
+              </div>
+              <div class="nav-tab-item active">
+                <div class="nav-tab-icon">✨</div>
+                <span>Studio</span>
+              </div>
+              <div class="nav-center-create">+</div>
+              <div class="nav-tab-item">
+                <div class="nav-tab-icon">📁</div>
+                <span>Dự án</span>
+              </div>
+              <div class="nav-tab-item">
+                <div class="nav-tab-icon">👤</div>
+                <span>Tài khoản</span>
+              </div>
+            </nav>
+
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ----------------------------------------------------------------------
+         THEME 3: CARBON MINIMAL
+         ---------------------------------------------------------------------- -->
+    <section class="theme-column theme-carbon-minimal" id="col-carbon-minimal">
+      
+      <!-- Metadata & Palette Swatches -->
+      <div class="theme-meta-card">
+        <div class="theme-header-row">
+          <div class="theme-name">
+            <span>3. Carbon Minimal</span>
+          </div>
+          <span class="theme-tag theme-tag-3">Pure OLED</span>
+        </div>
+        <p class="theme-summary">
+          Tone đen tuyền Pitch Black / Carbon (#121212). Kết hợp Neon Deep Violet cùng Electric Mint tươi mát, tối ưu pin màn hình OLED.
+        </p>
+        <div class="swatches-grid">
+          <div class="swatch-item">
+            <div class="swatch-color" style="background: #121212;"></div>
+            <span>Base</span>
+            <span class="swatch-code">#121212</span>
+          </div>
+          <div class="swatch-item">
+            <div class="swatch-color" style="background: #1E1E1E;"></div>
+            <span>Surface</span>
+            <span class="swatch-code">#1E1E1E</span>
+          </div>
+          <div class="swatch-item">
+            <div class="swatch-color" style="background: #7C3AED;"></div>
+            <span>Violet</span>
+            <span class="swatch-code">#7C3AED</span>
+          </div>
+          <div class="swatch-item">
+            <div class="swatch-color" style="background: #10B981;"></div>
+            <span>Mint</span>
+            <span class="swatch-code">#10B981</span>
+          </div>
+          <div class="swatch-item">
+            <div class="swatch-color" style="background: #333333;"></div>
+            <span>Border</span>
+            <span class="swatch-code">#333333</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile Device Frame -->
+      <div class="mobile-frame-wrapper">
+        <div class="mobile-device">
+          <div class="device-screen">
+            
+            <!-- Status Bar -->
+            <div class="device-status-bar">
+              <span class="status-left">9:41</span>
+              <div class="status-dynamic-island"></div>
+              <div class="status-right">
+                <svg width="14" height="10" viewBox="0 0 14 10" fill="currentColor">
+                  <path d="M1 9h2V5H1v4zm4 0h2V3H5v6zm4 0h2V1H9v8zm4 0h2V0h-2v9z"/>
+                </svg>
+                <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="0.75" y="0.75" width="12" height="9.5" rx="2.25"/>
+                  <path d="M14.5 4v3" stroke-linecap="round"/>
+                </svg>
+              </div>
+            </div>
+
+            <!-- Motion AI Header -->
+            <header class="app-header">
+              <div class="brand-logo">
+                <div class="brand-icon">M</div>
+                <span>Motion AI</span>
+              </div>
+              <div class="header-actions">
+                <div class="credit-badge" onclick="triggerToast('Mở nạp credit nhanh...')">
+                  <span>⚡ 250 cr</span>
+                  <div class="credit-add-btn">+</div>
+                </div>
+                <div class="user-avatar">
+                  <span>HQ</span>
+                  <div class="user-online-dot"></div>
+                </div>
+              </div>
+            </header>
+
+            <!-- Screen Content -->
+            <div class="screen-content">
+              
+              <!-- Step Progress Indicator -->
+              <div class="step-stepper">
+                <div class="step-item">
+                  <div class="step-dot done">✓</div>
+                  <span>Chọn video</span>
+                </div>
+                <div class="step-divider"></div>
+                <div class="step-item active">
+                  <div class="step-dot active">2</div>
+                  <span>Cắt & Cấu hình</span>
+                </div>
+                <div class="step-divider"></div>
+                <div class="step-item">
+                  <div class="step-dot pending">3</div>
+                  <span>Tạo video</span>
+                </div>
+              </div>
+
+              <!-- Feature Card -->
+              <div class="feature-card">
+                <div class="feature-info">
+                  <span class="feature-tag-mini">OLED Edition</span>
+                  <h2 class="feature-title">Tạo Video Chuyển Động (Motion Control)</h2>
+                </div>
+                <div class="feature-pill-ai">
+                  <span>🌿 FAST v2</span>
+                </div>
+              </div>
+
+              <!-- Video Trimmer Preview Window -->
+              <div class="video-viewport">
+                <div class="motion-overlay"></div>
+                <div class="viewport-top-badge">
+                  <span>🟢 Active Keyframing</span>
+                </div>
+                
+                <!-- Play button -->
+                <div class="viewport-center-play" onclick="triggerToast('Phát preview video...')">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                  </svg>
+                </div>
+
+                <div class="viewport-bottom-controls">
+                  <span class="preview-timestamp">00:02.4 / 00:06.0</span>
+                  <span>1080p • 60fps</span>
+                </div>
+              </div>
+
+              <!-- Video Trimmer Dual-Handle Bar -->
+              <div class="trimmer-container">
+                <div class="trimmer-header-row">
+                  <span class="trimmer-title">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>
+                      <line x1="20" y1="4" x2="8.12" y2="15.88"/>
+                      <line x1="14.47" y1="14.48" x2="20" y2="20"/>
+                      <line x1="8.12" y1="8.12" x2="12" y2="12"/>
+                    </svg>
+                    Đoạn cắt đã chọn
+                  </span>
+                  <span class="trimmer-range-chip range-chip-text">00:01.0 - 00:07.0 (6.0s)</span>
+                </div>
+
+                <!-- Filmstrip scrubber -->
+                <div class="trimmer-filmstrip">
+                  <div class="filmstrip-frame" style="background-color: #171717;"></div>
+                  <div class="filmstrip-frame" style="background-color: #262626;"></div>
+                  <div class="filmstrip-frame" style="background-color: #313131;"></div>
+                  <div class="filmstrip-frame" style="background-color: #262626;"></div>
+                  <div class="filmstrip-frame" style="background-color: #171717;"></div>
+                  <div class="filmstrip-frame" style="background-color: #121212;"></div>
+
+                  <!-- Active selected range window with dual handles -->
+                  <div class="trimmer-selection-window dynamic-selection-window">
+                    <div class="trimmer-handle trimmer-handle-left"></div>
+                    <div class="trimmer-handle trimmer-handle-right"></div>
+                  </div>
+                </div>
+
+                <!-- Live Cost Calculation Bar -->
+                <div class="cost-calc-bar">
+                  <span class="cost-formula formula-calc-text">6s × 50 cr/s</span>
+                  <span class="cost-total-badge cost-total-text">Chi phí: 300 credit</span>
+                </div>
+              </div>
+
+              <!-- Smart Context Alert (Insufficient Credit) -->
+              <div class="credit-alert-card dynamic-alert-card">
+                <div class="alert-icon-box">⚠️</div>
+                <div class="alert-body">
+                  <div class="alert-headline dynamic-alert-headline">Bạn có 250 credit (thiếu 50 credit)</div>
+                  <div class="alert-subtext">
+                    Nạp nhanh gói <strong>Starter 49k (5.000 cr)</strong> để render ngay không gián đoạn!
+                  </div>
+                </div>
+              </div>
+
+              <!-- Primary & Secondary Buttons -->
+              <div class="action-group">
+                <button class="btn-primary" onclick="triggerToast('Mở thanh toán gói Starter 49.000đ...')">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                  </svg>
+                  <span>Nạp & Tạo Video (49k)</span>
+                </button>
+
+                <button class="btn-secondary" onclick="triggerToast('Đã lưu bản nháp')">
+                  <span>Lưu bản nháp & Hủy</span>
+                </button>
+              </div>
+
+            </div>
+
+            <!-- Bottom Navigation -->
+            <nav class="device-bottom-nav">
+              <div class="nav-tab-item">
+                <div class="nav-tab-icon">🏠</div>
+                <span>Trang chủ</span>
+              </div>
+              <div class="nav-tab-item active">
+                <div class="nav-tab-icon">✨</div>
+                <span>Studio</span>
+              </div>
+              <div class="nav-center-create">+</div>
+              <div class="nav-tab-item">
+                <div class="nav-tab-icon">📁</div>
+                <span>Dự án</span>
+              </div>
+              <div class="nav-tab-item">
+                <div class="nav-tab-icon">👤</div>
+                <span>Tài khoản</span>
+              </div>
+            </nav>
+
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ----------------------------------------------------------------------
+         THEME 4: MIDNIGHT PRO
+         ---------------------------------------------------------------------- -->
+    <section class="theme-column theme-midnight-pro" id="col-midnight-pro">
+      
+      <!-- Metadata & Palette Swatches -->
+      <div class="theme-meta-card">
+        <div class="theme-header-row">
+          <div class="theme-name">
+            <span>4. Midnight Pro</span>
+          </div>
+          <span class="theme-tag theme-tag-4">Deep Cosmic</span>
+        </div>
+        <p class="theme-summary">
+          Tone xanh đêm sâu thẳm Deep Midnight Navy (#080D1A). Phối hợp High-voltage Indigo và Sky Cyan tạo nét công nghệ cao, điềm tĩnh.
+        </p>
+        <div class="swatches-grid">
+          <div class="swatch-item">
+            <div class="swatch-color" style="background: #080D1A;"></div>
+            <span>Base</span>
+            <span class="swatch-code">#080D1A</span>
+          </div>
+          <div class="swatch-item">
+            <div class="swatch-color" style="background: #111827;"></div>
+            <span>Surface</span>
+            <span class="swatch-code">#111827</span>
+          </div>
+          <div class="swatch-item">
+            <div class="swatch-color" style="background: #6366F1;"></div>
+            <span>Indigo</span>
+            <span class="swatch-code">#6366F1</span>
+          </div>
+          <div class="swatch-item">
+            <div class="swatch-color" style="background: #38BDF8;"></div>
+            <span>Sky Cyan</span>
+            <span class="swatch-code">#38BDF8</span>
+          </div>
+          <div class="swatch-item">
+            <div class="swatch-color" style="background: #243044;"></div>
+            <span>Border</span>
+            <span class="swatch-code">#243044</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile Device Frame -->
+      <div class="mobile-frame-wrapper">
+        <div class="mobile-device">
+          <div class="device-screen">
+            
+            <!-- Status Bar -->
+            <div class="device-status-bar">
+              <span class="status-left">9:41</span>
+              <div class="status-dynamic-island"></div>
+              <div class="status-right">
+                <svg width="14" height="10" viewBox="0 0 14 10" fill="currentColor">
+                  <path d="M1 9h2V5H1v4zm4 0h2V3H5v6zm4 0h2V1H9v8zm4 0h2V0h-2v9z"/>
+                </svg>
+                <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="0.75" y="0.75" width="12" height="9.5" rx="2.25"/>
+                  <path d="M14.5 4v3" stroke-linecap="round"/>
+                </svg>
+              </div>
+            </div>
+
+            <!-- Motion AI Header -->
+            <header class="app-header">
+              <div class="brand-logo">
+                <div class="brand-icon">M</div>
+                <span>Motion AI</span>
+              </div>
+              <div class="header-actions">
+                <div class="credit-badge" onclick="triggerToast('Mở nạp credit nhanh...')">
+                  <span>⚡ 250 cr</span>
+                  <div class="credit-add-btn">+</div>
+                </div>
+                <div class="user-avatar">
+                  <span>HQ</span>
+                  <div class="user-online-dot"></div>
+                </div>
+              </div>
+            </header>
+
+            <!-- Screen Content -->
+            <div class="screen-content">
+              
+              <!-- Step Progress Indicator -->
+              <div class="step-stepper">
+                <div class="step-item">
+                  <div class="step-dot done">✓</div>
+                  <span>Chọn video</span>
+                </div>
+                <div class="step-divider"></div>
+                <div class="step-item active">
+                  <div class="step-dot active">2</div>
+                  <span>Cắt & Cấu hình</span>
+                </div>
+                <div class="step-divider"></div>
+                <div class="step-item">
+                  <div class="step-dot pending">3</div>
+                  <span>Tạo video</span>
+                </div>
+              </div>
+
+              <!-- Feature Card -->
+              <div class="feature-card">
+                <div class="feature-info">
+                  <span class="feature-tag-mini">Enterprise Engine</span>
+                  <h2 class="feature-title">Tạo Video Chuyển Động (Motion Control)</h2>
+                </div>
+                <div class="feature-pill-ai">
+                  <span>🚀 ULTRA v2</span>
+                </div>
+              </div>
+
+              <!-- Video Trimmer Preview Window -->
+              <div class="video-viewport">
+                <div class="motion-overlay"></div>
+                <div class="viewport-top-badge">
+                  <span>🌐 Tensor Flow Sync</span>
+                </div>
+                
+                <!-- Play button -->
+                <div class="viewport-center-play" onclick="triggerToast('Phát preview video...')">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                  </svg>
+                </div>
+
+                <div class="viewport-bottom-controls">
+                  <span class="preview-timestamp">00:02.4 / 00:06.0</span>
+                  <span>HDR10 • Cinema Scope</span>
+                </div>
+              </div>
+
+              <!-- Video Trimmer Dual-Handle Bar -->
+              <div class="trimmer-container">
+                <div class="trimmer-header-row">
+                  <span class="trimmer-title">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>
+                      <line x1="20" y1="4" x2="8.12" y2="15.88"/>
+                      <line x1="14.47" y1="14.48" x2="20" y2="20"/>
+                      <line x1="8.12" y1="8.12" x2="12" y2="12"/>
+                    </svg>
+                    Đoạn cắt đã chọn
+                  </span>
+                  <span class="trimmer-range-chip range-chip-text">00:01.0 - 00:07.0 (6.0s)</span>
+                </div>
+
+                <!-- Filmstrip scrubber -->
+                <div class="trimmer-filmstrip">
+                  <div class="filmstrip-frame" style="background-color: #0c1426;"></div>
+                  <div class="filmstrip-frame" style="background-color: #16203a;"></div>
+                  <div class="filmstrip-frame" style="background-color: #1f2d4e;"></div>
+                  <div class="filmstrip-frame" style="background-color: #16203a;"></div>
+                  <div class="filmstrip-frame" style="background-color: #0c1426;"></div>
+                  <div class="filmstrip-frame" style="background-color: #070b16;"></div>
+
+                  <!-- Active selected range window with dual handles -->
+                  <div class="trimmer-selection-window dynamic-selection-window">
+                    <div class="trimmer-handle trimmer-handle-left"></div>
+                    <div class="trimmer-handle trimmer-handle-right"></div>
+                  </div>
+                </div>
+
+                <!-- Live Cost Calculation Bar -->
+                <div class="cost-calc-bar">
+                  <span class="cost-formula formula-calc-text">6s × 50 cr/s</span>
+                  <span class="cost-total-badge cost-total-text">Chi phí: 300 credit</span>
+                </div>
+              </div>
+
+              <!-- Smart Context Alert (Insufficient Credit) -->
+              <div class="credit-alert-card dynamic-alert-card">
+                <div class="alert-icon-box">⚠️</div>
+                <div class="alert-body">
+                  <div class="alert-headline dynamic-alert-headline">Bạn có 250 credit (thiếu 50 credit)</div>
+                  <div class="alert-subtext">
+                    Nạp nhanh gói <strong>Starter 49k (5.000 cr)</strong> để render ngay không gián đoạn!
+                  </div>
+                </div>
+              </div>
+
+              <!-- Primary & Secondary Buttons -->
+              <div class="action-group">
+                <button class="btn-primary" onclick="triggerToast('Mở thanh toán gói Starter 49.000đ...')">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                  </svg>
+                  <span>Nạp & Tạo Video (49k)</span>
+                </button>
+
+                <button class="btn-secondary" onclick="triggerToast('Đã lưu bản nháp')">
+                  <span>Lưu bản nháp & Hủy</span>
+                </button>
+              </div>
+
+            </div>
+
+            <!-- Bottom Navigation -->
+            <nav class="device-bottom-nav">
+              <div class="nav-tab-item">
+                <div class="nav-tab-icon">🏠</div>
+                <span>Trang chủ</span>
+              </div>
+              <div class="nav-tab-item active">
+                <div class="nav-tab-icon">✨</div>
+                <span>Studio</span>
+              </div>
+              <div class="nav-center-create">+</div>
+              <div class="nav-tab-item">
+                <div class="nav-tab-icon">📁</div>
+                <span>Dự án</span>
+              </div>
+              <div class="nav-tab-item">
+                <div class="nav-tab-icon">👤</div>
+                <span>Tài khoản</span>
+              </div>
+            </nav>
+
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Interactive Toast Feedback -->
+<div class="toast-notification" id="toastNotification">
+  <span style="font-size: 20px;">⚡</span>
+  <span id="toastMessage">Thông báo tương tác...</span>
+</div>
+
+<script>
+  // View Switcher (Show All vs Single Theme Focus)
+  function switchView(target) {
+    const tabs = document.querySelectorAll('#themeTabs .tab-btn');
+    tabs.forEach(btn => btn.classList.remove('active'));
+    
+    // Set active tab
+    event.currentTarget.classList.add('active');
+
+    const columns = [
+      { id: 'col-slate-cyber', key: 'slate-cyber' },
+      { id: 'col-obsidian-studio', key: 'obsidian-studio' },
+      { id: 'col-carbon-minimal', key: 'carbon-minimal' },
+      { id: 'col-midnight-pro', key: 'midnight-pro' }
+    ];
+
+    const grid = document.getElementById('themesGrid');
+
+    if (target === 'all') {
+      grid.style.display = 'grid';
+      columns.forEach(col => {
+        const el = document.getElementById(col.id);
+        el.style.display = 'flex';
+      });
+    } else {
+      columns.forEach(col => {
+        const el = document.getElementById(col.id);
+        if (col.key === target) {
+          el.style.display = 'flex';
+        } else {
+          el.style.display = 'none';
+        }
+      });
+    }
+  }
+
+  // Interactive Live Slider: Updates all 4 phone frames synchronously!
+  function updateTrimDuration(seconds) {
+    const sec = parseInt(seconds, 10);
+    const cost = sec * 50;
+    const userCredit = 250;
+    const deficit = cost - userCredit;
+
+    // Update Slider text
+    document.getElementById('sliderValueText').textContent = `${sec} giây (${cost} cr)`;
+
+    // Update Selection window width (percentage between 30% and 85%)
+    const widthPct = Math.min(85, Math.max(25, (sec / 10) * 100));
+    document.querySelectorAll('.dynamic-selection-window').forEach(el => {
+      el.style.width = widthPct + '%';
+    });
+
+    // Update Timestamps & Range Chips
+    document.querySelectorAll('.range-chip-text').forEach(el => {
+      el.textContent = `00:01.0 - 00:${(sec + 1).toString().padStart(2, '0')}.0 (${sec}.0s)`;
+    });
+
+    // Update Preview timestamp
+    document.querySelectorAll('.preview-timestamp').forEach(el => {
+      el.textContent = `00:02.4 / 00:${sec.toString().padStart(2, '0')}.0`;
+    });
+
+    // Update Formula
+    document.querySelectorAll('.formula-calc-text').forEach(el => {
+      el.textContent = `${sec}s × 50 cr/s`;
+    });
+
+    // Update Cost badge
+    document.querySelectorAll('.cost-total-text').forEach(el => {
+      el.textContent = `Chi phí: ${cost} credit`;
+    });
+
+    // Update Alert card headline & styling
+    document.querySelectorAll('.dynamic-alert-headline').forEach(el => {
+      if (deficit > 0) {
+        el.textContent = `Bạn có ${userCredit} credit (thiếu ${deficit} credit)`;
+      } else {
+        el.textContent = `Số dư đủ (${userCredit} credit). Sẵn sàng tạo video!`;
+      }
+    });
+
+    // Update button text
+    document.querySelectorAll('.btn-primary span').forEach(el => {
+      if (deficit > 0) {
+        el.textContent = `Nạp & Tạo Video (49k)`;
+      } else {
+        el.textContent = `Tạo Video Ngay (${cost} cr)`;
+      }
+    });
+  }
+
+  // Toast feedback simulation
+  let toastTimer;
+  function triggerToast(msg) {
+    const toast = document.getElementById('toastNotification');
+    const msgEl = document.getElementById('toastMessage');
+    msgEl.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toast.classList.remove('show');
+    }, 2500);
+  }
+</script>
+
+</body>
+</html>

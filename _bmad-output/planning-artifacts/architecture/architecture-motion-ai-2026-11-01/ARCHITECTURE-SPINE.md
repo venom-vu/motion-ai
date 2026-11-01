@@ -12,7 +12,9 @@ binds: [FR-1..FR-19, FR-21, FR-22, NFR-1..NFR-4, NFR-6, NFR-7]
 sources:
   - _bmad-output/planning-artifacts/prds/prd-motion-ai-2026-10-31/prd.md
   - _bmad-output/planning-artifacts/prds/prd-motion-ai-2026-10-31/addendum.md
-companions: []
+companions:
+  - _bmad-output/planning-artifacts/ux-designs/ux-motion-ai-2026-11-01/DESIGN.md
+  - _bmad-output/planning-artifacts/ux-designs/ux-motion-ai-2026-11-01/EXPERIENCE.md
 ---
 # Architecture Spine — Motion AI
 
@@ -31,7 +33,7 @@ companions: []
 ### AD-1 — Mỗi bảng có đúng một module chủ sở hữu ghi
 - **Binds:** FR-9, FR-10, FR-11, FR-13, FR-14, NFR-4
 - **Prevents:** hai module cùng ghi `ledger_entries` hoặc cùng một cột của `tasks` theo hai luật khác nhau
-- **Rule:** chỉ `wallet` ghi `ledger_entries`, `users.balance`, `users.held`, `users.tier`; chỉ `tasks` ghi **mọi** cột của bảng `tasks` (kể cả `runninghub_task_id`, `gpu_coins`, `reason_code`, `tier_snapshot`, mốc thời gian) và chứa luôn bộ xử lý job BullMQ của worker (gọi `pipelines` qua port để dựng payload); chỉ `topups` ghi `topups`; `auth` ghi `users` (danh tính, `role`, `tos_*`, `locked_at`) và `signup_grants`; `storage` ghi `share_tokens`; `ops` ghi `settings`; **một service `audit` duy nhất** ghi `admin_audit` và mọi module gọi nó. `ops` và hàm vị trí hàng đợi đọc `tasks`/`ledger_entries` qua service public của chủ sở hữu (hàm đếm, không đọc bảng trực tiếp). Module khác gọi service của chủ sở hữu. Không có SQL thô ghi các bảng này ngoài chủ sở hữu. Cách hai module chung một transaction: AD-16.
+- **Rule:** chỉ `wallet` ghi `ledger_entries`, `users.balance`, `users.held`, `users.tier`; chỉ `tasks` ghi **mọi** cột của bảng `tasks` (kể cả `runninghub_task_id`, `gpu_coins`, `reason_code`, `tier_snapshot`, mốc thời gian) và chứa luôn bộ xử lý job BullMQ của worker (gọi `pipelines` qua port để dựng payload); chỉ `topups` ghi `topups`; `auth` ghi `users` (danh tính, `role`, `tos_*`, `locked_at`) và `signup_grants`; `storage` ghi `share_tokens`; `ops` ghi `settings`; `storage` cũng ghi `uploads` (sổ theo dõi tải lên); `tasks` ghi cột `files_removed_at`; `wallet` ghi `users.tier_pack`; **một service `audit` duy nhất** ghi `admin_audit` và mọi module gọi nó. `ops` và hàm vị trí hàng đợi đọc `tasks`/`ledger_entries` qua service public của chủ sở hữu (hàm đếm, không đọc bảng trực tiếp). Module khác gọi service của chủ sở hữu. Không có SQL thô ghi các bảng này ngoài chủ sở hữu. Cách hai module chung một transaction: AD-16.
 
 ### AD-2 — Sổ cái append-only, có dấu rõ ràng, số dư luôn bằng tổng bút toán
 - **Binds:** FR-9, FR-10, FR-15, FR-16
@@ -75,7 +77,7 @@ companions: []
 ### AD-8 — Lưu trữ: tải lên trực tiếp rồi server sao chép sang khóa do server sở hữu
 - **Binds:** FR-1, FR-3, FR-6, FR-7, NFR-2, NFR-6
 - **Prevents:** API VPS phải gánh luồng file 100 MB; ghi đè file sau khi đã được kiểm tra; dùng chung khóa giữa người dùng; vượt giới hạn dung lượng; lạm dụng dung lượng lưu trữ; kết quả bị chia sẻ ngoài ý muốn
-- **Rule:** trình duyệt PUT thẳng lên R2 bằng presigned URL với khóa do server sinh `in-raw/<userId>/<uuid>`. Khi người dùng xác nhận, server kiểm khóa thuộc đúng `userId`, `HEAD` đối tượng để lấy kích thước (10 MB ảnh, 100 MB video) và ETag, kiểm tra nội dung (định dạng, kích thước thật), rồi `CopyObject` sang khóa bất biến `in/<userId>/<uuid>` với điều kiện `CopySourceIfMatch = ETag`; ETag đổi thì từ chối. Task chỉ được dùng khóa `in/`. Mỗi người dùng có tối đa 10 đối tượng `in-raw/` chưa xác nhận. Lifecycle R2 có độ phân giải tối thiểu 1 ngày: `in-raw/` xóa sau 1 ngày, `in/` sau 7 ngày, `out/` sau 30 ngày, và việc xóa có thể trễ tới khoảng 1 ngày. Bucket riêng tư, cấu hình CORS chỉ cho phép miền của FE; tải xuống bằng URL ký ngắn hạn. Chia sẻ công khai chỉ qua token do người dùng chủ động tạo cho từng kết quả: API phục vụ `GET /s/<token>` bằng cách chuyển hướng tới URL ký ngắn hạn của `out/`, và trang Nuxt SSR `/share/<token>` đặt thẻ Open Graph trỏ tới đường dẫn này (crawler luôn thấy URL ổn định, bucket vẫn riêng tư); Admin xóa token và file ngay (AD-18). Presigned PUT được ký kèm `Content-Length` đúng kích thước người dùng khai báo; dung lượng thật vẫn được `HEAD` kiểm lại.
+- **Rule:** trình duyệt PUT thẳng lên R2 bằng presigned URL với khóa do server sinh `in-raw/<userId>/<uuid>`. Khi người dùng xác nhận, server kiểm khóa thuộc đúng `userId`, `HEAD` đối tượng để lấy kích thước (10 MB ảnh, 100 MB video) và ETag, kiểm tra nội dung (định dạng, kích thước thật), rồi `CopyObject` sang khóa bất biến `in/<userId>/<uuid>` với điều kiện `CopySourceIfMatch = ETag`; ETag đổi thì từ chối. Task chỉ được dùng khóa `in/`. Mỗi người dùng có tối đa 10 đối tượng `in-raw/` chưa xác nhận, đếm bằng bảng `uploads` trong CSDL. Lifecycle R2 có độ phân giải tối thiểu 1 ngày: `in-raw/` xóa sau 1 ngày, `in/` sau 7 ngày, `out/` sau 30 ngày, và việc xóa có thể trễ tới khoảng 1 ngày. Bucket riêng tư, cấu hình CORS chỉ cho phép miền của FE; tải xuống bằng URL ký ngắn hạn. Chia sẻ công khai chỉ qua token do người dùng chủ động tạo cho từng kết quả: API phục vụ `GET /s/<token>` bằng cách chuyển hướng tới URL ký ngắn hạn của `out/`, và trang Nuxt SSR `/share/<token>` đặt thẻ Open Graph trỏ tới đường dẫn này (crawler luôn thấy URL ổn định, bucket vẫn riêng tư); Admin xóa token và file ngay (AD-18). Presigned PUT được ký kèm `Content-Length` đúng kích thước người dùng khai báo; dung lượng thật vẫn được `HEAD` kiểm lại.
 
 ### AD-9 — Nhận diện mặt và khung xương chạy trong workflow, không chạy model trên VPS
 - **Binds:** FR-5
@@ -115,7 +117,7 @@ companions: []
 ### AD-16 — Module chủ giao dịch mở `tx`, module khác nhận `tx`
 - **Binds:** FR-9, FR-10, FR-12, FR-13, FR-15, FR-16, NFR-4
 - **Prevents:** Task ở trạng thái kết thúc mà không có bút toán (hoặc ngược lại) vì hai transaction riêng; module phá AD-1 để đạt tính nguyên tử; số tiền hoàn lệch với số tiền đã giữ; mỗi luồng tự chọn cách chung transaction
-- **Rule:** với mọi thao tác cần ghi bảng của hai module, **module chủ của luồng mở transaction Prisma và truyền `tx`** cho module kia; hàm của module nhận `tx` không tự mở transaction và từ chối chạy khi không nhận `tx`. Bốn luồng: (1) tạo Task: `tasks.create` mở `tx`, gọi `wallet.hold(tx, userId, taskId, amount)` rồi INSERT Task; (2) kết thúc Task: `tasks.transition` mở `tx`, CAS trạng thái rồi gọi `wallet.capture(tx, taskId)` hoặc `wallet.release(tx, taskId)`; (3) đăng ký: `auth` mở `tx`, ghi `users` và `signup_grants`, gọi `wallet.grant(tx, userId, amount)`; (4) duyệt nạp tiền: `topups` mở `tx`, CAS trạng thái đơn rồi gọi `wallet.topup(tx, userId, topupId, amount, pack)`, `wallet` tính lại Tier. `capture` và `release` chỉ nhận `taskId` và đọc số tiền từ dòng HOLD, nên số tiền không thể sai. Việc đổi trạng thái và bút toán cùng commit hoặc cùng rollback. Job đối soát hằng ngày cảnh báo mọi Task kết thúc thiếu bút toán kết thúc tương ứng, và mọi user có `balance`/`held` lệch với sổ cái.
+- **Rule:** với mọi thao tác cần ghi bảng của hai module, **module chủ của luồng mở transaction Prisma và truyền `tx`** cho module kia; hàm của module nhận `tx` không tự mở transaction và từ chối chạy khi không nhận `tx`. Năm luồng: (1) tạo Task: `tasks.create` mở `tx`, gọi `wallet.hold(tx, userId, taskId, amount)` rồi INSERT Task; (2) kết thúc Task: `tasks.transition` mở `tx`, CAS trạng thái rồi gọi `wallet.capture(tx, taskId)` hoặc `wallet.release(tx, taskId)`; (3) đăng ký: `auth` mở `tx`, ghi `users` và `signup_grants`, gọi `wallet.grant(tx, userId, amount)`; (4) duyệt nạp tiền: `topups` mở `tx`, CAS trạng thái đơn rồi gọi `wallet.topup(tx, userId, topupId, amount, pack)`, `wallet` tính lại Tier; (5) Admin cộng hoặc trừ bù credit: module `admin` mở `tx`, gọi `wallet.adjust(tx, userId, amount)` (bút toán `ADJUST`, `task_id` rỗng, tính lại Tier) và ghi `admin_audit` qua service `audit` trong cùng `tx`; mọi lần gọi có `requestId` duy nhất để bấm hai lần không ghi hai bút toán. `capture` và `release` chỉ nhận `taskId` và đọc số tiền từ dòng HOLD, nên số tiền không thể sai. Việc đổi trạng thái và bút toán cùng commit hoặc cùng rollback. Job đối soát hằng ngày cảnh báo mọi Task kết thúc thiếu bút toán kết thúc tương ứng, và mọi user có `balance`/`held` lệch với sổ cái.
 
 ### AD-17 — Giới hạn tải theo người dùng và theo IP
 - **Binds:** FR-8, FR-12, NFR-3
@@ -138,6 +140,9 @@ companions: []
 | State & cross-cutting | đổi trạng thái chỉ qua `tasks.transition`; đổi tiền chỉ qua `wallet`; log JSON có `taskId`/`userId`; cấu hình và bí mật chỉ qua biến môi trường phía backend; kiểu dùng chung FE/BE nằm ở `packages/contracts` |
 | Deploy | Docker Compose trên VPS; migration Prisma chạy trước khi bật phiên bản mới; tắt worker cũ trước khi bật worker mới (khóa ffmpeg nằm trong tiến trình nên không được chạy hai worker cùng lúc) |
 | Kiểm thử bắt buộc (CI) | chỉ mục duy nhất một phần và `CHECK` có thật trên PostgreSQL; lỗi P2002 rồi truy vấn tiếp theo; `ffmpeg -encoders` có `libx264`; BullMQ chạy đúng với ioredis đã ghim |
+
+## Cấu hình ghi nhận trong epic
+Các biến cấu hình do story đưa ra và chưa nằm ở nơi nào khác: `RH_MAX_CONCURRENT` (mặc định 2), `RH_BALANCE_ENDPOINT` (chưa có giá trị, điền sau khi xác nhận endpoint số dư), `RH_BALANCE_ALERT_COINS` (27.000), `ADMIN_EMAILS`, `ADMIN_ADJUST_MAX` (30.000), `BENCHMARK_USER_EMAILS`, `USD_VND`, `RH_COINS_PER_USD`, `NUXT_PUBLIC_REPORT_EMAIL`. Giá trị mặc định là đề xuất của epic, chưa được người dùng xác nhận (xem `[ASSUMPTION]` trong `epics.md`).
 
 ## Stack
 | Name | Version |
@@ -225,6 +230,7 @@ erDiagram
   users ||--o| signup_grants : "nhận"
   users ||--o{ share_tokens : "chia sẻ"
   users ||--o{ refresh_tokens : "phiên"
+  users ||--o{ uploads : "tải lên"
   admin_audit }o--|| users : "admin thao tác"
   tasks ||--o{ ledger_entries : "HOLD rồi CAPTURED hoặc RELEASED"
   tasks ||--o{ share_tokens : "kết quả"
@@ -240,6 +246,7 @@ erDiagram
     string tos_version
     timestamptz tos_accepted_at
     timestamptz locked_at
+    string tier_pack
   }
   tasks {
     uuid id PK
@@ -264,6 +271,7 @@ erDiagram
     timestamptz finished_at
     timestamptz rh_orphan_until
     timestamptz gate_deadline
+    timestamptz files_removed_at
     numeric gpu_coins
   }
   ledger_entries {
@@ -273,6 +281,7 @@ erDiagram
     bigint amount
     uuid task_id FK
     uuid topup_id FK
+    string pack
     timestamptz created_at
   }
   topups {
@@ -287,6 +296,7 @@ erDiagram
     string bank_ref
     string reject_reason
     string tos_version
+    timestamptz notified_at
     timestamptz overdue_notified_at
   }
   signup_grants {
@@ -317,7 +327,22 @@ erDiagram
     string action
     string target
     json before_after
+    string request_id
     timestamptz at
+  }
+  uploads {
+    uuid id PK
+    uuid user_id FK
+    string key
+    string kind
+    string status
+    bigint size_bytes
+    string etag
+    int width
+    int height
+    int duration_seconds
+    timestamptz created_at
+    timestamptz confirmed_at
   }
   settings {
     string key PK
@@ -331,13 +356,13 @@ motion-ai/
   apps/
     web/            # Nuxt 4: landing SSR/SSG, app, /admin
     api/            # NestJS: src/main.ts (api), src/worker.ts (worker)
-      src/modules/  # auth wallet tasks pipelines topups storage ops
+      src/modules/  # auth wallet tasks pipelines topups storage ops audit
       src/ports/    # RunningHubPort StoragePort NotifierPort
       prisma/       # schema.prisma, migrations
   packages/
     contracts/      # DTO, reasonCode, kiểu dùng chung FE/BE
   deploy/
-    compose.yml     # api, worker, redis, postgres, backup
+    compose.yml     # đúng 4 container: api, worker, redis, postgres (sao lưu chạy trong worker)
 ```
 
 ## Capability → Architecture Map
@@ -366,5 +391,5 @@ motion-ai/
 - **Hạ tầng chưa quyết định:** nhà cung cấp và vùng VPS, nhà cung cấp tên miền (DNS phải đặt ở Cloudflare để dùng Proxy), vùng R2. FE giữ Cloudflare Pages (đã chốt). Checklist khi dựng FE: kiểm tra `nuxt.config.ts` xác nhận preset Nitro là `cloudflare-pages` (hoặc `cloudflare_module`, vì Cloudflare đang gom Pages và Workers về một chuẩn chung), chạy thử `npm run build` ở máy và xem có sinh đúng thư mục đầu ra của Cloudflare không, rồi mới đẩy lên git; chọn sai preset có thể gây trắng trang hoặc SSR không chạy. RTO của VPS và kế hoạch dựng lại (compose, restore, bộ quét dựng lại hàng đợi).
 - **Vận hành chưa quyết định:** xoay vòng log Docker, cảnh báo khi cron `pg_dump` thất bại, giám sát đĩa/RAM/CPU, MFA hoặc giới hạn IP cho `/admin`, quản lý bí mật ngoài file `.env`, mã hóa và khóa R2 riêng cho `db-backup/` (không áp lifecycle `in-raw/in/out`), tiêu đề bảo mật HTTP, chính sách dữ liệu cá nhân trong log, adapter giả của `RunningHubPort` cho phát triển cục bộ.
 - **Quan sát:** MVP dùng log JSON và cảnh báo Discord webhook; metrics và dashboard để sau.
-- **CI/CD, triển khai không gián đoạn, xóa dữ liệu theo yêu cầu người dùng (nguyên tắc: ẩn danh hóa dữ liệu cá nhân, giữ nguyên bút toán sổ cái, không xóa cứng), chi tiết giao diện (thanh so sánh FR-4, nút tải về/chia sẻ FR-2, trang lịch sử):** thuộc cấp feature/epic.
+- **CI/CD, triển khai không gián đoạn, xóa dữ liệu theo yêu cầu người dùng (nguyên tắc: ẩn danh hóa dữ liệu cá nhân, giữ nguyên bút toán sổ cái, không xóa cứng), chi tiết giao diện (thanh so sánh FR-4, nút tải về/chia sẻ FR-2, trang lịch sử):** thuộc cấp feature/epic; toàn bộ giao diện và hành vi tương tác phía client tuân thủ hai hợp đồng UX chuẩn mực: `DESIGN.md` và `EXPERIENCE.md` tại `_bmad-output/planning-artifacts/ux-designs/ux-motion-ai-2026-11-01/`.
 - **Phát hiện người dưới 18 tuổi:** chưa có giải pháp kỹ thuật (xem PRD §9), nên spine không ràng buộc.

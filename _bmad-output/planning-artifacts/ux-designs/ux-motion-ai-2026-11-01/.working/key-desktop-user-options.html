@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Motion AI — 3 Phương Án Thiết Kế Màn Hình Desktop Cho User (Top Header + Scalable Features)</title>
+  <style>
+    /*
+      3 Phương án Desktop cho Người Dùng Cuối (User):
+      - Không dùng Sidebar trái; sử dụng Top Header gọn gàng.
+      - Mở rộng dễ dàng lên hàng chục tính năng AI (Feature Grid / Feature Ribbon / Bento Hub).
+      - Giữ nguyên bảng màu Slate Cyber (#0F172A, #1E293B, #334155, #8B5CF6, #06B6D4) và 100% Vector Lucide Icons.
+    */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #060911;
+      color: #F8FAFC;
+      padding: 28px 24px 80px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 48px;
+    }
+
+    .icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      vertical-align: middle;
+    }
+
+    /* Sticky Option Switcher at Top */
+    .Direction-Switcher {
+      position: sticky;
+      top: 16px;
+      z-index: 100;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(12px);
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+    }
+    .switch-label {
+      font-size: 12px;
+      font-weight: 800;
+      color: #94A3B8;
+      padding: 0 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .switch-btn {
+      padding: 9px 16px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: #94A3B8;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+    .switch-btn:hover {
+      color: #F8FAFC;
+      background: #1E293B;
+    }
+    .switch-btn.primary {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(6, 182, 212, 0.15));
+      border-color: rgba(139, 92, 246, 0.5);
+      color: #F8FAFC;
+    }
+
+    /* Option Section Wrapper */
+    .option-block {
+      width: 100%;
+      max-width: 1360px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      scroll-margin-top: 84px;
+    }
+    .option-header-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding: 0 4px;
+    }
+    .option-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 800;
+      color: #22D3EE;
+      background: rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.35);
+      padding: 4px 12px;
+      border-radius: 999px;
+      margin-bottom: 6px;
+    }
+    .option-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: #F8FAFC;
+    }
+    .option-desc {
+      font-size: 13px;
+      color: #94A3B8;
+      max-width: 720px;
+      line-height: 1.5;
+    }
+
+    /* Desktop Frame */
+    .desktop-frame {
+      width: 100%;
+      background: #0F172A;
+      border: 1.5px solid #334155;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 25px 70px -15px rgba(0, 0, 0, 0.85);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Shared Top Navigation Header (No Sidebar!) */
+    .top-header {
+      height: 64px;
+      background: rgba(15, 23, 42, 0.95);
+      border-bottom: 1px solid #1E293B;
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 19px;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      color: #F8FAFC;
+    }
+    .top-nav-links {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .top-nav-item {
+      height: 40px;
+      padding: 0 16px;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #94A3B8;
+      cursor: pointer;
+    }
+    .top-nav-item.active {
+      background: #1E293B;
+      color: #F8FAFC;
+      font-weight: 700;
+      border: 1px solid #334155;
+    }
+    .top-nav-item.active .icon { color: #8B5CF6; }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .credit-pill {
+      height: 38px;
+      background: rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.35);
+      color: #22D3EE;
+      padding: 0 14px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-topup-header {
+      height: 38px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: none;
+      background: linear-gradient(135deg, #8B5CF6 0%, #06B6D4 100%);
+      color: #FFF;
+      font-size: 12px;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+    }
+    .avatar-sm {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #1E293B;
+      border: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 800;
+      color: #F8FAFC;
+    }
+
+    /* =========================================================================
+       MẪU 1: HORIZONTAL FEATURE RIBBON + CENTERED SIMPLE STUDIO
+       (Ở dưới Header là dải danh mục tính năng có lọc/tìm kiếm, bên dưới là khung làm việc cực gọn)
+       ========================================================================= */
+    .m1-body {
+      padding: 24px 32px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+    .m1-feature-bar-wrap {
+      background: #1E293B;
+      border: 1px solid #334155;
+      border-radius: 18px;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .m1-bar-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+    .category-pills {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .cat-pill {
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      background: #0F172A;
+      border: 1px solid #334155;
+      color: #94A3B8;
+      cursor: pointer;
+    }
+    .cat-pill.active {
+      background: rgba(139, 92, 246, 0.2);
+      border-color: #8B5CF6;
+      color: #F8FAFC;
+    }
+    .search-box {
+      height: 36px;
+      width: 260px;
+      background: #0F172A;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #64748B;
+    }
+
+    /* Scrollable / Multi-item Feature Strip (scales to 20+ tools) */
+    .m1-tools-strip {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 10px;
+    }
+    .tool-tile {
+      background: #0F172A;
+      border: 1px solid #334155;
+      border-radius: 14px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.15s ease;
+    }
+    .tool-tile.active {
+      background: linear-gradient(145deg, rgba(139, 92, 246, 0.22) 0%, rgba(15, 23, 42, 0.95) 100%);
+      border: 1.5px solid #8B5CF6;
+      box-shadow: 0 6px 20px -4px rgba(139, 92, 246, 0.35);
+    }
+    .tool-tile-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .tool-icon-box {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: #1E293B;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #8B5CF6;
+    }
+    .tool-tile.active .tool-icon-box {
+      background: #8B5CF6;
+      color: #FFF;
+    }
+    .tool-tag {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 5px;
+      background: rgba(6, 182, 212, 0.14);
+      color: #22D3EE;
+    }
+    .tool-tag.soon {
+      background: rgba(148, 163, 184, 0.12);
+      color: #64748B;
+    }
+    .tool-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #F8FAFC;
+    }
+    .tool-sub {
+      font-size: 11px;
+      color: #94A3B8;
+    }
+
+    /* Centered 2-Column Simple Studio Card */
+    .m1-studio-workspace {
+      display: grid;
+      grid-template-columns: 440px 1fr;
+      gap: 20px;
+      align-items: stretch;
+    }
+    .studio-card {
+      background: #1E293B;
+      border: 1px solid #334155;
+      border-radius: 20px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .upload-two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .upload-slot {
+      height: 126px;
+      background: #0F172A;
+      border: 1.5px dashed #475569;
+      border-radius: 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px;
+      text-align: center;
+    }
+    .upload-slot.filled {
+      border-style: solid;
+      border-color: #8B5CF6;
+      background: radial-gradient(circle at center, rgba(139, 92, 246, 0.15) 0%, #0F172A 100%);
+    }
+    .mini-trimmer {
+      background: #0F172A;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .mini-bar {
+      height: 36px;
+      background: #1E293B;
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+    .mini-window {
+      position: absolute;
+      left: 18%;
+      width: 45%;
+      top: 0;
+      bottom: 0;
+      border: 2px solid #8B5CF6;
+      background: rgba(139, 92, 246, 0.25);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .cta-grad {
+      height: 50px;
+      border-radius: 14px;
+      border: none;
+      background: linear-gradient(135deg, #8B5CF6 0%, #06B6D4 100%);
+      color: #FFF;
+      font-size: 15px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      box-shadow: 0 6px 20px -3px rgba(139, 92, 246, 0.45);
+    }
+
+    .result-canvas-box {
+      background: #090D16;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      height: 310px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .split-divider-v {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: 2px;
+      background: #06B6D4;
+      box-shadow: 0 0 10px #06B6D4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .knob-circle {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #06B6D4;
+      color: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* =========================================================================
+       MẪU 2: AI TOOL HUB CATALOG + SLIDE-IN / INLINE QUICK STUDIO
+       (Hiển thị lưới thẻ tính năng lớn có ảnh mẫu như Canva/CapCut Web; chọn công cụ nào làm ngay công cụ đó)
+       ========================================================================= */
+    .m2-body {
+      padding: 28px 32px 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+    .m2-hero-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #1E293B;
+      padding-bottom: 18px;
+    }
+    .m2-grid-layout {
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap: 24px;
+    }
+    .m2-catalog-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+    .feature-card-visual {
+      background: #1E293B;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      cursor: pointer;
+    }
+    .feature-card-visual.selected {
+      border: 2px solid #8B5CF6;
+      background: linear-gradient(160deg, rgba(139, 92, 246, 0.16) 0%, #1E293B 100%);
+    }
+    .visual-thumb {
+      height: 96px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #0F172A 0%, #2E1D4A 100%);
+      border: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      position: relative;
+    }
+
+    /* =========================================================================
+       MẪU 3: ULTRA-CLEAN CENTERED 1-CLICK STUDIO (KIỂU GOOGLE LABS / RUNWAY)
+       (Cực kỳ tối giản: Top Header + Dải Pill Tính năng ở giữa + Hộp Studio 1 cột rộng 760px căn giữa)
+       ========================================================================= */
+    .m3-body {
+      padding: 32px 24px 44px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 22px;
+      background: radial-gradient(circle at 50% 0%, rgba(139, 92, 246, 0.14) 0%, #0F172A 65%);
+    }
+    .m3-title-center {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .m3-feature-dock {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      max-width: 920px;
+      background: #1E293B;
+      border: 1px solid #334155;
+      padding: 8px;
+      border-radius: 18px;
+    }
+    .dock-pill {
+      height: 42px;
+      padding: 0 16px;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #94A3B8;
+      background: transparent;
+      cursor: pointer;
+    }
+    .dock-pill.active {
+      background: #0F172A;
+      color: #F8FAFC;
+      border: 1px solid #8B5CF6;
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25);
+    }
+    .dock-pill.active .icon { color: #8B5CF6; }
+    .m3-center-card {
+      width: 100%;
+      max-width: 820px;
+      background: #1E293B;
+      border: 1px solid #334155;
+      border-radius: 24px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sticky Navigation to Jump Between 3 Options -->
+  <nav class="Direction-Switcher">
+    <span class="switch-label">Chọn xem 3 mẫu Desktop User:</span>
+    <a href="#mau-1" class="switch-btn primary">Mẫu 1: Dải Tính Năng + Bàn Dựng 2 Cột (Khuyên dùng)</a>
+    <a href="#mau-2" class="switch-btn">Mẫu 2: Kho Thẻ Công Cụ AI + Khung Tạo Nhanh</a>
+    <a href="#mau-3" class="switch-btn">Mẫu 3: Tối Giản Căn Giữa (1-Click Studio)</a>
+  </nav>
+
+  <!-- =======================================================================
+       MẪU 1: TOP HEADER + HORIZONTAL FEATURE RIBBON (CÓ LỌC/TÌM KIẾM) + 2-COL STUDIO
+       ======================================================================= -->
+  <section id="mau-1" class="option-block">
+    <div class="option-header-meta">
+      <div>
+        <span class="option-badge">MẪU 1 — CÂN BẰNG TỐT NHẤT CHO NHIỀU TÍNH NĂNG</span>
+        <h2 class="option-title">Mẫu 1: Top Header + Dải Chọn Công Cụ Đa Danh Mục + Bàn Làm Việc 2 Cột</h2>
+        <p class="option-desc">
+          Bỏ hoàn toàn Sidebar trái. Phía dưới Header là <strong>Dải Công Cụ AI (Feature Ribbon)</strong> có lọc theo nhóm (Tất cả, Khuôn mặt, Vóc dáng, Video, Nét HD...) và ô tìm kiếm — sau này thêm 20–50 tính năng vẫn gọn. Bên dưới là khung làm việc 2 cột trực quan: Trái tải file &amp; bấm Tạo, Phải xem kết quả Before/After ngay lập tức.
+        </p>
+      </div>
+    </div>
+
+    <div class="desktop-frame">
+      <!-- Top Header -->
+      <header class="top-header">
+        <div class="header-left">
+          <div class="brand">
+            <span class="icon" style="color: #8B5CF6;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </span>
+            MOTION.AI
+          </div>
+          <nav class="top-nav-links">
+            <div class="top-nav-item active">
+              <span class="icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+              </span>
+              Tất Cả Công Cụ AI
+            </div>
+            <div class="top-nav-item">
+              <span class="icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+              </span>
+              Lịch Sử Của Tôi
+            </div>
+            <div class="top-nav-item">
+              <span class="icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+              </span>
+              Bảng Giá &amp; Gói Cước
+            </div>
+          </nav>
+        </div>
+
+        <div class="header-right">
+          <div class="credit-pill">
+            <span class="icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </span>
+            4.250 cr (Pro)
+          </div>
+          <button class="btn-topup-header">
+            <span class="icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+            </span>
+            Nạp Credit
+          </button>
+          <div class="avatar-sm">H</div>
+        </div>
+      </header>
+
+      <!-- Body -->
+      <div class="m1-body">
+        <!-- Feature Directory Ribbon -->
+        <div class="m1-feature-bar-wrap">
+          <div class="m1-bar-top">
+            <div class="category-pills">
+              <span class="cat-pill active">Tất cả công cụ (18)</span>
+              <span class="cat-pill">Khuôn mặt &amp; Chân dung</span>
+              <span class="cat-pill">Vóc dáng &amp; Thời trang</span>
+              <span class="cat-pill">Chuyển động Video</span>
+              <span class="cat-pill">Phục hồi &amp; Tăng nét 4K</span>
+            </div>
+            <div class="search-box">
+              <span class="icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              </span>
+              Tìm nhanh công cụ AI...
+            </div>
+          </div>
+
+          <div class="m1-tools-strip">
+            <div class="tool-tile">
+              <div class="tool-tile-top">
+                <div class="tool-icon-box">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01"/><path d="M15 9h.01"/></svg>
+                </div>
+                <span class="tool-tag">100 cr</span>
+              </div>
+              <div class="tool-name">Ghép Mặt AI</div>
+              <div class="tool-sub">Đổi khuôn mặt tự nhiên</div>
+            </div>
+
+            <div class="tool-tile">
+              <div class="tool-tile-top">
+                <div class="tool-icon-box">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                </div>
+                <span class="tool-tag">100 cr</span>
+              </div>
+              <div class="tool-name">Chỉnh Vóc Dáng</div>
+              <div class="tool-sub">Thon eo, giữ phom đồ</div>
+            </div>
+
+            <div class="tool-tile active">
+              <div class="tool-tile-top">
+                <div class="tool-icon-box">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.2 6 3 11l-.9-2.4c-.4-1.1.2-2.4 1.3-2.8l13.6-4.9c1.1-.4 2.4.2 2.8 1.3Z"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>
+                </div>
+                <span class="tool-tag">50 cr/s</span>
+              </div>
+              <div class="tool-name">Chuyển Động Video</div>
+              <div class="tool-sub">Nhảy theo video mẫu</div>
+            </div>
+
+            <div class="tool-tile">
+              <div class="tool-tile-top">
+                <div class="tool-icon-box">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>
+                </div>
+                <span class="tool-tag soon">Sắp ra mắt</span>
+              </div>
+              <div class="tool-name">Thử Đồ Thời Trang</div>
+              <div class="tool-sub">Mặc thử váy áo lên mẫu</div>
+            </div>
+
+            <div class="tool-tile">
+              <div class="tool-tile-top">
+                <div class="tool-icon-box">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+                </div>
+                <span class="tool-tag soon">Sắp ra mắt</span>
+              </div>
+              <div class="tool-name">Nhép Môi LipSync</div>
+              <div class="tool-sub">Ảnh tĩnh nói chuyện</div>
+            </div>
+
+            <div class="tool-tile">
+              <div class="tool-tile-top">
+                <div class="tool-icon-box">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/></svg>
+                </div>
+                <span class="tool-tag soon">Xem thêm +12</span>
+              </div>
+              <div class="tool-name">Tăng Nét Ảnh 4K</div>
+              <div class="tool-sub">Phục hồi ảnh mờ, vỡ hạt</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2-Column Active Tool Workspace -->
+        <div class="m1-studio-workspace">
+          <!-- Left: Simple Inputs -->
+          <div class="studio-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 16px; font-weight: 800;">Đang chọn: Tạo Video Chuyển Động</span>
+              <span class="tool-tag">50 cr / giây</span>
+            </div>
+
+            <div class="upload-two">
+              <div class="upload-slot filled">
+                <span class="icon" style="color: #8B5CF6;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </span>
+                <span style="font-size: 11px; font-weight: 700; color: #22D3EE;">anh_nhan_vat.png</span>
+                <span style="font-size: 11px; color: #94A3B8;">1. Ảnh nhân vật</span>
+              </div>
+              <div class="upload-slot filled">
+                <span class="icon" style="color: #8B5CF6;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2"/></svg>
+                </span>
+                <span style="font-size: 11px; font-weight: 700; color: #22D3EE;">dance_mau.mp4 (15s)</span>
+                <span style="font-size: 11px; color: #94A3B8;">2. Video chuyển động mẫu</span>
+              </div>
+            </div>
+
+            <div class="mini-trimmer">
+              <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                <span>Cắt đoạn: <strong>00:03 – 00:09 (6 giây)</strong></span>
+                <span style="color: #22D3EE; font-weight: 800;">300 credit</span>
+              </div>
+              <div class="mini-bar">
+                <div class="mini-window">6 giây (Bước 1s)</div>
+              </div>
+            </div>
+
+            <div style="font-size: 11px; color: #94A3B8; display: flex; gap: 8px; align-items: center;">
+              <span style="width: 16px; height: 16px; background: #8B5CF6; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; color: #FFF;">✓</span>
+              Tôi xác nhận đủ 18 tuổi, sở hữu quyền hình ảnh và đồng ý Điều khoản dịch vụ.
+            </div>
+
+            <button class="cta-grad">
+              <span class="icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              </span>
+              Bắt Đầu Tạo Ngay (300 cr)
+            </button>
+          </div>
+
+          <!-- Right: Result Preview & Before/After -->
+          <div class="studio-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 14px; font-weight: 700; color: #94A3B8;">Khung Xem Trước &amp; So Sánh Kết Quả</span>
+              <span style="font-size: 12px; font-weight: 700; color: #34D399;">● Đã hoàn thành</span>
+            </div>
+
+            <div class="result-canvas-box">
+              <span style="position: absolute; top: 12px; left: 12px; font-size: 11px; font-weight: 800; color: #94A3B8; background: rgba(15,23,42,0.8); padding: 4px 10px; border-radius: 6px;">Ảnh Gốc</span>
+              <span style="position: absolute; top: 12px; right: 12px; font-size: 11px; font-weight: 800; color: #22D3EE; background: rgba(15,23,42,0.8); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(6,182,212,0.4);">Kết Quả AI</span>
+              <div class="split-divider-v">
+                <div class="knob-circle">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
+                </div>
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; gap: 10px;">
+              <button style="height: 44px; padding: 0 16px; border-radius: 10px; background: #0F172A; border: 1px solid #334155; color: #F8FAFC; font-size: 13px; font-weight: 700;">Sao Chép Link Chia Sẻ</button>
+              <button style="height: 44px; padding: 0 22px; border-radius: 10px; border: none; background: linear-gradient(135deg, #10B981, #06B6D4); color: #04131A; font-size: 13px; font-weight: 800;">Tải Về HD (Không Watermark)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =======================================================================
+       MẪU 2: KHO THẺ CÔNG CỤ AI BÊN TRÁI + BÀN LÀM VIỆC NHANH BÊN PHẢI (CAPCUT / CANVA STYLE)
+       ======================================================================= -->
+  <section id="mau-2" class="option-block">
+    <div class="option-header-meta">
+      <div>
+        <span class="option-badge">MẪU 2 — TRỰC QUAN KIỂU KHO CÔNG CỤ (CANVA / CAPCUT HUB)</span>
+        <h2 class="option-title">Mẫu 2: Top Header + Lưới Thẻ Tính Năng Có Ảnh Minh Họa (Bên Trái) &amp; Khung Làm Việc (Bên Phải)</h2>
+        <p class="option-desc">
+          Người dùng mới vào thấy ngay danh sách hàng chục thẻ tính năng kèm hình minh họa Before/After trực quan ở nửa bên trái. Bấm vào thẻ nào thì khung làm việc ở nửa bên phải mở ngay công cụ đó — không cần chuyển trang.
+        </p>
+      </div>
+    </div>
+
+    <div class="desktop-frame">
+      <header class="top-header">
+        <div class="header-left">
+          <div class="brand">
+            <span class="icon" style="color: #8B5CF6;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </span>
+            MOTION.AI
+          </div>
+          <nav class="top-nav-links">
+            <div class="top-nav-item active">Kho Công Cụ AI</div>
+            <div class="top-nav-item">Lịch Sử Tác Vụ</div>
+            <div class="top-nav-item">Bảng Giá</div>
+          </nav>
+        </div>
+        <div class="header-right">
+          <div class="credit-pill">4.250 cr</div>
+          <button class="btn-topup-header">+ Nạp Credit</button>
+          <div class="avatar-sm">H</div>
+        </div>
+      </header>
+
+      <div class="m2-body">
+        <div class="m2-hero-header">
+          <div class="category-pills">
+            <span class="cat-pill active">Tất cả (24)</span>
+            <span class="cat-pill">Hot Trend TikTok</span>
+            <span class="cat-pill">Thời Trang &amp; Lookbook</span>
+            <span class="cat-pill">Video AI</span>
+            <span class="cat-pill">Chân Dung</span>
+          </div>
+          <div class="search-box">Tìm kiếm trong 24 công cụ...</div>
+        </div>
+
+        <div class="m2-grid-layout">
+          <!-- Left: Scalable Visual Grid of Features -->
+          <div class="m2-catalog-grid">
+            <div class="feature-card-visual">
+              <div class="visual-thumb">
+                <span style="font-size: 11px; color: #94A3B8;">Ảnh gốc</span>
+                <span style="font-size: 11px; color: #22D3EE; font-weight: 800;">→ Ghép mặt AI</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="tool-name">Ghép Mặt 1 Chạm (Face Swap)</span>
+                <span class="tool-tag">100 cr</span>
+              </div>
+              <span class="tool-sub">Thay khuôn mặt vào ảnh mẫu giữ nguyên ánh sáng</span>
+            </div>
+
+            <div class="feature-card-visual selected">
+              <div class="visual-thumb">
+                <span style="font-size: 11px; color: #94A3B8;">Dáng gốc</span>
+                <span style="font-size: 11px; color: #22D3EE; font-weight: 800;">→ Eo thon tự nhiên</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="tool-name">Chỉnh Dáng (Body Retouch)</span>
+                <span class="tool-tag">100 cr</span>
+              </div>
+              <span class="tool-sub">Chỉnh eo &amp; vóc dáng 10 cấp độ, không méo nền</span>
+            </div>
+
+            <div class="feature-card-visual">
+              <div class="visual-thumb">
+                <span style="font-size: 11px; color: #94A3B8;">Ảnh + Video mẫu</span>
+                <span style="font-size: 11px; color: #22D3EE; font-weight: 800;">→ Video nhảy AI</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="tool-name">Chuyển Động Theo Video (Motion)</span>
+                <span class="tool-tag">50 cr/s</span>
+              </div>
+              <span class="tool-sub">Cho nhân vật nhảy hoặc catwalk theo clip mẫu</span>
+            </div>
+
+            <div class="feature-card-visual">
+              <div class="visual-thumb">
+                <span style="font-size: 11px; color: #64748B;">+ 20 công cụ sắp mở</span>
+                <span class="tool-tag soon">Thử đồ, LipSync, 4K...</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="tool-name">Thử Đồ Ảo / Đổi Phông Nền</span>
+                <span class="tool-tag soon">Sắp mở</span>
+              </div>
+              <span class="tool-sub">Dễ dàng thêm hàng chục thẻ mới vào lưới này</span>
+            </div>
+          </div>
+
+          <!-- Right: Focused Active Tool Panel -->
+          <div class="studio-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 16px; font-weight: 800;">Chỉnh Dáng AI (Body Retouch)</span>
+              <span class="tool-tag">100 credit / lượt</span>
+            </div>
+            <div class="upload-slot filled" style="height: 140px;">
+              <span style="font-size: 12px; font-weight: 700; color: #22D3EE;">lookbook_vay_den.jpg</span>
+              <span style="font-size: 11px; color: #94A3B8;">Kéo thả ảnh toàn thân hoặc bấm để đổi ảnh</span>
+            </div>
+            <div class="mini-trimmer">
+              <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                <span>Mức độ chỉnh dáng: <strong>Mức 5 — Tự nhiên</strong></span>
+                <span style="color: #8B5CF6; font-weight: 700;">1 – 10</span>
+              </div>
+              <div style="height: 8px; background: #1E293B; border-radius: 999px; overflow: hidden;">
+                <div style="width: 50%; height: 100%; background: linear-gradient(90deg, #8B5CF6, #06B6D4);"></div>
+              </div>
+            </div>
+            <button class="cta-grad">Tạo Ảnh Chỉnh Dáng (100 cr)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =======================================================================
+       MẪU 3: ULTRA-SIMPLE CENTERED STUDIO (NHƯ MÀN MOBILE PHÓNG RỘNG GỌN GÀNG)
+       ======================================================================= -->
+  <section id="mau-3" class="option-block">
+    <div class="option-header-meta">
+      <div>
+        <span class="option-badge">MẪU 3 — TỐI GIẢN TUYỆT ĐỐI (1-CLICK CENTERED STUDIO)</span>
+        <h2 class="option-title">Mẫu 3: Top Header + Dải Pill Chọn Nhanh Ở Giữa + Một Hộp Studio Trung Tâm Duy Nhất</h2>
+        <p class="option-desc">
+          Giữ trải nghiệm giống hệt sự đơn giản trên điện thoại: người dùng chỉ nhìn vào đúng <strong>1 hộp trung tâm (820px)</strong> giữa màn hình. Phía trên hộp là danh sách các nút công cụ (có nút <em>"Tất cả công cụ +20"</em> mở popup chọn khi số lượng tính năng tăng lên).
+        </p>
+      </div>
+    </div>
+
+    <div class="desktop-frame">
+      <header class="top-header">
+        <div class="header-left">
+          <div class="brand">
+            <span class="icon" style="color: #8B5CF6;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </span>
+            MOTION.AI
+          </div>
+          <nav class="top-nav-links">
+            <div class="top-nav-item active">Studio Sáng Tạo</div>
+            <div class="top-nav-item">Lịch Sử</div>
+            <div class="top-nav-item">Bảng Giá</div>
+          </nav>
+        </div>
+        <div class="header-right">
+          <div class="credit-pill">4.250 cr</div>
+          <button class="btn-topup-header">+ Nạp Credit</button>
+          <div class="avatar-sm">H</div>
+        </div>
+      </header>
+
+      <div class="m3-body">
+        <div class="m3-title-center">
+          <h3 style="font-size: 22px; font-weight: 800;">Chọn Công Cụ AI Bạn Muốn Tạo Hôm Nay</h3>
+          <p style="font-size: 13px; color: #94A3B8;">Tải ảnh/video lên và nhận kết quả HD sau 30 giây — Hoàn 100% credit nếu lỗi</p>
+        </div>
+
+        <!-- Centered Multi-Feature Pill Dock -->
+        <div class="m3-feature-dock">
+          <div class="dock-pill">Ghép Mặt AI (100 cr)</div>
+          <div class="dock-pill">Chỉnh Vóc Dáng (100 cr)</div>
+          <div class="dock-pill active">Chuyển Động Video (50 cr/s)</div>
+          <div class="dock-pill">Thử Đồ Thời Trang</div>
+          <div class="dock-pill">Tăng Nét 4K</div>
+          <div class="dock-pill" style="color: #22D3EE; border: 1px dashed rgba(6,182,212,0.4);">+ Xem tất cả 20 công cụ...</div>
+        </div>
+
+        <!-- Single Centered Card -->
+        <div class="m3-center-card">
+          <div class="upload-two">
+            <div class="upload-slot filled">
+              <span style="font-size: 12px; font-weight: 700; color: #22D3EE;">anh_nhan_vat.png</span>
+              <span style="font-size: 11px; color: #94A3B8;">Bấm hoặc kéo thả ảnh nhân vật</span>
+            </div>
+            <div class="upload-slot filled">
+              <span style="font-size: 12px; font-weight: 700; color: #22D3EE;">video_nhay_mau.mp4 (15s)</span>
+              <span style="font-size: 11px; color: #94A3B8;">Bấm hoặc kéo thả video mẫu</span>
+            </div>
+          </div>
+
+          <div class="mini-trimmer">
+            <div style="display: flex; justify-content: space-between; font-size: 12px;">
+              <span>Đoạn video muốn tạo: <strong>00:03 – 00:09 (6 giây)</strong></span>
+              <span style="color: #22D3EE; font-weight: 800;">Chi phí: 300 credit</span>
+            </div>
+            <div class="mini-bar">
+              <div class="mini-window">6.0 giây</div>
+            </div>
+          </div>
+
+          <button class="cta-grad">Tạo Video Chuyển Động Ngay (300 cr)</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</body>
+</html>
