@@ -240,9 +240,7 @@ export const MOCK_WALLET_LEDGER_ITEMS: LedgerEntry[] = [
 
 export const MOCK_WALLET_LEDGER_RESPONSE: WalletLedgerResponse = {
   items: MOCK_WALLET_LEDGER_ITEMS,
-  page: 1,
   pageSize: 20,
-  total: MOCK_WALLET_LEDGER_ITEMS.length,
   hasMore: false,
   nextCursor: null,
 };

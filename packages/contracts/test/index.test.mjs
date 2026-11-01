@@ -192,11 +192,9 @@ describe('@motion-ai/contracts', () => {
 
     it('validates GET /wallet/ledger mock response, descending order, Vietnamese labels, AD-2 sign rules, and entity link rules', () => {
       const queryParsed = WalletLedgerQuerySchema.safeParse({
-        page: '1',
         pageSize: '20',
       });
       assert.equal(queryParsed.success, true);
-      assert.equal(queryParsed.data.page, 1);
       assert.equal(queryParsed.data.pageSize, 20);
 
       const ledgerParsed = WalletLedgerResponseSchema.safeParse(
@@ -502,6 +500,148 @@ describe('@motion-ai/contracts', () => {
         }).success,
         false,
       );
+    });
+
+    it('requires OAuth state and accepts the Google error callback (user cancelled)', () => {
+      assert.equal(
+        AuthGoogleCallbackQuerySchema.safeParse({ code: 'abc' }).success,
+        false,
+      );
+      assert.equal(
+        AuthGoogleCallbackQuerySchema.safeParse({ code: 'abc', state: '' })
+          .success,
+        false,
+      );
+      assert.equal(
+        AuthGoogleCallbackQuerySchema.safeParse({
+          error: 'access_denied',
+          state: 'csrf_state_token',
+        }).success,
+        true,
+      );
+      assert.equal(
+        AuthGoogleCallbackQuerySchema.safeParse({ error: 'access_denied' })
+          .success,
+        false,
+      );
+    });
+
+    it('validates ledger cursor pagination: query defaults/bounds, hasMore/nextCursor consistency, pageSize cap, id tiebreak', () => {
+      const q = WalletLedgerQuerySchema.safeParse({});
+      assert.equal(q.success, true);
+      assert.equal(q.data.pageSize, 20);
+      for (const pageSize of ['0', '101']) {
+        assert.equal(
+          WalletLedgerQuerySchema.safeParse({ pageSize }).success,
+          false,
+        );
+      }
+
+      const base = MOCK_WALLET_LEDGER_RESPONSE;
+      assert.equal(
+        WalletLedgerResponseSchema.safeParse({
+          ...base,
+          hasMore: true,
+          nextCursor: null,
+        }).success,
+        false,
+      );
+      assert.equal(
+        WalletLedgerResponseSchema.safeParse({
+          ...base,
+          hasMore: false,
+          nextCursor: 'c1',
+        }).success,
+        false,
+      );
+      assert.equal(
+        WalletLedgerResponseSchema.safeParse({
+          ...base,
+          hasMore: true,
+          nextCursor: 'c1',
+        }).success,
+        true,
+      );
+      assert.equal(
+        WalletLedgerResponseSchema.safeParse({ ...base, pageSize: 1 }).success,
+        false,
+      );
+
+      // Cùng createdAt: id phải giảm dần
+      const [a, b] = MOCK_WALLET_LEDGER_ITEMS;
+      const sameTime = { ...b, createdAt: a.createdAt };
+      const hi = a.id > sameTime.id ? a : sameTime;
+      const lo = a.id > sameTime.id ? sameTime : a;
+      assert.equal(
+        WalletLedgerResponseSchema.safeParse({
+          ...base,
+          items: [hi, lo],
+        }).success,
+        true,
+      );
+      assert.equal(
+        WalletLedgerResponseSchema.safeParse({
+          ...base,
+          items: [lo, hi],
+        }).success,
+        false,
+      );
+    });
+
+    it('rejects tampered pricing packs and tiers (price, credits, id, packId, priority, cap)', () => {
+      const cfg = MOCK_PRICING_CONFIG_RESPONSE;
+      const withPack = (i, patch) => ({
+        ...cfg,
+        topupPacks: cfg.topupPacks.map((p, idx) =>
+          idx === i ? { ...p, ...patch } : p,
+        ),
+      });
+      const withTier = (i, patch) => ({
+        ...cfg,
+        tiers: cfg.tiers.map((t, idx) => (idx === i ? { ...t, ...patch } : t)),
+      });
+      const bad = [
+        withPack(0, { priceVnd: 1 }),
+        withPack(0, { credits: 1 }),
+        withPack(0, { id: 'pro' }),
+        withPack(0, { priority: 1 }),
+        withPack(0, { maxVideoSeconds: 20 }),
+        withTier(1, { priceVnd: 1 }),
+        withTier(1, { credits: 1 }),
+        withTier(1, { packId: 'pro' }),
+        withTier(1, { maxVideoSeconds: 20 }),
+      ];
+      bad.forEach((payload, i) => {
+        assert.equal(
+          PricingConfigResponseSchema.safeParse(payload).success,
+          false,
+          `case ${i} should be rejected`,
+        );
+      });
+    });
+
+    it('rejects ledger entries with inconsistent taskId/topupId/pack links', () => {
+      const byType = (t) => MOCK_WALLET_LEDGER_ITEMS.find((i) => i.type === t);
+      const cases = [
+        { ...byType('RELEASED'), taskId: null },
+        { ...byType('CAPTURED'), taskId: null },
+        { ...byType('HOLD'), pack: 'pro' },
+        { ...byType('CAPTURED'), pack: 'pro' },
+        { ...byType('RELEASED'), pack: 'pro' },
+        { ...byType('TOPUP'), taskId: '20000000-0000-4000-8000-000000000001' },
+        { ...byType('GRANT'), topupId: '30000000-0000-4000-8000-000000000001' },
+        { ...byType('GRANT'), pack: 'pro' },
+        { ...byType('ADJUST'), topupId: '30000000-0000-4000-8000-000000000001' },
+        { ...byType('ADJUST'), pack: 'pro' },
+        { ...byType('ADJUST'), taskId: '20000000-0000-4000-8000-000000000001' },
+      ];
+      cases.forEach((entry, i) => {
+        assert.equal(
+          LedgerEntrySchema.safeParse(entry).success,
+          false,
+          `case ${i} should be rejected`,
+        );
+      });
     });
 
     it('documents zod version and assumption note in packages/contracts/README.md', () => {

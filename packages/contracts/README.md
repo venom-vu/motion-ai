@@ -27,7 +27,7 @@ Gói hợp đồng dùng chung (Shared Contracts) giữa Backend (`@motion-ai/ap
 - Hằng số phiên bản cam kết điều khoản dịch vụ `TOS_VERSION`.
 - Schema & kiểu dữ liệu cho các endpoint xác thực:
   - `GET /auth/google`: `AuthGoogleQuerySchema` (`tosVersion`, `deviceId`), `AuthGoogleResponseSchema`.
-  - `GET /auth/google/callback`: `AuthGoogleCallbackQuerySchema`, `AuthGoogleCallbackResponseSchema`.
+  - `GET /auth/google/callback`: `AuthGoogleCallbackQuerySchema` (union: `{code,state}` hoặc `{error,state}` khi user Hủy; `state` luôn bắt buộc), `AuthGoogleCallbackResponseSchema`.
   - `POST /auth/refresh`: `AuthRefreshRequestSchema`, `AuthRefreshResponseSchema`.
   - `POST /auth/logout`: `AuthLogoutRequestSchema`, `AuthLogoutResponseSchema`.
 
@@ -37,7 +37,7 @@ Gói hợp đồng dùng chung (Shared Contracts) giữa Backend (`@motion-ai/ap
 - Loại bút toán sổ cái `LedgerEntryType` (`GRANT`, `TOPUP`, `ADJUST`, `HOLD`, `CAPTURED`, `RELEASED`) kèm nhãn tiếng Việt `LEDGER_ENTRY_LABELS_VI` (`Tặng`, `Nạp`, `Giữ`, `Hoàn`, `Chốt`, `Điều chỉnh`) và kiểm tra quy tắc dấu bất biến theo AD-2.
 - Schema & kiểu dữ liệu cho các endpoint ví và cấu hình:
   - `GET /me`: `MeRequestSchema`, `MeResponseSchema` (`id`, `email`, `role`, `tier`, `balance`, `held`, `tosVersion`).
-  - `GET /wallet/ledger`: `WalletLedgerQuerySchema`, `WalletLedgerResponseSchema` (phân trang, sắp xếp mới nhất trước theo `createdAt` giảm dần).
+  - `GET /wallet/ledger`: `WalletLedgerQuerySchema`, `WalletLedgerResponseSchema` (phân trang theo cursor; mới nhất trước: `createdAt` giảm dần, cùng `createdAt` thì `id` giảm dần; `hasMore` ⇔ `nextCursor` khác null).
   - `GET /config/pricing`: `PricingConfigRequestSchema`, `PricingConfigResponseSchema` (định mức credit theo pipeline, ngưỡng giữ Tier 100 credit, cấu hình 4 Tier và 3 gói nạp).
 
 ### 4. Dữ liệu Mock (`src/mocks.ts`)

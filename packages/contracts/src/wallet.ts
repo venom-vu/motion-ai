@@ -324,10 +324,10 @@ export const LedgerEntrySchema = z
 export type LedgerEntry = z.infer<typeof LedgerEntrySchema>;
 
 /**
- * GET /wallet/ledger — Truy vấn phân trang và danh sách bút toán mới nhất trước.
+ * GET /wallet/ledger — Phân trang theo cursor (sổ cái append-only), bút toán mới nhất trước.
+ * Thứ tự ổn định: createdAt giảm dần, cùng createdAt thì id giảm dần.
  */
 export const WalletLedgerQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   cursor: z.string().min(1).optional(),
 });
@@ -338,22 +338,39 @@ export type WalletLedgerRequest = WalletLedgerQuery;
 export const WalletLedgerResponseSchema = z
   .object({
     items: z.array(LedgerEntrySchema),
-    page: z.number().int().min(1),
     pageSize: z.number().int().min(1).max(100),
-    total: z.number().int().nonnegative(),
     hasMore: z.boolean(),
-    nextCursor: z.string().min(1).nullable().optional(),
+    nextCursor: z.string().min(1).nullable(),
   })
   .superRefine((res, ctx) => {
+    if (res.items.length > res.pageSize) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['items'],
+        message: 'Số bút toán không được vượt quá pageSize',
+      });
+    }
+    if (res.hasMore !== (res.nextCursor !== null)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['nextCursor'],
+        message: 'hasMore phải khớp với việc có nextCursor (hasMore=true ⇔ nextCursor khác null)',
+      });
+    }
     for (let i = 1; i < res.items.length; i += 1) {
-      const prevTime = Date.parse(res.items[i - 1].createdAt);
-      const currTime = Date.parse(res.items[i].createdAt);
-      if (currTime > prevTime) {
+      const prev = res.items[i - 1];
+      const curr = res.items[i];
+      const prevTime = Date.parse(prev.createdAt);
+      const currTime = Date.parse(curr.createdAt);
+      if (
+        currTime > prevTime ||
+        (currTime === prevTime && curr.id > prev.id)
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['items', i, 'createdAt'],
           message:
-            'Danh sách bút toán sổ cái phải xếp mới nhất trước (createdAt giảm dần)',
+            'Danh sách bút toán sổ cái phải xếp mới nhất trước (createdAt giảm dần, cùng createdAt thì id giảm dần)',
         });
       }
     }

@@ -104,3 +104,21 @@ context:
 - `pnpm run build` -- expected: exit code 0 trên cả 3 gói
 - `pnpm test` -- expected: exit code 0, toàn bộ unit test của `@motion-ai/contracts`, `@motion-ai/api`, `@motion-ai/web` và `check-branch-boundaries` đều pass
 
+
+### Review Findings
+
+- [x] [Review][Decision] (đã chọn A: bắt buộc `state` + nhánh callback lỗi) OAuth callback: `state` tùy chọn và không có dạng callback lỗi (`error=access_denied`) — `state` là thứ duy nhất ràng buộc callback với lượt đăng nhập (chống CSRF); user bấm Hủy ở màn Google hiện không có shape hợp lệ [packages/contracts/src/auth.ts:33] (blind-hunter+edge-case-hunter+verification-gap, medium)
+- [x] [Review][Decision] (đã chọn A: cursor là chuẩn, bỏ `page`/`total`, `hasMore` ⇔ `nextCursor`, tiebreak `id`) Phân trang sổ cái mơ hồ: query nhận cả `page` lẫn `cursor`, response trả cả `page/total` lẫn `nextCursor`; không kiểm tra `hasMore` khớp `nextCursor`/`total`, `items.length <= pageSize`, và so sánh thứ tự chỉ theo `createdAt` (HOLD/RELEASED cùng giao dịch bị lệch) [packages/contracts/src/wallet.ts:329-360] (blind-hunter+edge-case-hunter+verification-gap, medium)
+- [x] [Review][Patch] Bổ sung test âm tính còn thiếu: `TopupPackConfigSchema`/`TierConfigSchema` (sai `priceVnd`, `credits`, `id`, `packId`, `priority`, `maxVideoSeconds`), mặc định/giới hạn `WalletLedgerQuerySchema` (`{}`, `page:0`, `pageSize:0`, `pageSize:101`), quy tắc liên kết `taskId/topupId/pack` của `LedgerEntrySchema` [packages/contracts/test/index.test.mjs] (verification-gap, medium)
+- [x] [Review][Defer] Hình dạng luồng `GET /auth/google` + callback (trả JSON thay vì 302 redirect), cookie refresh token (tên, SameSite, Path, CSRF cho `/auth/refresh`, `/auth/logout`) chỉ nằm trong comment — deferred: chưa xác minh; cần đối chiếu ARCHITECTURE-SPINE trước khi Story đăng nhập phía BE/FE bắt đầu (mức tối đa nếu đúng: medium)
+
+#### Rejected
+
+- `false` — Mock `/me` mặc định lệch ledger: `MOCK_ME_PRO_RESPONSE` đã khớp ledger (tổng 12050, held 250) và được ghi rõ trong comment; `MOCK_ME_RESPONSE` là tài khoản FREE riêng.
+- `false` — Phạm vi file ngoài `packages/contracts/`: commit nằm trên `main`; `check-branch-boundaries.mjs` chỉ giới hạn nhánh `contract/*`, nhánh khác không bị hạn chế.
+- `false` — Spec `done` vs sprint-status `review`: sẽ được đồng bộ ở bước cập nhật trạng thái của review này.
+- `low` — `datetime()` không nhận offset `+07:00`, `.safe()` cho số nguyên: backend phát `Z`, giá trị credit nhỏ; sửa thêm guard, không đáng.
+- `low` — `z.literal` giá/credit cứng: chủ đích, thay đổi giá phải đổi contract; tiers/packs đối chiếu qua `TIER_SPECS`.
+- `low` — `tosVersion` không so với `TOS_VERSION`, `deviceId` không giới hạn độ dài: kiểm tra phiên bản là việc của backend; thêm giới hạn là thêm ràng buộc chưa có yêu cầu.
+- Bỏ qua (sửa phải đổi spec) — Thêm mã lỗi auth (401/403, token hết hạn): spec đóng đúng 7 mã `ApiErrorCode`.
+- `low` — `ApiError` viết tay thay vì `z.infer`, alias thừa, mocks export từ `index.ts`, refresh body `null`, README thiếu chi tiết: không gây hại cụ thể ở hiện tại.

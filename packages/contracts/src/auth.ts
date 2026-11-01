@@ -28,10 +28,20 @@ export type AuthGoogleResponse = z.infer<typeof AuthGoogleResponseSchema>;
 /**
  * GET /auth/google/callback — Query callback từ Google OAuth2 và phản hồi cấp phiên JWT.
  */
-export const AuthGoogleCallbackQuerySchema = z.object({
+export const AuthGoogleCallbackSuccessQuerySchema = z.object({
   code: z.string().trim().min(1, 'code là bắt buộc'),
-  state: z.string().trim().min(1).optional(),
+  state: z.string().trim().min(1, 'state là bắt buộc'),
 });
+/** Google gọi lại với lỗi (ví dụ user bấm Hủy: error=access_denied); state vẫn bắt buộc để chống CSRF. */
+export const AuthGoogleCallbackErrorQuerySchema = z.object({
+  error: z.string().trim().min(1, 'error là bắt buộc'),
+  error_description: z.string().optional(),
+  state: z.string().trim().min(1, 'state là bắt buộc'),
+});
+export const AuthGoogleCallbackQuerySchema = z.union([
+  AuthGoogleCallbackSuccessQuerySchema,
+  AuthGoogleCallbackErrorQuerySchema,
+]);
 export const AuthGoogleCallbackRequestSchema = AuthGoogleCallbackQuerySchema;
 export type AuthGoogleCallbackQuery = z.infer<
   typeof AuthGoogleCallbackQuerySchema
