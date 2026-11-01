@@ -92,6 +92,31 @@ context:
 - Given một Pull Request trên GitHub, when workflow `.github/workflows/ci.yml` kích hoạt, then CI thực thi đầy đủ các bước kiểm tra ranh giới nhánh, lint, typecheck, build và test.
 - Given phiên bản đã ghim trong `ARCHITECTURE-SPINE.md`, when kiểm tra `package.json` của từng gói, then `nuxt` được ghim đúng `4.6.3` và `@nestjs/core`, `@nestjs/common`, `@nestjs/platform-express` được ghim đúng `12.3.2`.
 
+### Review Findings
+
+- [x] [Review][Patch] Boundary check fail-open: lỗi git bị nuốt thành `[]`, `resolveBranchFromGit()` trả `main` khi lỗi, HEAD detached ra `HEAD` -> CI xanh với "0 file(s) checked"; cần exit != 0 khi không tính được diff/branch [scripts/check-branch-boundaries.mjs:92-140]
+- [x] [Review][Patch] `git diff --name-only` gộp rename thành đường dẫn mới, bỏ sót đường dẫn cũ; thêm `--no-renames` [scripts/check-branch-boundaries.mjs:109-143]
+- [x] [Review][Patch] Đường dò file bằng git (`resolveChangedFilesFromGit`, thứ CI thật sự dùng) chưa có test; thêm test với git repo tạm + `GITHUB_BASE_REF`, không truyền `--files` [scripts/check-branch-boundaries.test.mjs]
+- [x] [Review][Patch] CI `pull_request` bị giới hạn `branches: [main, master]`, lệch Code Map ("chạy trên PR và push"); bỏ filter ở `pull_request` [.github/workflows/ci.yml:3-6]
+- [x] [Review][Patch] `npm test -w @motion-ai/web` độc lập trên clone sạch lỗi vì import `@motion-ai/contracts` từ `dist/`; thêm bước build contracts [apps/web/package.json:test]
+- [x] [Review][Defer] Smoke test spawn `node dist/main.js` / `dist/worker.js` (guard entrypoint, PORT) chưa có — deferred: code khung, bổ sung ở Story 1.3
+- [x] [Review][Defer] API entrypoint thiếu `enableShutdownHooks()` — deferred: bổ sung cùng service thật ở Story 1.3
+- [x] [Review][Defer] `apps/web` lint chỉ phủ `nuxt.config.ts` + `test`, chưa có parser `.vue` — deferred: làm khi có component FE thật
+- [x] [Review][Defer] CI chưa chặn merge nếu chưa bật branch protection/required check — deferred: cấu hình repo GitHub, ngoài diff
+- [x] [Review][Defer] CLAUDE.md "Quy trình làm việc" còn ghi bước tiếp theo là story 1-1 — deferred: sửa file agent-context, làm riêng
+
+#### Rejected
+
+- Push lên `main` diff rỗng: false, `main` vốn không bị giới hạn nên không mất bảo vệ nào.
+- `vue-tsc`/`typescript` thiếu ở `apps/web`, phiên bản cũ, `contracts: "*"` vi phạm pin: false, hoisting workspace chạy được và `*` chỉ là link workspace.
+- `package-lock.json` không kiểm chứng được: false, `npm ci` trong CI đã kiểm.
+- Sai chính tả tiền tố nhánh (`fe-login`), tiền tố viết hoa: low, nhánh không tiền tố được phép theo thiết kế.
+- `CHANGED_FILES` rỗng, thiếu giá trị `--branch/--files`, tên file có dấu phẩy/ký tự đặc biệt (quotePath): low, hiếm gặp, và lỗi quotePath fail-closed.
+- `PORT` không hợp lệ, thiếu `.catch` khi bootstrap: low, Node 22 báo lỗi và thoát mã 1.
+- Test thiếu `try/finally` cho `ctx.close()`, test chưa assert "không mở port": low.
+- `globals.browser` áp cho cả API, CI thiếu `permissions`/`timeout`, `.env.example`, `engine-strict`, `.editorconfig`, port chỉ là placeholder: low/ngoài phạm vi spec.
+- Spec `status: done` lệch sprint-status, typo đường dẫn `apps/web/ tsconfig.json`, từ lạ trong Tasks: fix là sửa spec đang review.
+
 ## Implementation Notes
 
 - Khởi tạo `npm` workspaces tại `package.json` gốc với một `package-lock.json` duy nhất, ghim Node `>= 22.22.3` trong `engines` và `22.22.3` trong `.nvmrc`.

@@ -8,10 +8,10 @@
     "lint": "eslint --config ../../eslint.config.mjs nuxt.config.ts test",
     "typecheck": "nuxt prepare && nuxt typecheck",
     "build": "nuxt build",
-    "test": "node --test test/*.test.mjs"
+    "test": "pnpm --filter @motion-ai/contracts run build && node --test test/*.test.mjs"
   },
   "dependencies": {
-    "@motion-ai/contracts": "*",
+    "@motion-ai/contracts": "workspace:*",
     "nuxt": "4.6.3"
   }
 }

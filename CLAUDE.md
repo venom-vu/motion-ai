@@ -7,14 +7,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Monorepo đã được khởi tạo tại Story 1.1 (`1-1-shared-dựng-monorepo-và-khung-ci`).
 
 - **Yêu cầu Node.js:** `>= 22.22.3` (khai báo trong `.nvmrc` và `package.json#engines`).
-- **Trình quản lý gói duy nhất:** `npm` workspaces với **duy nhất một file khóa `package-lock.json` ở thư mục gốc**. Không dùng `pnpm`/`yarn`/`bun` và không tạo lockfile con trong từng gói.
+- **Trình quản lý gói duy nhất:** `pnpm` workspaces (khai báo trong `pnpm-workspace.yaml`, `packageManager` ghim `pnpm@10.21.0`) với **duy nhất một file khóa `pnpm-lock.yaml` ở thư mục gốc**. Không dùng `npm`/`yarn`/`bun` và không tạo lockfile con trong từng gói.
 - **Các lệnh thật chạy từ thư mục gốc:**
-  - `npm install`: cài đặt toàn bộ dependencies cho các workspace (`packages/contracts`, `apps/api`, `apps/web`).
-  - `npm run lint`: chạy ESLint Flat Config kiểm tra mã nguồn toàn monorepo.
-  - `npm run typecheck`: kiểm tra kiểu TypeScript trên cả 3 gói (`@motion-ai/contracts`, `@motion-ai/api`, `@motion-ai/web`).
-  - `npm run build`: biên dịch `@motion-ai/contracts`, `@motion-ai/api` (NestJS `12.3.2` ESM) và `@motion-ai/web` (Nuxt `4.6.3`).
-  - `npm test`: chạy bộ unit test kiểm tra ranh giới nhánh (`scripts/check-branch-boundaries.test.mjs`) và test của từng gói.
-  - `npm run check:boundaries`: kiểm tra ranh giới đường dẫn theo tiền tố nhánh (`fe/*` chỉ sửa `apps/web/`, `be/*` chỉ sửa `apps/api/` và `deploy/`, `contract/*` chỉ sửa `packages/contracts/`, `shared/*` được sửa toàn repo).
+  - `pnpm install`: cài đặt toàn bộ dependencies cho các workspace (`packages/contracts`, `apps/api`, `apps/web`).
+  - `pnpm run lint`: chạy ESLint Flat Config kiểm tra mã nguồn toàn monorepo.
+  - `pnpm run typecheck`: kiểm tra kiểu TypeScript trên cả 3 gói (`@motion-ai/contracts`, `@motion-ai/api`, `@motion-ai/web`).
+  - `pnpm run build`: biên dịch `@motion-ai/contracts`, `@motion-ai/api` (NestJS `12.3.2` ESM) và `@motion-ai/web` (Nuxt `4.6.3`).
+  - `pnpm test`: chạy bộ unit test kiểm tra ranh giới nhánh (`scripts/check-branch-boundaries.test.mjs`) và test của từng gói.
+  - `pnpm run check:boundaries`: kiểm tra ranh giới đường dẫn theo tiền tố nhánh (`fe/*` chỉ sửa `apps/web/`, `be/*` chỉ sửa `apps/api/` và `deploy/`, `contract/*` chỉ sửa `packages/contracts/`, `shared/*` được sửa toàn repo).
 
 Ngôn ngữ giao tiếp và tài liệu: **tiếng Việt** (`communication_language` và `document_output_language` trong `_bmad/config.toml`).
 

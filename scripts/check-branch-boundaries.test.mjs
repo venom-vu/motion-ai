@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -25,7 +26,7 @@ describe('check-branch-boundaries (I/O & Edge-Case Matrix)', () => {
   it('1. Nhánh fe/* hợp lệ: fe/login-ui sửa apps/web/app.vue và package-lock.json -> exit 0', () => {
     const res = runBoundaryCli('fe/login-ui', [
       'apps/web/app.vue',
-      'package-lock.json',
+      'pnpm-lock.yaml',
     ]);
     assert.equal(res.status, 0);
     assert.match(res.stdout, /passed/i);
@@ -46,7 +47,7 @@ describe('check-branch-boundaries (I/O & Edge-Case Matrix)', () => {
     const res = runBoundaryCli('be/db-setup', [
       'apps/api/src/main.ts',
       'deploy/compose.yml',
-      'package-lock.json',
+      'pnpm-lock.yaml',
     ]);
     assert.equal(res.status, 0);
     assert.match(res.stdout, /passed/i);
@@ -67,7 +68,7 @@ describe('check-branch-boundaries (I/O & Edge-Case Matrix)', () => {
     const res = runBoundaryCli('contract/1-2-auth-wallet', [
       'packages/contracts/src/index.ts',
       'packages/contracts/package.json',
-      'package-lock.json',
+      'pnpm-lock.yaml',
     ]);
     assert.equal(res.status, 0);
     assert.match(res.stdout, /passed/i);
@@ -143,15 +144,15 @@ describe('check-branch-boundaries (I/O & Edge-Case Matrix)', () => {
   });
 
   it('enforces single root package-lock.json with no nested or foreign lockfiles in workspaces', () => {
-    assert.ok(fs.existsSync(path.join(repoRoot, 'package-lock.json')));
+    assert.ok(fs.existsSync(path.join(repoRoot, 'pnpm-lock.yaml')));
     const forbidden = [
       'pnpm-lock.yaml',
+      'package-lock.json',
       'yarn.lock',
       'bun.lockb',
       'bun.lock',
-      'package-lock.json',
     ];
-    for (const rootForeign of ['pnpm-lock.yaml', 'yarn.lock', 'bun.lockb', 'bun.lock']) {
+    for (const rootForeign of ['package-lock.json', 'yarn.lock', 'bun.lockb', 'bun.lock']) {
       assert.equal(
         fs.existsSync(path.join(repoRoot, rootForeign)),
         false,
@@ -167,5 +168,77 @@ describe('check-branch-boundaries (I/O & Edge-Case Matrix)', () => {
         );
       }
     }
+  });
+
+  describe('git-based changed file resolution (đường CI thật sự dùng)', () => {
+    function git(cwd, ...args) {
+      return execFileSync('git', args, { cwd, encoding: 'utf8' });
+    }
+
+    function makeRepo() {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'boundary-'));
+      git(dir, 'init', '-q', '-b', 'main');
+      git(dir, 'config', 'user.email', 't@example.com');
+      git(dir, 'config', 'user.name', 'T');
+      git(dir, 'config', 'commit.gpgsign', 'false');
+      fs.mkdirSync(path.join(dir, 'apps/api/src'), { recursive: true });
+      fs.writeFileSync(path.join(dir, 'apps/api/src/a.ts'), 'export const a = 1;\n'.repeat(20));
+      git(dir, 'add', '-A');
+      git(dir, 'commit', '-q', '-m', 'base');
+      return dir;
+    }
+
+    function runGit(cwd, env) {
+      const clean = { ...process.env };
+      for (const key of ['BRANCH_NAME', 'GITHUB_HEAD_REF', 'GITHUB_REF_NAME', 'GITHUB_BASE_REF', 'BASE_REF', 'CHANGED_FILES']) {
+        delete clean[key];
+      }
+      return spawnSync(process.execPath, [scriptPath], {
+        cwd,
+        encoding: 'utf8',
+        env: { ...clean, ...env },
+      });
+    }
+
+    it('flags out-of-bounds files from git diff against GITHUB_BASE_REF without --files', () => {
+      const dir = makeRepo();
+      git(dir, 'checkout', '-q', '-b', 'fe/x');
+      fs.mkdirSync(path.join(dir, 'apps/web'), { recursive: true });
+      fs.writeFileSync(path.join(dir, 'apps/web/ok.vue'), '<template />\n');
+      fs.writeFileSync(path.join(dir, 'apps/api/src/b.ts'), 'export const b = 1;\n');
+      git(dir, 'add', '-A');
+      git(dir, 'commit', '-q', '-m', 'change');
+      const res = runGit(dir, { GITHUB_HEAD_REF: 'fe/x', GITHUB_BASE_REF: 'main' });
+      assert.equal(res.status, 1);
+      assert.match(res.stderr, /apps\/api\/src\/b\.ts/);
+      assert.doesNotMatch(res.stderr, /apps\/web\/ok\.vue/);
+    });
+
+    it('reports the old path of a renamed file', () => {
+      const dir = makeRepo();
+      git(dir, 'checkout', '-q', '-b', 'fe/x');
+      fs.mkdirSync(path.join(dir, 'apps/web'), { recursive: true });
+      git(dir, 'mv', 'apps/api/src/a.ts', 'apps/web/a.ts');
+      git(dir, 'commit', '-q', '-m', 'move');
+      const res = runGit(dir, { GITHUB_HEAD_REF: 'fe/x', GITHUB_BASE_REF: 'main' });
+      assert.equal(res.status, 1);
+      assert.match(res.stderr, /apps\/api\/src\/a\.ts/);
+    });
+
+    it('fails closed (exit 2) when the base ref cannot be resolved', () => {
+      const dir = makeRepo();
+      git(dir, 'checkout', '-q', '-b', 'fe/x');
+      const res = runGit(dir, { GITHUB_HEAD_REF: 'fe/x', GITHUB_BASE_REF: 'does-not-exist' });
+      assert.equal(res.status, 2);
+      assert.match(res.stderr, /Cannot compute changed files/);
+    });
+
+    it('fails closed (exit 2) on detached HEAD with no branch env', () => {
+      const dir = makeRepo();
+      git(dir, 'checkout', '-q', '--detach');
+      const res = runGit(dir, { GITHUB_BASE_REF: 'main' });
+      assert.equal(res.status, 2);
+      assert.match(res.stderr, /Cannot determine branch/);
+    });
   });
 });

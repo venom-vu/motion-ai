@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const LOCKFILE = 'package-lock.json';
+const LOCKFILE = 'pnpm-lock.yaml';
 
 /**
  * Normalize a file path to POSIX relative format without leading `./` or `/`.
@@ -93,11 +93,13 @@ export function validateBranchBoundaries({ branch, changedFiles }) {
 
 function resolveBranchFromGit() {
   try {
-    return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+    const name = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
       encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
+    return name === 'HEAD' ? '' : name;
   } catch {
-    return 'main';
+    return '';
   }
 }
 
@@ -119,6 +121,7 @@ function resolveChangedFilesFromGit(baseRef) {
     const fromOrigin = tryGitLines([
       'diff',
       '--name-only',
+      '--no-renames',
       `origin/${targetBase}...HEAD`,
     ]);
     if (fromOrigin !== null) return fromOrigin;
@@ -126,17 +129,20 @@ function resolveChangedFilesFromGit(baseRef) {
     const fromLocalBase = tryGitLines([
       'diff',
       '--name-only',
+      '--no-renames',
       `${targetBase}...HEAD`,
     ]);
     if (fromLocalBase !== null) return fromLocalBase;
+    return null;
   }
 
   const collected = new Set();
   const branchDiff =
-    tryGitLines(['diff', '--name-only', 'origin/main...HEAD']) ??
-    tryGitLines(['diff', '--name-only', 'main...HEAD']) ??
-    [];
-  const workingTreeDiff = tryGitLines(['diff', '--name-only', 'HEAD']) ?? [];
+    tryGitLines(['diff', '--name-only', '--no-renames', 'origin/main...HEAD']) ??
+    tryGitLines(['diff', '--name-only', '--no-renames', 'main...HEAD']);
+  if (branchDiff === null) return null;
+  const workingTreeDiff =
+    tryGitLines(['diff', '--name-only', '--no-renames', 'HEAD']) ?? [];
   const untrackedFiles =
     tryGitLines(['ls-files', '--others', '--exclude-standard']) ?? [];
 
@@ -180,18 +186,35 @@ function parseCliArgs(argv) {
   }
 
   const resolvedBranch = branch || resolveBranchFromGit();
+  if (!resolvedBranch) {
+    throw new Error(
+      'Cannot determine branch name (detached HEAD or git unavailable). Pass --branch or set BRANCH_NAME.',
+    );
+  }
   const changedFiles = hasExplicitFiles
     ? filesRaw
         .split(/[\r\n,]+/)
         .map((s) => s.trim())
         .filter(Boolean)
     : resolveChangedFilesFromGit(baseRef);
+  if (changedFiles === null) {
+    throw new Error(
+      'Cannot compute changed files from git (missing base ref or shallow clone). Fetch the base branch or pass --files.',
+    );
+  }
 
   return { branch: resolvedBranch, changedFiles };
 }
 
 export function runCli(argv = process.argv.slice(2)) {
-  const { branch, changedFiles } = parseCliArgs(argv);
+  let parsed;
+  try {
+    parsed = parseCliArgs(argv);
+  } catch (error) {
+    console.error(error.message);
+    return 2;
+  }
+  const { branch, changedFiles } = parsed;
   const result = validateBranchBoundaries({ branch, changedFiles });
 
   if (!result.valid) {

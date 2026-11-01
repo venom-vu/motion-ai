@@ -7,10 +7,10 @@
     "lint": "eslint --config ../../eslint.config.mjs src test",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test test/*.test.mjs"
+    "test": "pnpm run build && node --test test/*.test.mjs"
   },
   "dependencies": {
-    "@motion-ai/contracts": "*",
+    "@motion-ai/contracts": "workspace:*",
     "@nestjs/common": "12.3.2",
     "@nestjs/core": "12.3.2",
     "@nestjs/platform-express": "12.3.2",

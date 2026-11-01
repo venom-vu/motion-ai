@@ -6,15 +6,11 @@
   "engines": {
     "node": ">=22.22.3"
   },
-  "workspaces": [
-    "packages/*",
-    "apps/*"
-  ],
   "scripts": {
-    "lint": "eslint eslint.config.mjs scripts && npm run lint --workspaces",
-    "typecheck": "npm run build --workspace=@motion-ai/contracts && npm run typecheck --workspaces",
-    "build": "npm run build --workspace=@motion-ai/contracts && npm run build --workspace=@motion-ai/api && npm run build --workspace=@motion-ai/web",
-    "test": "node --test scripts/check-branch-boundaries.test.mjs && npm test --workspaces",
+    "lint": "eslint eslint.config.mjs scripts && pnpm -r run lint",
+    "typecheck": "pnpm --filter @motion-ai/contracts run build && pnpm -r run typecheck",
+    "build": "pnpm --filter @motion-ai/contracts run build && pnpm --filter @motion-ai/api run build && pnpm --filter @motion-ai/web run build",
+    "test": "node --test scripts/check-branch-boundaries.test.mjs && pnpm -r run test",
     "check:boundaries": "node scripts/check-branch-boundaries.mjs"
   },
   "devDependencies": {
@@ -25,5 +21,6 @@
     "typescript": "5.8.2",
     "typescript-eslint": "8.26.0",
     "vue-tsc": "2.2.8"
-  }
+  },
+  "packageManager": "pnpm@10.21.0"
 }

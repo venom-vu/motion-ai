@@ -5,8 +5,8 @@ Nền tảng SaaS tạo ảnh/video AI (Face Swap, Body Retouch, Motion Control)
 ## Yêu cầu hệ thống & Trình quản lý gói
 
 - **Node.js:** `>= 22.22.3` (được ghim trong `.nvmrc` và trường `engines` của `package.json`).
-- **Trình quản lý gói duy nhất:** `npm` (sử dụng `npm` workspaces).
-- **Quy tắc Lockfile:** Toàn bộ monorepo chỉ sử dụng **duy nhất một file `package-lock.json` ở thư mục gốc**. Không chạy `yarn`, `pnpm`, `bun` hoặc tạo lockfile riêng bên trong `apps/*` hay `packages/*`.
+- **Trình quản lý gói duy nhất:** `pnpm` (sử dụng pnpm workspaces).
+- **Quy tắc Lockfile:** Toàn bộ monorepo chỉ sử dụng **duy nhất một file `pnpm-lock.yaml` ở thư mục gốc**. Không chạy `npm`, `yarn`, `bun` hoặc tạo lockfile riêng bên trong `apps/*` hay `packages/*`.
 
 ## Cấu trúc thư mục
 
@@ -28,22 +28,22 @@ Nền tảng SaaS tạo ảnh/video AI (Face Swap, Body Retouch, Motion Control)
 
 ```bash
 # Cài đặt toàn bộ dependencies cho monorepo
-npm install
+pnpm install
 
 # Kiểm tra lint trên toàn bộ workspace
-npm run lint
+pnpm run lint
 
 # Kiểm tra kiểu TypeScript (typecheck) trên toàn bộ workspace
-npm run typecheck
+pnpm run typecheck
 
 # Biên dịch (build) cả 3 gói: @motion-ai/contracts, @motion-ai/api, @motion-ai/web
-npm run build
+pnpm run build
 
 # Chạy toàn bộ unit test và bài test kiểm tra ranh giới nhánh
-npm test
+pnpm test
 
 # Kiểm tra ranh giới đường dẫn theo nhánh hiện tại
-npm run check:boundaries
+pnpm run check:boundaries
 ```
 
 ## Quy ước nhánh & Ranh giới thư mục (Branch Path Boundaries)
