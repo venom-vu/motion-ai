@@ -4,17 +4,29 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "lint": "eslint --config ../../eslint.config.mjs src test",
-    "typecheck": "tsc --noEmit",
-    "build": "tsc -p tsconfig.json",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "lint": "eslint --config ../../eslint.config.mjs --ignore-pattern 'src/generated/**' prisma.config.ts src test",
+    "typecheck": "prisma generate && tsc --noEmit",
+    "build": "prisma generate && tsc -p tsconfig.json",
     "test": "pnpm run build && node --test test/*.test.mjs"
   },
   "dependencies": {
     "@motion-ai/contracts": "workspace:*",
+    "@nestjs/bullmq": "12.0.0",
     "@nestjs/common": "12.3.2",
     "@nestjs/core": "12.3.2",
     "@nestjs/platform-express": "12.3.2",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "bullmq": "6.5.3",
+    "ioredis": "5.11.1",
+    "pg": "8.23.1",
+    "prisma": "7.10.1",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1"
   }
 }
