@@ -5,12 +5,19 @@ import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 
+export function resolvePort(raw: string | undefined): number {
+  const value = (raw ?? '').trim();
+  if (!/^\d+$/.test(value)) {
+    return 3001;
+  }
+  const port = Number.parseInt(value, 10);
+  return port <= 65535 ? port : 3001;
+}
+
 export async function bootstrapApi(): Promise<INestApplication> {
   const app = await NestFactory.create(AppModule);
   app.enableShutdownHooks();
-  const parsedPort = Number.parseInt(process.env.PORT || '3001', 10);
-  const port = Number.isNaN(parsedPort) || parsedPort < 0 ? 3001 : parsedPort;
-  await app.listen(port);
+  await app.listen(resolvePort(process.env.PORT));
   return app;
 }
 

@@ -118,3 +118,24 @@ context:
 - `pnpm run build` -- expected: exit code 0 trên cả 3 gói
 - `pnpm test` -- expected: exit code 0, bao gồm test ranh giới nhánh và toàn bộ test tích hợp PostgreSQL (`P2002` pool reuse, migration), Redis/BullMQ (`maxRetriesPerRequest: null`), `/health` và `worker` của `@motion-ai/api`
 
+
+### Review Findings
+
+- [x] [Review][Patch] (đã chọn B: smoke test bật bằng `RUN_COMPOSE_E2E=1`, mặc định bỏ qua; kiểm `/health` qua cổng publish, bảng `infra_probes` tồn tại, worker còn sống; luôn `compose down -v` trong `finally`; ghi cách chạy vào README) Không có test nào chạy thật luồng `docker compose up` của `nestjs-api` (migrate trong container, `/health` qua cổng publish) và `nestjs-worker` — `docker compose config` và `docker build` vẫn xanh nếu đường dẫn `prisma`/`--config` hoặc mapping cổng hỏng [deploy/compose.yml:46-82] (verification-gap, medium)
+- [x] [Review][Patch] Worker thoát ngay sau bootstrap (đã chạy thử: exit code 0 sau vài giây) nên `restart: unless-stopped` sẽ lặp khởi động; `RedisService.client` là `lazyConnect` và không bao giờ `connect()` nên nhánh tái dùng client trong `checkHealth()` là mã chết (mỗi `/health` mở một kết nối probe mới); guard `maxRetriesPerRequest !== null` trong worker không bao giờ kích hoạt. Sửa: kết nối client khi khởi tạo module (giữ tiến trình sống, chứng minh kết nối Redis), thêm `commandTimeout` cho client, bỏ guard vô nghĩa, thêm test spawn worker kiểm tra còn sống và không lắng nghe cổng [apps/api/src/worker.ts:10-24, apps/api/src/infra/redis.service.ts] (blind-hunter+edge-case-hunter+verification-gap+acceptance-auditor, high)
+- [x] [Review][Patch] Healthcheck của `nestjs-api` chỉ kiểm `r.ok` nên container vẫn "healthy" khi Postgres/Redis down (`/health` luôn trả 200 theo spec); healthcheck phải đọc body và yêu cầu `status === 'ok'` [deploy/compose.yml:68-72] (blind-hunter+edge-case-hunter, medium)
+- [x] [Review][Patch] Postgres (mật khẩu mặc định) và Redis (không auth) được publish trên mọi interface host; bind vào `127.0.0.1` [deploy/compose.yml:11-12,32-33] (blind-hunter+edge-case-hunter, medium)
+- [x] [Review][Patch] Test migrate SQL lỗi dùng `assert.throws` không predicate nên pass với mọi lỗi (sai đường dẫn config, mất kết nối...); phải khớp stderr/mã lỗi migrate [apps/api/test/app.test.mjs] (verification-gap, medium)
+- [x] [Review][Patch] Test P2002 pool-reuse dùng pool mặc định (max 10) nên truy vấn sau có thể chạy trên kết nối khác; dùng `max: 1` để chứng minh dùng lại cùng kết nối [apps/api/test/app.test.mjs] (blind-hunter+edge-case-hunter, medium)
+- [x] [Review][Patch] `PORT` như `3001abc` được parseInt thành 3001, giá trị > 65535 làm `listen` ném lỗi; kiểm tra chặt `^\d+$` và ≤ 65535, thêm test cho `''`, `abc`, `-1`, `70000` [apps/api/src/main.ts:11-13] (blind-hunter+edge-case-hunter+verification-gap, low)
+- [x] [Review][Defer] Migration chỉ chạy trong lệnh start của `nestjs-api`; worker và nhiều replica api không có thứ tự/khóa với migration — deferred: worker hiện chưa truy vấn DB; xử lý khi story thêm bảng nghiệp vụ (cân nhắc service `migrate` one-shot)
+- [x] [Review][Defer] `?schema=` trong `DATABASE_URL` được Prisma CLI áp dụng nhưng `PrismaPg`/`pg.Pool` lúc runtime có thể bỏ qua — deferred: chưa xác minh (tối đa medium); settle bằng cách chạy truy vấn runtime với URL dùng schema không phải `public`
+
+#### Rejected
+
+- `false` — File ngoài phạm vi / thiếu lockfile: commit nằm trên `main` (script ranh giới chỉ giới hạn `be/*`), và `pnpm-lock.yaml` có +1226 dòng trong commit (mình chỉ loại nó khỏi diff review).
+- `false` — `prisma` không có trong image runtime: nằm trong `dependencies`, được copy qua `node_modules`; phần chưa chạy thật được gom vào quyết định về smoke test.
+- `low` — Mật khẩu mặc định `change_me_local_password`, fallback `DATABASE_URL` localhost trong `prisma.config.ts`: placeholder cho dev, cần cho `prisma generate` lúc build.
+- `low` — `/health` thêm trạng thái `degraded`; P2002 dùng `infra_probes` (Code Map cho phép); `pnpm test` cần Docker/Postgres (spec yêu cầu test tích hợp thật).
+- `low` — IPv6/`rediss` servername, timeout truy vấn Postgres trong `/health`, `.dockerignore`, devDependencies trong image, timeout cho test spawn, `PORT=0` trong mapping: không gây hại cụ thể ở hiện tại, sửa thêm guard/tệp.
+- Bỏ qua (sửa phải đổi spec) — Số test "11 vs 13" và mô tả triage log về `checkHealth`: mã sẽ được sửa ở patch worker/Redis.

@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import type { RedisOptions as BullRedisOptions } from 'bullmq';
 import { Redis, type RedisOptions } from 'ioredis';
 
@@ -59,7 +59,7 @@ export function parseRedisUrlToOptions(
 }
 
 @Injectable()
-export class RedisService implements OnModuleDestroy {
+export class RedisService implements OnModuleInit, OnModuleDestroy {
   readonly redisUrl: string;
   readonly client: Redis;
 
@@ -70,9 +70,21 @@ export class RedisService implements OnModuleDestroy {
       ...options,
       lazyConnect: true,
       connectTimeout: 2000,
+      commandTimeout: 1500,
+      maxRetriesPerRequest: 1,
     });
     this.client.on('error', () => {
       // Prevent unhandled error events from crashing the process when Redis is unreachable
+    });
+  }
+
+  /**
+   * Kết nối client dùng chung ở nền: giữ tiến trình worker sống, cho phép /health tái dùng kết nối,
+   * và không chặn khởi động khi Redis tạm thời không với tới (ioredis tự thử lại).
+   */
+  onModuleInit(): void {
+    this.client.connect().catch(() => {
+      // Lỗi kết nối được phản ánh qua /health; ioredis tiếp tục thử lại.
     });
   }
 
@@ -126,11 +138,7 @@ export class RedisService implements OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
-    if (
-      this.client.status === 'ready' ||
-      this.client.status === 'connecting' ||
-      this.client.status === 'connect'
-    ) {
+    if (this.client.status === 'ready') {
       try {
         await this.client.quit();
       } catch {

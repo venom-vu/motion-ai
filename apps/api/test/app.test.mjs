@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { Queue, QueueEvents, Worker } from 'bullmq';
 import pg from 'pg';
 import { AppModule } from '../dist/app.module.js';
@@ -16,7 +17,8 @@ import {
   RedisService,
   parseRedisUrlToOptions,
 } from '../dist/infra/index.js';
-import { bootstrapApi } from '../dist/main.js';
+import { PrismaClient } from '../dist/generated/prisma/client.js';
+import { bootstrapApi, resolvePort } from '../dist/main.js';
 import { AuditModule } from '../dist/modules/audit/index.js';
 import { AuthModule } from '../dist/modules/auth/index.js';
 import { OpsModule } from '../dist/modules/ops/index.js';
@@ -481,20 +483,32 @@ describe('@motion-ai/api infrastructure, worker, PostgreSQL 16 & Redis 7', () =>
         `export default { schema: 'prisma/schema.prisma', migrations: { path: 'prisma/migrations' }, datasource: { url: process.env.DATABASE_URL } };\n`,
       );
 
-      assert.throws(() => {
-        execFileSync(
-          'pnpm',
-          ['exec', 'prisma', 'migrate', 'deploy', '--config', badConfigPath],
-          {
-            cwd: apiRoot,
-            env: {
-              ...process.env,
-              DATABASE_URL: baseDbUrl.toString(),
+      assert.throws(
+        () => {
+          execFileSync(
+            'pnpm',
+            ['exec', 'prisma', 'migrate', 'deploy', '--config', badConfigPath],
+            {
+              cwd: apiRoot,
+              env: {
+                ...process.env,
+                DATABASE_URL: baseDbUrl.toString(),
+              },
+              stdio: 'pipe',
             },
-            stdio: 'pipe',
-          },
-        );
-      });
+          );
+        },
+        (error) => {
+          assert.notEqual(error.status, 0);
+          const output = `${error.stdout ?? ''}${error.stderr ?? ''}`;
+          assert.match(
+            output,
+            /P3018|20261101000000_invalid_sql|syntax error/i,
+            `Expected migration failure output, got: ${output}`,
+          );
+          return true;
+        },
+      );
     } finally {
       const pool = new pg.Pool({ connectionString: DEFAULT_DATABASE_URL });
       await pool.query(`DROP SCHEMA IF EXISTS "${tempSchema}" CASCADE`);
@@ -505,7 +519,20 @@ describe('@motion-ai/api infrastructure, worker, PostgreSQL 16 & Redis 7', () =>
 
   it('rolls back interactive transaction on P2002 unique violation and reuses connection from pool for subsequent queries', async () => {
     process.env.DATABASE_URL = DEFAULT_DATABASE_URL;
-    const prisma = new PrismaService();
+    // Pool 1 kết nối: truy vấn sau P2002 buộc phải dùng lại đúng kết nối của transaction đã rollback.
+    const singlePool = new pg.Pool({
+      connectionString: DEFAULT_DATABASE_URL,
+      max: 1,
+      connectionTimeoutMillis: 2000,
+    });
+    const prisma = new PrismaClient({
+      adapter: new PrismaPg(singlePool, { disposeExternalPool: true }),
+    });
+    prisma.checkHealth = async () => {
+      await prisma.$queryRaw`SELECT 1`;
+      return 'up';
+    };
+    prisma.onModuleDestroy = () => prisma.$disconnect();
     const duplicateKey = `p2002-probe-${crypto.randomUUID()}`;
     const followUpKey = `followup-probe-${crypto.randomUUID()}`;
 
@@ -552,6 +579,10 @@ describe('@motion-ai/api infrastructure, worker, PostgreSQL 16 & Redis 7', () =>
 
       const healthAfter = await prisma.checkHealth();
       assert.equal(healthAfter, 'up');
+      assert.ok(
+        singlePool.totalCount <= 1,
+        'Pool must never open more than 1 connection',
+      );
     } finally {
       await prisma.infraProbe
         .deleteMany({
@@ -561,6 +592,127 @@ describe('@motion-ai/api infrastructure, worker, PostgreSQL 16 & Redis 7', () =>
       await prisma.onModuleDestroy();
     }
   });
+
+  it('resolves PORT strictly: invalid, empty, negative or out-of-range values fall back to 3001', () => {
+    assert.equal(resolvePort(undefined), 3001);
+    for (const raw of ['', 'abc', '-1', '3001abc', '70000', '65536', ' ']) {
+      assert.equal(resolvePort(raw), 3001, `PORT=${JSON.stringify(raw)}`);
+    }
+    assert.equal(resolvePort('0'), 0);
+    assert.equal(resolvePort('8080'), 8080);
+    assert.equal(resolvePort('65535'), 65535);
+  });
+
+  it('keeps worker process alive after bootstrap and opens no listening TCP socket', async () => {
+    const workerPath = path.join(apiRoot, 'dist', 'worker.js');
+    const child = spawn(process.execPath, [workerPath], {
+      env: { ...process.env },
+      stdio: 'ignore',
+    });
+    let exited = false;
+    child.on('exit', () => {
+      exited = true;
+    });
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      assert.equal(exited, false, 'Worker must stay alive after bootstrap');
+
+      let listening = '';
+      try {
+        listening = execFileSync(
+          'lsof',
+          ['-a', '-p', String(child.pid), '-iTCP', '-sTCP:LISTEN', '-n', '-P'],
+          { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+        );
+      } catch (error) {
+        // lsof exits 1 when nothing matches; any other failure means lsof is unavailable
+        if (error.code === 'ENOENT') {
+          return;
+        }
+        listening = error.stdout ?? '';
+      }
+      assert.equal(listening.trim(), '', 'Worker must not listen on any TCP port');
+    } finally {
+      child.kill('SIGTERM');
+      await new Promise((resolve) => {
+        if (exited) {
+          resolve();
+          return;
+        }
+        const killTimer = setTimeout(() => child.kill('SIGKILL'), 5000);
+        child.once('exit', () => {
+          clearTimeout(killTimer);
+          resolve();
+        });
+      });
+    }
+  });
+
+  it(
+    'runs full compose stack end-to-end: migrate in container, /health via published port, worker stays running',
+    {
+      skip:
+        process.env.RUN_COMPOSE_E2E === '1'
+          ? false
+          : 'Đặt RUN_COMPOSE_E2E=1 để chạy (cần Docker, build image, dựng cả stack)',
+      timeout: 900_000,
+    },
+    async () => {
+      const project = 'motion-ai-e2e';
+      const apiPort = '3101';
+      const env = {
+        ...process.env,
+        PORT: apiPort,
+        POSTGRES_PORT: '15432',
+        REDIS_PORT: '16379',
+      };
+      delete env.DATABASE_URL;
+      delete env.REDIS_URL;
+      const compose = (args, options = {}) =>
+        execFileSync(
+          'docker',
+          ['compose', '-p', project, '-f', composePath, ...args],
+          { cwd: repoRoot, env, encoding: 'utf8', stdio: 'pipe', ...options },
+        );
+
+      try {
+        compose(['up', '-d', '--build', '--wait']);
+
+        const res = await fetch(`http://127.0.0.1:${apiPort}/health`);
+        assert.equal(res.status, 200);
+        assert.deepEqual(await res.json(), {
+          status: 'ok',
+          postgres: 'up',
+          redis: 'up',
+        });
+
+        const table = compose([
+          'exec',
+          '-T',
+          'postgres-16',
+          'psql',
+          '-U',
+          'motion_user',
+          '-d',
+          'motion_ai',
+          '-tAc',
+          "select to_regclass('public.infra_probes')",
+        ]).trim();
+        assert.equal(table, 'infra_probes');
+
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+        const running = compose(['ps', '--status', 'running', '--services']);
+        assert.match(running, /nestjs-worker/);
+        assert.match(running, /nestjs-api/);
+      } finally {
+        try {
+          compose(['down', '-v']);
+        } catch {
+          // best-effort cleanup
+        }
+      }
+    },
+  );
 
   it('processes a sample BullMQ job on Redis 7 with worker connection maxRetriesPerRequest: null', async () => {
     process.env.REDIS_URL = DEFAULT_REDIS_URL;
