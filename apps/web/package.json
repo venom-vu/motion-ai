@@ -1,0 +1,17 @@
+{
+  "name": "@motion-ai/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "lint": "eslint --config ../../eslint.config.mjs nuxt.config.ts test",
+    "typecheck": "nuxt prepare && nuxt typecheck",
+    "build": "nuxt build",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@motion-ai/contracts": "*",
+    "nuxt": "4.6.3"
+  }
+}

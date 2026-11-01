@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build & output artifacts
+dist/
+.nuxt/
+.output/
+*.tsbuildinfo
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs & caches
+*.log
+npm-debug.log*
+.cache/
+.turbo/
+coverage/
+
+# OS & Editor
+.DS_Store
+.idea/
+.vscode/

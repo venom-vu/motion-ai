@@ -1,0 +1,20 @@
+{
+  "name": "@motion-ai/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint --config ../../eslint.config.mjs src test",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@motion-ai/contracts": "*",
+    "@nestjs/common": "12.3.2",
+    "@nestjs/core": "12.3.2",
+    "@nestjs/platform-express": "12.3.2",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  }
+}

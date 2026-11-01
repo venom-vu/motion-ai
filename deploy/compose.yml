@@ -1,0 +1,4 @@
+# Motion AI Docker Compose skeleton
+# Full 4-service stack (api, worker, postgres, redis) will be defined in Story 1.3.
+name: motion-ai
+services: {}
