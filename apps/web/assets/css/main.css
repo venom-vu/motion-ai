@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg-primary: #0F172A;
+  --color-bg-surface: #1E293B;
+  --color-border-subtle: #334155;
+  --color-accent-violet: #8B5CF6;
+  --color-accent-cyan: #06B6D4;
+  --color-text-primary: #F8FAFC;
+  --color-text-muted: #94A3B8;
+  --color-semantic-success: #10B981;
+  --color-semantic-warning: #F59E0B;
+  --color-semantic-danger: #EF4444;
+  --color-admin-bg: #0A0A0A;
+  --touch-target-min: 48px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  background-color: #0F172A;
+  color: #F8FAFC;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#__nuxt {
+  min-height: 100dvh;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+.lucide-icon svg,
+.iconify svg {
+  stroke-width: 2;
+}
+
+@layer components {
+  .touch-target {
+    min-height: 48px;
+    min-width: 48px;
+  }
+}

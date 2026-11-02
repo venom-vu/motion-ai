@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-01-2026 14:32
-last_updated: 11-02-2026 12:30
+last_updated: 11-02-2026 01:45
 project: motion-ai
 project_key: NOKEY
 tracking_system: file-system
@@ -40,8 +40,8 @@ development_status:
   1-1-shared-dựng-monorepo-và-khung-ci: done
   1-2-contract-hợp-đồng-chung-cho-đăng-nhập-và-ví: done
   1-3-be-khung-api-worker-postgresql-và-redis: done
-  1-4-fe-khung-nuxt-4-mobile-first-chạy-trên-mock: backlog
-  1-5-be-đăng-nhập-google-và-phiên-jwt: backlog
+  1-4-fe-khung-nuxt-4-mobile-first-chạy-trên-mock: done
+  1-5-be-đăng-nhập-google-và-phiên-jwt: ready-for-dev
   1-6-be-sổ-cái-credit-bất-biến: backlog
   1-7-be-tier-api-ví-và-đối-soát-sổ-cái: backlog
   1-8-be-tặng-500-credit-và-chống-lạm-dụng: backlog
