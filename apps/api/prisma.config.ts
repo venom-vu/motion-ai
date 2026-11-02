@@ -8,6 +8,6 @@ export default defineConfig({
   datasource: {
     url:
       process.env.DATABASE_URL ||
-      'postgresql://localhost:5432/motion_ai?schema=public',
+      'postgresql://motion_user:change_me_local_password@localhost:5432/motion_ai?schema=public',
   },
 });

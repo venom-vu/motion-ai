@@ -1,4 +1,10 @@
-import { Module } from '@nestjs/common';
-
-@Module({})
-export class AuthModule {}
+export * from './auth.module.js';
+export * from './auth.service.js';
+export * from './auth.controller.js';
+export * from './google-oauth.service.js';
+export * from './jwt.strategy.js';
+export * from './guards/jwt-auth.guard.js';
+export * from './guards/roles.guard.js';
+export * from './guards/account-locked.guard.js';
+export * from './decorators/roles.decorator.js';
+export * from './decorators/current-user.decorator.js';

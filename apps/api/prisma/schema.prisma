@@ -14,3 +14,31 @@ model InfraProbe {
 
   @@map("infra_probes")
 }
+
+model User {
+  id            String         @id @default(uuid()) @db.Uuid
+  googleId      String         @unique @map("google_id")
+  email         String         @unique @map("email")
+  role          String         @default("user") @map("role")
+  tosVersion    String         @map("tos_version")
+  tosAcceptedAt DateTime       @default(now()) @map("tos_accepted_at") @db.Timestamptz(6)
+  lockedAt      DateTime?      @map("locked_at") @db.Timestamptz(6)
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
