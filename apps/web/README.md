@@ -21,12 +21,9 @@ nitro: {
   - `apps/web/.output/public/_routes.json`: Cấu hình định tuyến Cloudflare Pages (`version: 1`, `include: ["/*"]`, `exclude` cho tài nguyên tĩnh `/_nuxt/*`).
   - `apps/web/.output/nitro.json`: Ghi nhận `"preset": "cloudflare-pages"`.
 
-## 2. Chế độ chạy API (`mock` / `live`)
+## 2. Kết nối API
 
-Client API (`apps/web/utils/api-client.ts` và composable `useApiClient`) điều khiển qua biến môi trường runtime:
-
-- `NUXT_PUBLIC_API_MODE=mock` (mặc định): Trả dữ liệu mock khớp hoàn toàn với Zod schema của `@motion-ai/contracts` (`GET /config/pricing`, `GET /me`, `GET /wallet/ledger`, `GET /auth/google`, `POST /auth/refresh`, `POST /auth/logout`) **không thực hiện bất kỳ lời gọi mạng (`fetch`) nào**.
-- `NUXT_PUBLIC_API_MODE=live`: Gọi tới `NUXT_PUBLIC_API_BASE_URL` (mặc định `http://localhost:3001`), parse dữ liệu phản hồi qua Zod schema và ánh xạ tập trung mọi mã lỗi `ApiErrorCode` sang thông báo tiếng Việt thân thiện qua bảng `API_ERROR_MESSAGES_VI`.
+FE luôn gọi backend thật tại `NUXT_PUBLIC_API_BASE_URL` (mặc định `http://localhost:8080`), parse phản hồi qua Zod schema của `@motion-ai/contracts` và ánh xạ mã lỗi `ApiErrorCode` sang tiếng Việt qua `API_ERROR_MESSAGES_VI`. Không còn chế độ mock; cần chạy `apps/api` (kèm Postgres, Redis) khi phát triển.
 
 ## 3. Các lệnh phát triển
 

@@ -31,10 +31,12 @@ import type { JwtUserPayload } from './jwt.strategy.js';
 
 export interface RequestWithCookies {
   cookies?: Record<string, string>;
+  headers?: Record<string, string | string[] | undefined>;
   user?: unknown;
 }
 
 export interface ResponseWithCookies {
+  redirect(url: string): void;
   cookie(name: string, val: string, options?: unknown): void;
   clearCookie(name: string, options?: unknown): void;
 }
@@ -49,6 +51,18 @@ export function getRefreshCookieOptions() {
     path: '/',
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 ngày
   };
+}
+
+export function buildFrontendRedirect(
+  path: string,
+  query?: Record<string, string>,
+): string {
+  const base = (process.env.FRONTEND_URL ?? '').split(',')[0]?.trim() || 'http://localhost:3000';
+  const url = new URL(path, base.replace(/\/+$/, '') + '/');
+  for (const [k, v] of Object.entries(query ?? {})) {
+    url.searchParams.set(k, v);
+  }
+  return url.toString();
 }
 
 @Controller('auth')
@@ -79,35 +93,58 @@ export class AuthController {
     return this.authService.getGoogleAuthUrl(parsed.data);
   }
 
+  /**
+   * Google redirect trình duyệt thẳng về endpoint này. Khi là điều hướng của trình duyệt
+   * (Accept: text/html) thì đặt cookie phiên rồi chuyển về FE; client API/test vẫn nhận JSON.
+   */
   @Get('google/callback')
   async googleCallback(
     @Query() rawQuery: unknown,
+    @Req() req: RequestWithCookies,
     @Res({ passthrough: true }) res: ResponseWithCookies,
-  ): Promise<AuthGoogleCallbackResponse> {
-    const parsed = AuthGoogleCallbackQuerySchema.safeParse(rawQuery);
-    if (!parsed.success) {
-      throw new BadRequestException({
-        code: ApiErrorCode.VALIDATION_FAILED,
-        message: getApiErrorMessageVi(ApiErrorCode.VALIDATION_FAILED),
-        details: parsed.error.format(),
-      });
+  ): Promise<AuthGoogleCallbackResponse | void> {
+    const wantsRedirect = String(req.headers?.accept ?? '').includes('text/html');
+
+    try {
+      const parsed = AuthGoogleCallbackQuerySchema.safeParse(rawQuery);
+      if (!parsed.success) {
+        throw new BadRequestException({
+          code: ApiErrorCode.VALIDATION_FAILED,
+          message: getApiErrorMessageVi(ApiErrorCode.VALIDATION_FAILED),
+          details: parsed.error.format(),
+        });
+      }
+
+      const session = await this.authService.handleGoogleCallback(parsed.data);
+
+      // Gửi refresh token qua httpOnly, Secure cookie
+      res.cookie(
+        REFRESH_COOKIE_NAME,
+        session.refreshToken,
+        getRefreshCookieOptions(),
+      );
+
+      if (wantsRedirect) {
+        return res.redirect(buildFrontendRedirect('/auth/callback'));
+      }
+
+      return {
+        accessToken: session.accessToken,
+        tokenType: session.tokenType,
+        expiresIn: session.expiresIn,
+        isNewUser: session.isNewUser,
+      };
+    } catch (err) {
+      if (!wantsRedirect) {
+        throw err;
+      }
+      const body = (err as { getResponse?: () => unknown }).getResponse?.();
+      const code =
+        body && typeof body === 'object' && 'code' in body
+          ? String((body as { code: unknown }).code)
+          : 'OAUTH_FAILED';
+      return res.redirect(buildFrontendRedirect('/', { authError: code }));
     }
-
-    const session = await this.authService.handleGoogleCallback(parsed.data);
-
-    // Gửi refresh token qua httpOnly, Secure cookie
-    res.cookie(
-      REFRESH_COOKIE_NAME,
-      session.refreshToken,
-      getRefreshCookieOptions(),
-    );
-
-    return {
-      accessToken: session.accessToken,
-      tokenType: session.tokenType,
-      expiresIn: session.expiresIn,
-      isNewUser: session.isNewUser,
-    };
   }
 
   @Post('refresh')

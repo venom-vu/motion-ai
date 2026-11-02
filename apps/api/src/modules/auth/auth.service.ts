@@ -3,6 +3,7 @@ import {
   BadRequestException,
   Injectable,
   Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -183,7 +184,9 @@ export class AuthService {
     try {
       await this.redis.client.set(`oauth:state:${nonce}`, '1', 'EX', 600);
     } catch (err) {
-      this.logger.warn(`Không thể lưu state nonce vào Redis: ${err}`);
+      // Fail-closed: không có nonce thì callback chắc chắn bị từ chối, nên báo lỗi ngay từ đầu
+      this.logger.error(`Không thể lưu state nonce vào Redis: ${err}`);
+      throw new ServiceUnavailableException('Dịch vụ đăng nhập tạm thời không khả dụng');
     }
 
     const redirectUrl = this.googleOAuthService.getAuthorizationUrl(signedState);

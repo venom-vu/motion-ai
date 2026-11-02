@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { usePricingConfig } from '~/composables/usePricingConfig';
 
-const { me, apiMode } = usePricingConfig();
+const { me } = usePricingConfig();
 </script>
 
 <template>
@@ -15,7 +15,6 @@ const { me, apiMode } = usePricingConfig();
       :tier="me?.tier ?? 'FREE'"
       :email="me?.email ?? null"
       :role="me?.role ?? null"
-      :api-mode="apiMode"
     />
 
     <main
@@ -25,5 +24,6 @@ const { me, apiMode } = usePricingConfig();
     </main>
 
     <AppBottomNav />
+    <AuthDialog />
   </div>
 </template>

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller.js';
+import { MeController } from './me.controller.js';
 import { AuthService } from './auth.service.js';
 import { GoogleOAuthService } from './google-oauth.service.js';
 import { AccountLockedGuard } from './guards/account-locked.guard.js';
@@ -23,7 +24,7 @@ import { JwtStrategy } from './jwt.strategy.js';
       }),
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, MeController],
   providers: [
     AuthService,
     GoogleOAuthService,

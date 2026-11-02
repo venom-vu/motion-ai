@@ -1,0 +1,40 @@
+# Hạ tầng phát triển local: chỉ Postgres và Redis. API/Web chạy trực tiếp trên máy (pnpm).
+# Chạy: docker compose -f deploy/compose.local.yml up -d
+# Mật khẩu/cổng đọc từ biến môi trường hoặc file .env cùng thư mục; phải khớp DATABASE_URL trong apps/api/.env.
+name: motion-ai-local
+
+services:
+  postgres-16:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-motion_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Cần đặt POSTGRES_PASSWORD khớp với DATABASE_URL}
+      POSTGRES_DB: ${POSTGRES_DB:-motion_ai}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_local_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis-7:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_local_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_local_data:
+  redis_local_data:

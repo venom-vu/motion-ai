@@ -35,7 +35,7 @@ function isUnauthorizedError(err: unknown): boolean {
 }
 
 export function usePricingConfig() {
-  const { client, apiMode } = useApiClient();
+  const { client } = useApiClient();
   const manualErrorVi = useState<string | null>(
     'motion-ai-manual-error-vi',
     () => null,
@@ -112,7 +112,6 @@ export function usePricingConfig() {
   }
 
   return {
-    apiMode,
     pricing,
     me,
     currentTier,

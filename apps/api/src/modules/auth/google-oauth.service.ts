@@ -24,7 +24,21 @@ export class GoogleOAuthService {
     this.fetchImpl = customFetch;
   }
 
+  private assertConfigured(): void {
+    if (
+      process.env.NODE_ENV === 'production' &&
+      (!process.env.GOOGLE_CLIENT_ID ||
+        !process.env.GOOGLE_CLIENT_SECRET ||
+        !process.env.GOOGLE_CALLBACK_URL)
+    ) {
+      throw new Error(
+        'Thiếu GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_CALLBACK_URL',
+      );
+    }
+  }
+
   getAuthorizationUrl(state: string): string {
+    this.assertConfigured();
     const clientId = process.env.GOOGLE_CLIENT_ID || 'mock-google-client-id';
     const callbackUrl =
       process.env.GOOGLE_CALLBACK_URL ||
@@ -44,6 +58,7 @@ export class GoogleOAuthService {
   }
 
   async exchangeCodeAndGetProfile(code: string): Promise<GoogleUserProfile> {
+    this.assertConfigured();
     const clientId = process.env.GOOGLE_CLIENT_ID || 'mock-google-client-id';
     const clientSecret =
       process.env.GOOGLE_CLIENT_SECRET || 'mock-google-client-secret';

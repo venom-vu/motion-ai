@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { describe, it } from 'node:test';
+import { after, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse, compileTemplate } from '@vue/compiler-sfc';
 import { createSSRApp } from 'vue';
@@ -13,9 +13,7 @@ import {
   CONTRACTS_PACKAGE_VERSION,
   MOCK_ME_PRO_RESPONSE,
   MOCK_PRICING_CONFIG_RESPONSE,
-  MeResponseSchema,
-  PricingConfigResponseSchema,
-  WalletLedgerResponseSchema,
+  MOCK_WALLET_LEDGER_ITEMS,
 } from '@motion-ai/contracts';
 import { SLATE_CYBER_COLORS } from '../tailwind.config.ts';
 import {
@@ -57,7 +55,7 @@ function collectFiles(dirPath, extensions) {
   return results;
 }
 
-describe('@motion-ai/web — Story 1.4 Nuxt 4 mobile-first & mock API', () => {
+describe('@motion-ai/web — Story 1.4 Nuxt 4 mobile-first & API client', () => {
   it('AC1: ghim cố định phiên bản trong package.json (Nuxt 4.6.3) và cấu hình preset cloudflare-pages', () => {
     assert.equal(CONTRACTS_PACKAGE_VERSION, '0.1.0');
 
@@ -130,142 +128,9 @@ describe('@motion-ai/web — Story 1.4 Nuxt 4 mobile-first & mock API', () => {
     assert.match(readmeRaw, /_routes\.json/);
   });
 
-  it('AC3 & I/O Row 1: client API ở chế độ mock trả dữ liệu khớp Zod schema mà không gọi mạng, và ném lỗi khi dữ liệu sai schema', async () => {
-    let networkCalled = false;
-    const forbiddenFetch = async () => {
-      networkCalled = true;
-      throw new Error('Không được phép gọi fetch trong chế độ mock');
-    };
-
-    const mockClient = createMotionApiClient({
-      mode: 'mock',
-      fetchImpl: forbiddenFetch,
-    });
-
-    const pricing = await mockClient.getPricingConfig();
-    assert.deepEqual(
-      PricingConfigResponseSchema.parse(pricing),
-      MOCK_PRICING_CONFIG_RESPONSE,
-    );
-
-    const me = await mockClient.getMe();
-    assert.equal(MeResponseSchema.parse(me).tier, 'FREE');
-    assert.equal(me.balance, 500);
-
-    const ledgerPage1 = await mockClient.getWalletLedger({ pageSize: 3 });
-    WalletLedgerResponseSchema.parse(ledgerPage1);
-    assert.equal(ledgerPage1.items.length, 3);
-    assert.equal(ledgerPage1.hasMore, true);
-    assert.equal(typeof ledgerPage1.nextCursor, 'string');
-
-    const ledgerPage2 = await mockClient.getWalletLedger({
-      pageSize: 3,
-      cursor: ledgerPage1.nextCursor ?? undefined,
-    });
-    WalletLedgerResponseSchema.parse(ledgerPage2);
-    assert.equal(ledgerPage2.items.length, 3);
-    assert.notEqual(ledgerPage2.items[0].id, ledgerPage1.items[0].id);
-
-    const oauthRes = await mockClient.getGoogleAuthUrl({
-      tosVersion: '2026-11-01',
-      deviceId: 'fp_test_device_01',
-    });
-    assert.match(oauthRes.redirectUrl, /^https:\/\/accounts\.google\.com/);
-
-    const callbackRes = await mockClient.handleGoogleCallback({
-      code: 'mock_auth_code',
-      state: 'mock_csrf_state',
-    });
-    assert.equal(callbackRes.tokenType, 'Bearer');
-
-    const refreshRes = await mockClient.refreshSession();
-    assert.equal(refreshRes.tokenType, 'Bearer');
-
-    const logoutRes = await mockClient.logout();
-    assert.equal(logoutRes.success, true);
-    assert.equal(networkCalled, false);
-
-    // Kiểm tra mô phỏng lỗi OAuth trong mock mode
-    const oauthErrorClient = createMotionApiClient({
-      mode: 'mock',
-      fetchImpl: forbiddenFetch,
-      mockOverrides: {
-        simulatedErrorCode: ApiErrorCode.CONSENT_REQUIRED,
-      },
-    });
-
-    await assert.rejects(
-      () =>
-        oauthErrorClient.getGoogleAuthUrl({
-          tosVersion: '2026-11-01',
-          deviceId: 'fp_test_device_01',
-        }),
-      (err) => {
-        assert.equal(err instanceof MotionApiClientError, true);
-        assert.equal(err.code, ApiErrorCode.CONSENT_REQUIRED);
-        return true;
-      },
-    );
-
-    await assert.rejects(
-      () =>
-        oauthErrorClient.handleGoogleCallback({
-          code: 'bad_code',
-          state: 'bad_state',
-        }),
-      (err) => {
-        assert.equal(err instanceof MotionApiClientError, true);
-        assert.equal(err.code, ApiErrorCode.CONSENT_REQUIRED);
-        return true;
-      },
-    );
-
-    // Kiểm tra callback nhận param error từ Google OAuth (e.g. access_denied)
-    const callbackDeniedClient = createMotionApiClient({
-      mode: 'mock',
-      fetchImpl: forbiddenFetch,
-    });
-    await assert.rejects(
-      () =>
-        callbackDeniedClient.handleGoogleCallback({
-          error: 'access_denied',
-          error_description: 'User denied consent',
-          state: 'mock_state',
-        }),
-      (err) => {
-        assert.equal(err instanceof MotionApiClientError, true);
-        assert.equal(err.code, 'access_denied');
-        return true;
-      },
-    );
-
-    // Kiểm tra ném lỗi nếu dữ liệu mock sai Zod schema
-    const brokenMockClient = createMotionApiClient({
-      mode: 'mock',
-      fetchImpl: forbiddenFetch,
-      mockOverrides: {
-        me: {
-          id: 'not-a-uuid',
-          email: 'invalid',
-          role: 'user',
-          tier: 'FREE',
-          balance: -100,
-          held: 0,
-          tosVersion: '2026-11-01',
-        },
-      },
-    });
-
-    await assert.rejects(
-      () => brokenMockClient.getMe(),
-      (err) => err instanceof Error && err.name === 'ZodError',
-    );
-  });
-
-  it('AC4 & I/O Row 2, 3, 4: client API ở chế độ live parse Zod khi 200 và ánh xạ đầy đủ ApiErrorCode cũng như mã lỗi lạ sang tiếng Việt', async () => {
+  it('AC4 & I/O Row 2, 3, 4: client API parse Zod khi 200 và ánh xạ đầy đủ ApiErrorCode cũng như mã lỗi lạ sang tiếng Việt', async () => {
     const requestedHeaders = [];
     const liveOkClient = createMotionApiClient({
-      mode: 'live',
       baseUrl: 'https://api.motion.ai.vn/',
       getAccessToken: () => 'jwt_live_token_123',
       fetchImpl: async (url, init) => {
@@ -290,8 +155,7 @@ describe('@motion-ai/web — Story 1.4 Nuxt 4 mobile-first & mock API', () => {
     // Kiểm tra toàn bộ 7 mã lỗi chuẩn trong ApiErrorCode
     for (const code of Object.values(ApiErrorCode)) {
       const errorClient = createMotionApiClient({
-        mode: 'live',
-        fetchImpl: async () =>
+          fetchImpl: async () =>
           new Response(
             JSON.stringify({
               code,
@@ -329,7 +193,6 @@ describe('@motion-ai/web — Story 1.4 Nuxt 4 mobile-first & mock API', () => {
     assert.equal(resolveApiErrorMessageVi(undefined), fallbackMessageVi);
 
     const unknownCodeClient = createMotionApiClient({
-      mode: 'live',
       fetchImpl: async () =>
         new Response(JSON.stringify({ code: 'SOME_NEW_BACKEND_CODE' }), {
           status: 502,
@@ -412,10 +275,9 @@ describe('@motion-ai/web — Story 1.4 Nuxt 4 mobile-first & mock API', () => {
     assert.equal(SLATE_CYBER_COLORS.danger, '#EF4444');
     assert.equal(SLATE_CYBER_COLORS.adminBg, '#0A0A0A');
 
-    // 2. Kiểm tra đầy đủ 5 trang khung tiếng Việt
+    // 2. Kiểm tra đầy đủ 4 trang khung tiếng Việt
     const requiredPages = [
       'pages/index.vue',
-      'pages/login.vue',
       'pages/history.vue',
       'pages/pricing.vue',
       'pages/admin/index.vue',
@@ -572,7 +434,33 @@ describe('@motion-ai/web — Story 1.4 Nuxt 4 mobile-first & mock API', () => {
     }
   });
 
-  it('AC1, AC2, AC5: SSR render cả 5 route (/, /login, /history, /pricing, /admin) qua Cloudflare Pages Worker bundle (.output/public/_worker.js/index.js)', async () => {
+  it('AC1, AC2, AC5: SSR render cả 4 route (/, /history, /pricing, /admin) qua Cloudflare Pages Worker bundle (.output/public/_worker.js/index.js)', async () => {
+    // Giả lập backend ở ranh giới HTTP: SSR gọi API thật nên test cần phản hồi mẫu.
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input) => {
+      const { pathname } = new URL(String(input));
+      const json = (body, status = 200) =>
+        new Response(JSON.stringify(body), {
+          status,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      if (pathname === '/config/pricing') {
+        return json(MOCK_PRICING_CONFIG_RESPONSE);
+      }
+      if (pathname === '/wallet/ledger') {
+        return json({
+          items: MOCK_WALLET_LEDGER_ITEMS.slice(0, 20),
+          pageSize: 20,
+          hasMore: false,
+          nextCursor: null,
+        });
+      }
+      return json({ code: 'UNAUTHORIZED' }, 401);
+    };
+    after(() => {
+      globalThis.fetch = originalFetch;
+    });
+
     const workerModule = await import('../.output/public/_worker.js/index.js');
     const worker = workerModule.default;
     assert.equal(typeof worker?.fetch, 'function');
@@ -597,15 +485,6 @@ describe('@motion-ai/web — Story 1.4 Nuxt 4 mobile-first & mock API', () => {
           '100 credit / lượt',
           '50 credit / giây',
           'Tối đa 5 giây (Hạng FREE)',
-        ],
-      },
-      {
-        path: '/login',
-        mustInclude: [
-          'data-testid="page-login"',
-          'Đăng Nhập Bằng Google',
-          '2026-11-01',
-          '500 credit',
         ],
       },
       {

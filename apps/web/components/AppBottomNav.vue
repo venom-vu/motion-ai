@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { useRoute } from '#imports';
+import { useAuthDialog } from '~/composables/useAuthDialog';
+import { usePricingConfig } from '~/composables/usePricingConfig';
 
 const route = useRoute();
+const { open: openAuthDialog } = useAuthDialog();
+const { me } = usePricingConfig();
 
 const bottomTabs = [
   {
@@ -21,12 +25,6 @@ const bottomTabs = [
     to: '/pricing',
     labelVi: 'Bảng giá',
     icon: 'lucide:gem',
-  },
-  {
-    id: 'account',
-    to: '/login',
-    labelVi: 'Tôi',
-    icon: 'lucide:user-round',
   },
 ] as const;
 
@@ -59,6 +57,15 @@ function isTabActive(targetPath: string): boolean {
         <Icon :name="tab.icon" class="h-5 w-5 shrink-0" />
         <span class="truncate">{{ tab.labelVi }}</span>
       </NuxtLink>
+      <button
+        type="button"
+        data-testid="bottom-account-tab"
+        class="touch-target flex min-h-[48px] min-w-[48px] flex-col items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-cyber-muted transition hover:text-cyber-text"
+        @click="openAuthDialog(me ? 'account' : 'login')"
+      >
+        <Icon name="lucide:user-round" class="h-5 w-5 shrink-0" />
+        <span class="truncate">Tôi</span>
+      </button>
     </div>
   </nav>
 </template>

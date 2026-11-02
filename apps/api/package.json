@@ -9,6 +9,8 @@
     "lint": "eslint --config ../../eslint.config.mjs --ignore-pattern 'src/generated/**' prisma.config.ts src test",
     "typecheck": "prisma generate && tsc --noEmit",
     "build": "prisma generate && tsc -p tsconfig.json",
+    "start": "node --env-file-if-exists=.env dist/main.js",
+    "start:worker": "node --env-file-if-exists=.env dist/worker.js",
     "test": "pnpm run build && node --test test/*.test.mjs"
   },
   "dependencies": {

@@ -7,13 +7,6 @@ import {
   AuthGoogleResponseSchema,
   AuthLogoutResponseSchema,
   AuthRefreshResponseSchema,
-  MOCK_AUTH_GOOGLE_CALLBACK_RESPONSE,
-  MOCK_AUTH_GOOGLE_RESPONSE,
-  MOCK_AUTH_LOGOUT_RESPONSE,
-  MOCK_AUTH_REFRESH_RESPONSE,
-  MOCK_ME_RESPONSE,
-  MOCK_PRICING_CONFIG_RESPONSE,
-  MOCK_WALLET_LEDGER_ITEMS,
   MeResponseSchema,
   PricingConfigResponseSchema,
   WalletLedgerQuerySchema,
@@ -25,7 +18,6 @@ import {
   type AuthGoogleResponse,
   type AuthLogoutResponse,
   type AuthRefreshResponse,
-  type LedgerEntry,
   type MeResponse,
   type PricingConfigResponse,
   type WalletLedgerQuery,
@@ -34,26 +26,10 @@ import {
 
 export { API_ERROR_MESSAGES_VI, ApiErrorCode, getApiErrorMessageVi };
 
-export type ApiMode = 'mock' | 'live';
-
-export interface MotionApiMockOverrides {
-  pricingConfig?: unknown;
-  me?: unknown;
-  walletLedgerItems?: LedgerEntry[];
-  walletLedgerResponse?: unknown;
-  authGoogleResponse?: unknown;
-  authGoogleCallbackResponse?: unknown;
-  authRefreshResponse?: unknown;
-  authLogoutResponse?: unknown;
-  simulatedErrorCode?: ApiErrorCode | (string & {}) | null;
-}
-
 export interface MotionApiClientOptions {
-  mode?: ApiMode;
   baseUrl?: string;
   fetchImpl?: typeof globalThis.fetch;
   getAccessToken?: () => string | null | undefined;
-  mockOverrides?: MotionApiMockOverrides;
 }
 
 export class MotionApiClientError extends Error {
@@ -117,53 +93,12 @@ export function resolveApiErrorMessageVi(errorOrCode: unknown): string {
   return getApiErrorMessageVi(null);
 }
 
-function buildMockLedgerPage(
-  items: LedgerEntry[],
-  query: WalletLedgerQuery,
-): WalletLedgerResponse {
-  const { pageSize, cursor } = query;
-  let startIndex = 0;
-
-  if (cursor) {
-    const foundIdx = items.findIndex((item) => item.id === cursor);
-    startIndex = foundIdx >= 0 ? foundIdx + 1 : items.length;
-  }
-
-  const pageItems = items.slice(startIndex, startIndex + pageSize);
-  const hasMore = startIndex + pageSize < items.length;
-  const nextCursor =
-    hasMore && pageItems.length > 0
-      ? (pageItems[pageItems.length - 1]?.id ?? null)
-      : null;
-
-  return WalletLedgerResponseSchema.parse({
-    items: pageItems,
-    pageSize,
-    hasMore,
-    nextCursor,
-  });
-}
-
 export function createMotionApiClient(options: MotionApiClientOptions = {}) {
-  const mode: ApiMode = options.mode === 'live' ? 'live' : 'mock';
   const baseUrl = (options.baseUrl ?? 'http://localhost:3001').replace(
     /\/+$/,
     '',
   );
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
-  const overrides = options.mockOverrides ?? {};
-
-  function throwIfSimulatedError(): void {
-    if (
-      overrides.simulatedErrorCode !== undefined &&
-      overrides.simulatedErrorCode !== null
-    ) {
-      throw new MotionApiClientError({
-        status: 400,
-        code: overrides.simulatedErrorCode,
-      });
-    }
-  }
 
   async function requestLive<T>(
     path: string,
@@ -247,25 +182,13 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
   }
 
   return {
-    mode,
-
     async getPricingConfig(): Promise<PricingConfigResponse> {
-      throwIfSimulatedError();
-      if (mode === 'mock') {
-        const raw = overrides.pricingConfig ?? MOCK_PRICING_CONFIG_RESPONSE;
-        return PricingConfigResponseSchema.parse(raw);
-      }
       return requestLive('/config/pricing', { method: 'GET' }, (data) =>
         PricingConfigResponseSchema.parse(data),
       );
     },
 
     async getMe(): Promise<MeResponse> {
-      throwIfSimulatedError();
-      if (mode === 'mock') {
-        const raw = overrides.me ?? MOCK_ME_RESPONSE;
-        return MeResponseSchema.parse(raw);
-      }
       return requestLive('/me', { method: 'GET' }, (data) =>
         MeResponseSchema.parse(data),
       );
@@ -274,18 +197,8 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
     async getWalletLedger(
       rawQuery?: Partial<WalletLedgerQuery>,
     ): Promise<WalletLedgerResponse> {
-      throwIfSimulatedError();
       const query = WalletLedgerQuerySchema.parse(rawQuery ?? {});
 
-      if (mode === 'mock') {
-        if (overrides.walletLedgerResponse !== undefined) {
-          return WalletLedgerResponseSchema.parse(
-            overrides.walletLedgerResponse,
-          );
-        }
-        const items = overrides.walletLedgerItems ?? MOCK_WALLET_LEDGER_ITEMS;
-        return buildMockLedgerPage(items, query);
-      }
 
       const params = new URLSearchParams();
       params.set('pageSize', String(query.pageSize));
@@ -302,12 +215,7 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
     async getGoogleAuthUrl(
       rawQuery: AuthGoogleQuery,
     ): Promise<AuthGoogleResponse> {
-      throwIfSimulatedError();
       const query = AuthGoogleQuerySchema.parse(rawQuery);
-      if (mode === 'mock') {
-        const raw = overrides.authGoogleResponse ?? MOCK_AUTH_GOOGLE_RESPONSE;
-        return AuthGoogleResponseSchema.parse(raw);
-      }
       const params = new URLSearchParams({
         tosVersion: query.tosVersion,
         deviceId: query.deviceId,
@@ -322,21 +230,7 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
     async handleGoogleCallback(
       rawQuery: AuthGoogleCallbackQuery,
     ): Promise<AuthGoogleCallbackResponse> {
-      throwIfSimulatedError();
       const query = AuthGoogleCallbackQuerySchema.parse(rawQuery);
-      if (mode === 'mock') {
-        if ('error' in query) {
-          throw new MotionApiClientError({
-            status: 400,
-            code: query.error,
-            serverMessage: query.error_description ?? query.error,
-          });
-        }
-        const raw =
-          overrides.authGoogleCallbackResponse ??
-          MOCK_AUTH_GOOGLE_CALLBACK_RESPONSE;
-        return AuthGoogleCallbackResponseSchema.parse(raw);
-      }
       const params = new URLSearchParams();
       if ('code' in query) {
         params.set('code', query.code);
@@ -355,22 +249,12 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
     },
 
     async refreshSession(): Promise<AuthRefreshResponse> {
-      throwIfSimulatedError();
-      if (mode === 'mock') {
-        const raw = overrides.authRefreshResponse ?? MOCK_AUTH_REFRESH_RESPONSE;
-        return AuthRefreshResponseSchema.parse(raw);
-      }
       return requestLive('/auth/refresh', { method: 'POST' }, (data) =>
         AuthRefreshResponseSchema.parse(data),
       );
     },
 
     async logout(): Promise<AuthLogoutResponse> {
-      throwIfSimulatedError();
-      if (mode === 'mock') {
-        const raw = overrides.authLogoutResponse ?? MOCK_AUTH_LOGOUT_RESPONSE;
-        return AuthLogoutResponseSchema.parse(raw);
-      }
       return requestLive('/auth/logout', { method: 'POST' }, (data) =>
         AuthLogoutResponseSchema.parse(data),
       );

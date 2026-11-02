@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useRoute } from '#imports';
 import type { AccountTier, UserRole } from '@motion-ai/contracts';
+import { useAuthDialog } from '~/composables/useAuthDialog';
 import { formatNumberVi } from '~/utils/catalog';
 
 const props = withDefaults(
@@ -11,7 +12,6 @@ const props = withDefaults(
     tier?: AccountTier | null;
     email?: string | null;
     role?: UserRole | null;
-    apiMode?: 'mock' | 'live';
   }>(),
   {
     balance: null,
@@ -19,11 +19,11 @@ const props = withDefaults(
     tier: null,
     email: null,
     role: null,
-    apiMode: 'mock',
   },
 );
 
 const route = useRoute();
+const { open: openAuthDialog } = useAuthDialog();
 
 const baseNavItems = [
   {
@@ -97,7 +97,7 @@ function isActiveRoute(targetPath: string): boolean {
             Motion AI
           </span>
           <span class="text-[11px] font-mono uppercase tracking-wider text-cyber-muted">
-            Chế độ {{ apiMode === 'mock' ? 'Mock' : 'Live' }}
+            Studio AI
           </span>
         </span>
       </NuxtLink>
@@ -149,16 +149,18 @@ function isActiveRoute(targetPath: string): boolean {
           <span>Nạp Credit</span>
         </NuxtLink>
 
-        <NuxtLink
-          to="/login"
+        <button
+          type="button"
+          data-testid="account-button"
           :aria-label="email ? `Tài khoản ${email}` : 'Đăng nhập tài khoản'"
           class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-surface px-3 py-2 text-xs font-medium text-cyber-text transition hover:border-cyber-violet"
+          @click="openAuthDialog(email ? 'account' : 'login')"
         >
           <Icon name="lucide:user-round" class="h-4 w-4 shrink-0 text-cyber-violet" />
           <span class="hidden max-w-[140px] truncate xl:inline">
-            {{ email || 'Tài khoản' }}
+            {{ email || 'Đăng nhập' }}
           </span>
-        </NuxtLink>
+        </button>
       </div>
     </div>
   </header>
