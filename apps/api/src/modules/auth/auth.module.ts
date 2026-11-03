@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { RedisService } from '../../infra/redis.service.js';
+import { RedisThrottlerStorage } from './redis-throttler.storage.js';
 import { WalletModule } from '../wallet/wallet.module.js';
 import { AuthController } from './auth.controller.js';
 import { MeController } from './me.controller.js';
@@ -17,7 +19,11 @@ import { AuthThrottlerGuard, getAuthThrottleOptions } from './throttler.guard.js
   imports: [
     WalletModule,
     ThrottlerModule.forRootAsync({
-      useFactory: () => [getAuthThrottleOptions()],
+      inject: [RedisService],
+      useFactory: (redis: RedisService) => ({
+        throttlers: [getAuthThrottleOptions()],
+        storage: new RedisThrottlerStorage(redis),
+      }),
     }),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({

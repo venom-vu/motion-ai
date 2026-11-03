@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   ServiceUnavailableException,
@@ -22,7 +23,10 @@ import {
   SIGNUP_GRANT_IP_WINDOW_MS,
   SIGNUP_GRANT_MAX_PER_IP,
   hmacHex,
+  issueDeviceCookie,
+  verifyDeviceCookie,
 } from './anti-abuse.js';
+import { ipRateKey } from './client-ip.js';
 import { WalletService } from '../wallet/wallet.service.js';
 import { AccountLockedException } from './guards/account-locked.guard.js';
 
@@ -166,10 +170,14 @@ export class AuthService {
     return payload;
   }
 
-  async getGoogleAuthUrl(query: {
-    tosVersion: string;
-    deviceId: string;
-  }): Promise<{ redirectUrl: string }> {
+  /**
+   * `deviceId` trong query chỉ để tương thích hợp đồng; định danh thiết bị thật do server cấp
+   * qua cookie ký (`existingDeviceCookie`). Trả `newDeviceCookie` khi cần đặt cookie mới.
+   */
+  async getGoogleAuthUrl(
+    query: { tosVersion: string; deviceId: string },
+    existingDeviceCookie?: unknown,
+  ): Promise<{ redirectUrl: string; newDeviceCookie?: string }> {
     if (query.tosVersion !== TOS_VERSION) {
       throw new ConsentRequiredException();
     }
@@ -179,11 +187,19 @@ export class AuthService {
       throw new BadRequestException('Thiếu deviceId');
     }
 
+    let serverDeviceId = verifyDeviceCookie(existingDeviceCookie);
+    let newDeviceCookie: string | undefined;
+    if (!serverDeviceId) {
+      const issued = issueDeviceCookie();
+      serverDeviceId = issued.deviceId;
+      newDeviceCookie = issued.cookieValue;
+    }
+
     const nonce = crypto.randomBytes(16).toString('hex');
     const statePayload: OAuthStatePayload = {
       nonce,
       tosVersion: query.tosVersion,
-      deviceId: cleanDeviceId,
+      deviceId: serverDeviceId,
       createdAt: Date.now(),
     };
 
@@ -199,7 +215,7 @@ export class AuthService {
     }
 
     const redirectUrl = this.googleOAuthService.getAuthorizationUrl(signedState);
-    return { redirectUrl };
+    return { redirectUrl, newDeviceCookie };
   }
 
   async handleGoogleCallback(
@@ -233,11 +249,23 @@ export class AuthService {
     const normalizedEmail = profile.email.trim().toLowerCase();
 
     // 3. Tìm người dùng trong DB
-    let user = await this.prisma.user.findFirst({
-      where: {
-        OR: [{ googleId: profile.googleId }, { email: normalizedEmail }],
-      },
+    // Chỉ khớp theo googleId. Email đã gắn googleId khác thì từ chối, tránh một danh tính Google
+    // khác chiếm tài khoản (và credit) của người khác.
+    let user = await this.prisma.user.findUnique({
+      where: { googleId: profile.googleId },
     });
+    if (!user) {
+      const byEmail = await this.prisma.user.findUnique({
+        where: { email: normalizedEmail },
+      });
+      if (byEmail) {
+        this.logger.warn(`Từ chối đăng nhập: email ${normalizedEmail} đã gắn với googleId khác`);
+        throw new ConflictException({
+          code: ApiErrorCode.EMAIL_LINKED_TO_OTHER_ACCOUNT,
+          message: getApiErrorMessageVi(ApiErrorCode.EMAIL_LINKED_TO_OTHER_ACCOUNT),
+        });
+      }
+    }
 
     let isNewUser = false;
     let granted = 0n;
@@ -263,9 +291,10 @@ export class AuthService {
       isNewUser = true;
       const role = this.resolveRoleForEmail(normalizedEmail);
 
-      const ipHash = hmacHex(`ip:${clientIp}`);
+      const ipHash = hmacHex(`ip:${ipRateKey(clientIp)}`);
       const fingerprintHash = hmacHex(`device:${statePayload.deviceId}`);
 
+      try {
       user = await this.prisma.$transaction(
         async (tx) => {
           // Khóa advisory theo thứ tự số cố định để tránh deadlock
@@ -317,6 +346,19 @@ export class AuthService {
         },
         { maxWait: 15_000, timeout: 15_000 },
       );
+      } catch (err) {
+        // Hai callback đồng thời của cùng một tài khoản: bên thua gặp P2002 trên googleId/email.
+        // Coi như đăng nhập lại tài khoản vừa được bên kia tạo thay vì trả 500.
+        if ((err as { code?: string }).code !== 'P2002') throw err;
+        const existing = await this.prisma.user.findUnique({
+          where: { googleId: profile.googleId },
+        });
+        if (!existing) throw err;
+        if (existing.lockedAt !== null) throw new AccountLockedException();
+        user = existing;
+        isNewUser = false;
+        granted = 0n;
+      }
     }
 
     // 4. Cấp Access JWT và Refresh Token

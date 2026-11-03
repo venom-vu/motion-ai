@@ -28,6 +28,7 @@ import { AccountLockedGuard } from './guards/account-locked.guard.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
 import { RolesGuard } from './guards/roles.guard.js';
 import type { JwtUserPayload } from './jwt.strategy.js';
+import { DEVICE_COOKIE_NAME } from './anti-abuse.js';
 import { resolveClientIp } from './client-ip.js';
 import { AuthThrottlerGuard } from './throttler.guard.js';
 
@@ -57,6 +58,13 @@ export function getRefreshCookieOptions() {
   };
 }
 
+export function getDeviceCookieOptions() {
+  return {
+    ...getRefreshCookieOptions(),
+    maxAge: 365 * 24 * 60 * 60 * 1000, // 1 năm
+  };
+}
+
 export function buildFrontendRedirect(
   path: string,
   query?: Record<string, string>,
@@ -77,6 +85,8 @@ export class AuthController {
   @UseGuards(AuthThrottlerGuard)
   async googleAuth(
     @Query() rawQuery: Record<string, unknown>,
+    @Req() req: RequestWithCookies,
+    @Res({ passthrough: true }) res: ResponseWithCookies,
   ): Promise<AuthGoogleResponse> {
     const tosVersion =
       typeof rawQuery?.tosVersion === 'string'
@@ -95,7 +105,14 @@ export class AuthController {
       });
     }
 
-    return this.authService.getGoogleAuthUrl(parsed.data);
+    const { redirectUrl, newDeviceCookie } = await this.authService.getGoogleAuthUrl(
+      parsed.data,
+      req.cookies?.[DEVICE_COOKIE_NAME],
+    );
+    if (newDeviceCookie) {
+      res.cookie(DEVICE_COOKIE_NAME, newDeviceCookie, getDeviceCookieOptions());
+    }
+    return { redirectUrl };
   }
 
   /**

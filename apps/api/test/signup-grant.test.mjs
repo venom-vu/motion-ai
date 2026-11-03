@@ -11,6 +11,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../dist/generated/prisma/client.js';
 import { bootstrapApi } from '../dist/main.js';
 import { GoogleOAuthService } from '../dist/modules/auth/google-oauth.service.js';
+import { RedisService } from '../dist/infra/redis.service.js';
 import { WalletService } from '../dist/modules/wallet/wallet.service.js';
 import {
   resolveClientIp,
@@ -121,6 +122,11 @@ describe('Story 1.8: [BE] Tặng 500 credit và chống lạm dụng', () => {
     const address = app.getHttpServer().address();
     baseUrl = `http://127.0.0.1:${address.port}`;
 
+    // Bộ đếm throttle nằm trong Redis nên sống qua các lần chạy: xóa để test độc lập.
+    const redis = app.get(RedisService).client;
+    const staleKeys = await redis.keys('throttle:*');
+    if (staleKeys.length > 0) await redis.del(...staleKeys);
+
     googleOAuthService = app.get(GoogleOAuthService);
     walletService = app.get(WalletService);
 
@@ -200,6 +206,27 @@ describe('Story 1.8: [BE] Tặng 500 credit và chống lạm dụng', () => {
   /**
    * Helper: Giả lập đăng ký người dùng mới qua HTTP API với Google OAuth.
    */
+  // Mô phỏng cookie jar của trình duyệt: mỗi `deviceId` logic = một trình duyệt, giữ cookie server cấp.
+  const deviceJar = new Map();
+
+  /** deviceId do server cấp (phần trước dấu chấm của cookie) ứng với một "trình duyệt" logic. */
+  function serverDeviceId(deviceId) {
+    const cookie = deviceJar.get(deviceId);
+    assert.ok(cookie, `Chưa có cookie thiết bị cho ${deviceId}`);
+    return decodeURIComponent(cookie.split('=')[1]).split('.')[0];
+  }
+
+  /** Lấy cookie thiết bị trước (tuần tự) để các đăng ký song song cùng một trình duyệt. */
+  async function warmDevice(deviceId) {
+    const res = await fetch(
+      `${baseUrl}/auth/google?tosVersion=${TOS_VERSION}&deviceId=${encodeURIComponent(deviceId)}`,
+      { headers: { 'CF-Connecting-IP': `203.0.113.${crypto.randomInt(1, 250)}` } },
+    );
+    for (const sc of res.headers.getSetCookie()) {
+      if (sc.startsWith('motion_device=')) deviceJar.set(deviceId, sc.split(';')[0]);
+    }
+  }
+
   async function registerViaApi({
     email,
     googleId,
@@ -208,13 +235,21 @@ describe('Story 1.8: [BE] Tặng 500 credit và chống lạm dụng', () => {
     extraHeaders = {},
   }) {
     // 1. Lấy redirect URL chứa state hợp lệ
+    const jarCookie = deviceJar.get(deviceId);
     const authRes = await fetch(
       `${baseUrl}/auth/google?tosVersion=${TOS_VERSION}&deviceId=${encodeURIComponent(deviceId)}`,
       {
-        headers: clientIp ? { 'CF-Connecting-IP': clientIp, ...extraHeaders } : extraHeaders,
+        headers: {
+          ...(clientIp ? { 'CF-Connecting-IP': clientIp } : {}),
+          ...(jarCookie ? { Cookie: jarCookie } : {}),
+          ...extraHeaders,
+        },
       },
     );
     assert.equal(authRes.status, 200, 'Khởi tạo OAuth phải thành công');
+    for (const sc of authRes.headers.getSetCookie()) {
+      if (sc.startsWith('motion_device=')) deviceJar.set(deviceId, sc.split(';')[0]);
+    }
     const authData = await authRes.json();
     const redirectUrl = new URL(authData.redirectUrl);
     const state = redirectUrl.searchParams.get('state');
@@ -752,6 +787,7 @@ describe('Story 1.8: [BE] Tặng 500 credit và chống lạm dụng', () => {
 
     it('5 đăng ký song song cùng thiết bị, IP khác nhau: đúng 1 nhận 500, 4 nhận 0', async () => {
       const sharedDeviceId = `dev-conc-${crypto.randomBytes(6).toString('hex')}`;
+      await warmDevice(sharedDeviceId);
       const promises = [];
 
       for (let i = 0; i < 5; i++) {
@@ -768,7 +804,7 @@ describe('Story 1.8: [BE] Tặng 500 credit và chống lạm dụng', () => {
         assert.equal(res.status, 200, 'Tất cả 5 đăng ký phải thành công');
       }
 
-      const fingerprintHash = hmacHex(`device:${sharedDeviceId}`);
+      const fingerprintHash = hmacHex(`device:${serverDeviceId(sharedDeviceId)}`);
       const grants = await prisma.signupGrant.findMany({
         where: { fingerprintHash },
       });
@@ -825,7 +861,7 @@ describe('Story 1.8: [BE] Tặng 500 credit và chống lạm dụng', () => {
       const user = await prisma.user.findUnique({ where: { email } });
       assert.equal(user, null, 'User không được tồn tại trong DB sau rollback');
 
-      const fingerprintHash = hmacHex(`device:${deviceId}`);
+      const fingerprintHash = hmacHex(`device:${serverDeviceId(deviceId)}`);
       const grant = await prisma.signupGrant.findFirst({ where: { fingerprintHash } });
       assert.equal(grant, null, 'signup_grants không được tồn tại trong DB sau rollback');
 
@@ -843,7 +879,7 @@ describe('Story 1.8: [BE] Tặng 500 credit và chống lạm dụng', () => {
   // =========================================================================
   describe('Giới hạn tần suất route đăng nhập (@nestjs/throttler)', () => {
     it('vượt giới hạn AUTH_THROTTLE_LIMIT trả về HTTP 429 với code RATE_LIMITED', async () => {
-      const throttledIp = `198.51.100.250`;
+      const throttledIp = `198.51.100.${100 + crypto.randomInt(0, 50)}`;
       const limit = 20; // Khớp với AUTH_THROTTLE_LIMIT
 
       // Gửi 20 request hợp lệ từ throttledIp -> tất cả thành công
@@ -894,7 +930,7 @@ describe('Story 1.8: [BE] Tặng 500 credit và chống lạm dụng', () => {
     });
 
     it('vượt giới hạn AUTH_THROTTLE_LIMIT trên POST /auth/refresh trả về HTTP 429 RATE_LIMITED', async () => {
-      const throttledIp = `198.51.100.252`;
+      const throttledIp = `198.51.100.${150 + crypto.randomInt(0, 50)}`;
       const limit = 20;
 
       // Gửi 20 request tới POST /auth/refresh từ throttledIp (không có cookie -> 401 Unauthorized nhưng đã qua guard)
@@ -920,5 +956,174 @@ describe('Story 1.8: [BE] Tặng 500 credit và chống lạm dụng', () => {
       assert.equal(body.code, ApiErrorCode.RATE_LIMITED);
       assert.equal(body.message, getApiErrorMessageVi(ApiErrorCode.RATE_LIMITED));
     });
+  });
+
+  describe('Bổ sung sau review: email trùng, signup đồng thời, throttler Redis, cảnh báo proxy', () => {
+    it('email đã gắn googleId khác: 409 EMAIL_LINKED_TO_OTHER_ACCOUNT và không ghi đè googleId', async () => {
+      const email = `link-${crypto.randomBytes(4).toString('hex')}@motionai.vn`;
+      const gid1 = `gid-link-1-${crypto.randomBytes(4).toString('hex')}`;
+      const gid2 = `gid-link-2-${crypto.randomBytes(4).toString('hex')}`;
+
+      const first = await registerViaApi({
+        email,
+        googleId: gid1,
+        deviceId: `dev-link-${crypto.randomBytes(4).toString('hex')}`,
+        clientIp: '198.51.100.31',
+      });
+      assert.equal(first.status, 200);
+      const owner = await prisma.user.findUnique({ where: { email } });
+      createdUserIds.push(owner.id);
+
+      const second = await registerViaApi({
+        email,
+        googleId: gid2,
+        deviceId: `dev-link-b-${crypto.randomBytes(4).toString('hex')}`,
+        clientIp: '198.51.100.32',
+      });
+      assert.equal(second.status, 409);
+      assert.equal(second.body.code, ApiErrorCode.EMAIL_LINKED_TO_OTHER_ACCOUNT);
+
+      const after = await prisma.user.findUnique({ where: { email } });
+      assert.equal(after.googleId, gid1, 'googleId gốc không được bị ghi đè');
+      assert.equal(after.balance, owner.balance, 'credit không bị ảnh hưởng');
+    });
+
+    it('5 callback đồng thời của cùng một tài khoản: không có 500, đúng 1 user và 1 lần tặng', async () => {
+      const email = `same-${crypto.randomBytes(4).toString('hex')}@motionai.vn`;
+      const gid = `gid-same-${crypto.randomBytes(4).toString('hex')}`;
+      const deviceId = `dev-same-${crypto.randomBytes(4).toString('hex')}`;
+      await warmDevice(deviceId);
+
+      const results = await Promise.all(
+        Array.from({ length: 5 }, (_, i) =>
+          registerViaApi({ email, googleId: gid, deviceId, clientIp: `203.0.113.${20 + i}` }),
+        ),
+      );
+      for (const r of results) {
+        assert.equal(r.status, 200, `Không được lỗi: ${JSON.stringify(r.body)}`);
+      }
+      assert.equal(results.filter((r) => r.body.isNewUser === true).length, 1);
+
+      const users = await prisma.user.findMany({
+        where: { email },
+        include: { ledgerEntries: true, signupGrant: true },
+      });
+      assert.equal(users.length, 1);
+      createdUserIds.push(users[0].id);
+      assert.equal(users[0].balance, 500n);
+      assert.equal(users[0].ledgerEntries.length, 1);
+      assert.ok(users[0].signupGrant);
+    });
+
+    it('RedisThrottlerStorage: đếm, chặn khi vượt limit, tách theo key và theo blockDuration', async () => {
+      const { RedisThrottlerStorage } = await import(
+        '../dist/modules/auth/redis-throttler.storage.js'
+      );
+      const storage = new RedisThrottlerStorage(app.get(RedisService));
+      const key = `test-${crypto.randomBytes(6).toString('hex')}`;
+
+      for (let i = 1; i <= 3; i++) {
+        const r = await storage.increment(key, 5000, 3, 0, 'default');
+        assert.equal(r.totalHits, i);
+        assert.equal(r.isBlocked, false);
+        assert.ok(r.timeToExpire > 0 && r.timeToExpire <= 5000);
+      }
+      const blocked = await storage.increment(key, 5000, 3, 0, 'default');
+      assert.equal(blocked.isBlocked, true);
+      assert.equal(blocked.totalHits, 4);
+
+      const other = await storage.increment(`${key}-other`, 5000, 3, 0, 'default');
+      assert.equal(other.isBlocked, false);
+
+      const blockKey = `${key}-blk`;
+      await storage.increment(blockKey, 5000, 1, 60_000, 'default');
+      const overLimit = await storage.increment(blockKey, 5000, 1, 60_000, 'default');
+      assert.equal(overLimit.isBlocked, true);
+      assert.ok(overLimit.timeToBlockExpire > 0);
+      const again = await storage.increment(blockKey, 5000, 1, 60_000, 'default');
+      assert.equal(again.isBlocked, true, 'đang trong thời gian block thì tiếp tục bị chặn');
+
+      const redis = app.get(RedisService).client;
+      const keys = await redis.keys(`throttle:default:${key}*`);
+      if (keys.length) await redis.del(...keys);
+    });
+
+    it('RedisThrottlerStorage: Redis lỗi thì fail-open, không ném lỗi', async () => {
+      const { RedisThrottlerStorage } = await import(
+        '../dist/modules/auth/redis-throttler.storage.js'
+      );
+      const broken = {
+        client: {
+          pttl: async () => {
+            throw new Error('redis down');
+          },
+        },
+      };
+      const storage = new RedisThrottlerStorage(broken);
+      const r = await storage.increment('k', 1000, 1, 0, 'default');
+      assert.equal(r.isBlocked, false);
+    });
+
+    it('resolveClientIp cảnh báo đúng một lần khi kết nối từ địa chỉ nội bộ không tin cậy', async () => {
+      const { resolveClientIp: resolve, resetClientIpWarningForTests } = await import(
+        '../dist/modules/auth/client-ip.js'
+      );
+      resetClientIpWarningForTests();
+      const warnings = [];
+      const original = console.warn;
+      console.warn = (...args) => warnings.push(args.join(' '));
+      try {
+        const ip = resolve({ socket: { remoteAddress: '10.1.2.3' }, headers: {} });
+        resolve({ socket: { remoteAddress: '10.1.2.4' }, headers: {} });
+        assert.equal(ip, '::ffff:10.1.2.3');
+        assert.equal(warnings.length, 1);
+        assert.match(warnings[0], /TRUSTED_PROXY_CIDRS/);
+
+        resetClientIpWarningForTests();
+        warnings.length = 0;
+        resolve({ socket: { remoteAddress: '8.8.8.8' }, headers: {} });
+        assert.equal(warnings.length, 0, 'IP công khai không cần cảnh báo');
+      } finally {
+        console.warn = original;
+      }
+    });
+  });
+});
+
+describe('Story 1.8 review fixes: cookie thiết bị, secret, IPv6, relink', () => {
+  it('verifyDeviceCookie từ chối cookie giả mạo hoặc sai chữ ký', async () => {
+    const { issueDeviceCookie, verifyDeviceCookie } = await import('../dist/modules/auth/anti-abuse.js');
+    const { deviceId, cookieValue } = issueDeviceCookie();
+    assert.equal(verifyDeviceCookie(cookieValue), deviceId);
+    assert.equal(verifyDeviceCookie(`${'a'.repeat(32)}.${'b'.repeat(32)}`), null);
+    assert.equal(verifyDeviceCookie(`${deviceId}.deadbeef`), null);
+    assert.equal(verifyDeviceCookie('random-client-value'), null);
+    assert.equal(verifyDeviceCookie(undefined), null);
+  });
+
+  it('getAntiAbuseSecret fail-closed ở production khi thiếu hoặc quá ngắn', async () => {
+    const { getAntiAbuseSecret } = await import('../dist/modules/auth/anti-abuse.js');
+    const prevEnv = process.env.NODE_ENV;
+    const prevSecret = process.env.ANTI_ABUSE_SECRET;
+    try {
+      process.env.NODE_ENV = 'production';
+      delete process.env.ANTI_ABUSE_SECRET;
+      assert.throws(() => getAntiAbuseSecret(), /ANTI_ABUSE_SECRET/);
+      process.env.ANTI_ABUSE_SECRET = 'short';
+      assert.throws(() => getAntiAbuseSecret(), /ANTI_ABUSE_SECRET/);
+      process.env.ANTI_ABUSE_SECRET = 'x'.repeat(40);
+      assert.equal(getAntiAbuseSecret(), 'x'.repeat(40));
+    } finally {
+      process.env.NODE_ENV = prevEnv;
+      process.env.ANTI_ABUSE_SECRET = prevSecret;
+    }
+  });
+
+  it('ipRateKey gộp IPv6 theo /64 và giữ nguyên IPv4', async () => {
+    const { ipRateKey } = await import('../dist/modules/auth/client-ip.js');
+    assert.equal(ipRateKey('2001:db8:1:2:aaaa::1'), ipRateKey('2001:db8:1:2:bbbb:cccc::9'));
+    assert.notEqual(ipRateKey('2001:db8:1:2::1'), ipRateKey('2001:db8:1:3::1'));
+    assert.equal(ipRateKey('203.0.113.7'), '::ffff:203.0.113.7');
+    assert.equal(ipRateKey('not-an-ip'), 'unknown');
   });
 });

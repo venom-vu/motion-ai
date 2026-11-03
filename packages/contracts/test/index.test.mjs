@@ -49,7 +49,7 @@ describe('@motion-ai/contracts', () => {
   });
 
   describe('ApiErrorCode & ApiErrorSchema (AC1)', () => {
-    it('exports all 7 required ApiErrorCode values and fallback message for unknown codes', () => {
+    it('exports all 8 required ApiErrorCode values and fallback message for unknown codes', () => {
       const expectedCodes = [
         'PAUSED',
         'INSUFFICIENT_CREDIT',
@@ -58,6 +58,7 @@ describe('@motion-ai/contracts', () => {
         'CONSENT_REQUIRED',
         'VALIDATION_FAILED',
         'RATE_LIMITED',
+        'EMAIL_LINKED_TO_OTHER_ACCOUNT',
       ];
       assert.deepEqual(Object.values(ApiErrorCode), expectedCodes);
 

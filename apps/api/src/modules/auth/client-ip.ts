@@ -73,8 +73,21 @@ export function isIpInCidrs(ip: string, cidrs: readonly string[]): boolean {
   const family = v4 ? 'ipv4' : net.isIPv6(ip) ? 'ipv6' : null;
   if (!family) return false;
   const target = v4 ?? ip;
-  const list = buildBlockList(cidrs);
-  return list.check(target, family);
+  return getBlockListFor(cidrs).check(target, family);
+}
+
+const blockListCache = new Map<string, net.BlockList>();
+
+/** BlockList được cache theo toàn bộ danh sách CIDR để không dựng lại mỗi lần gọi. */
+function getBlockListFor(cidrs: readonly string[]): net.BlockList {
+  const key = cidrs.join(',');
+  let list = blockListCache.get(key);
+  if (!list) {
+    list = buildBlockList(cidrs);
+    if (blockListCache.size >= 16) blockListCache.clear();
+    blockListCache.set(key, list);
+  }
+  return list;
 }
 
 export function getTrustedProxyCidrs(): string[] {
@@ -85,16 +98,56 @@ export function getTrustedProxyCidrs(): string[] {
   return [...CLOUDFLARE_CIDRS, ...extra];
 }
 
-let cachedTrustedProxyKey = '';
-let cachedTrustedBlockList: net.BlockList | null = null;
-
 export function getTrustedProxyBlockList(): net.BlockList {
-  const extra = process.env.TRUSTED_PROXY_CIDRS ?? '';
-  if (!cachedTrustedBlockList || cachedTrustedProxyKey !== extra) {
-    cachedTrustedProxyKey = extra;
-    cachedTrustedBlockList = buildBlockList(getTrustedProxyCidrs());
-  }
-  return cachedTrustedBlockList;
+  return getBlockListFor(getTrustedProxyCidrs());
+}
+
+/**
+ * Khóa đếm giới hạn theo IP: IPv4 giữ nguyên, IPv6 gộp theo /64 để một mạng IPv6
+ * không thể xoay vô hạn địa chỉ nhằm né giới hạn.
+ */
+export function ipRateKey(ip: string): string {
+  const normalized = normalizeIp(ip);
+  if (!normalized) return 'unknown';
+  if (toIpv4(normalized)) return normalized;
+  const groups = expandIpv6(normalized);
+  return groups ? `${groups.slice(0, 4).join(':')}::/64` : normalized;
+}
+
+function expandIpv6(ip: string): string[] | null {
+  const [head, tail, extra] = ip.split('::');
+  if (extra !== undefined) return null;
+  const h = head ? head.split(':') : [];
+  const t = tail ? tail.split(':') : [];
+  const missing = 8 - h.length - t.length;
+  if (tail === undefined ? h.length !== 8 : missing < 0) return null;
+  const all = tail === undefined ? h : [...h, ...Array(missing).fill('0'), ...t];
+  return all.map((g) => g.padStart(4, '0'));
+}
+
+let warnedUnresolvedProxy = false;
+
+/** Chỉ dùng cho test: cho phép cảnh báo IP nội bộ phát lại. */
+export function resetClientIpWarningForTests(): void {
+  warnedUnresolvedProxy = false;
+}
+
+/** Cảnh báo một lần khi IP kết nối là địa chỉ nội bộ nhưng không có proxy tin cậy nào khai báo. */
+function warnIfSharedProxyAddress(connection: string): void {
+  if (warnedUnresolvedProxy) return;
+  const v4 = toIpv4(connection);
+  const internal =
+    connection === 'unknown' ||
+    (v4 !== null &&
+      isIpInCidrs(v4, ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '127.0.0.0/8'])) ||
+    connection === '::1';
+  if (!internal) return;
+  warnedUnresolvedProxy = true;
+  console.warn(
+    `[client-ip] Kết nối từ địa chỉ nội bộ/không xác định (${connection}) mà không phải proxy tin cậy: ` +
+      'mọi người dùng sẽ dùng chung một IP khi chống lạm dụng và rate-limit. ' +
+      'Hãy đặt TRUSTED_PROXY_CIDRS gồm địa chỉ reverse proxy (Caddy/nginx/Docker).',
+  );
 }
 
 export interface ClientIpRequest {
@@ -123,5 +176,6 @@ export function resolveClientIp(req: ClientIpRequest): string {
       if (fromHeader) return fromHeader;
     }
   }
+  warnIfSharedProxyAddress(connection);
   return connection;
 }

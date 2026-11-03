@@ -11,6 +11,7 @@ export enum ApiErrorCode {
   CONSENT_REQUIRED = 'CONSENT_REQUIRED',
   VALIDATION_FAILED = 'VALIDATION_FAILED',
   RATE_LIMITED = 'RATE_LIMITED',
+  EMAIL_LINKED_TO_OTHER_ACCOUNT = 'EMAIL_LINKED_TO_OTHER_ACCOUNT',
 }
 
 export const ApiErrorCodeSchema = z.nativeEnum(ApiErrorCode);
@@ -45,6 +46,8 @@ export const API_ERROR_MESSAGES_VI: Readonly<Record<ApiErrorCode, string>> = {
     'Dữ liệu gửi lên không hợp lệ. Vui lòng kiểm tra lại thông tin.',
   [ApiErrorCode.RATE_LIMITED]:
     'Bạn thao tác quá nhanh. Vui lòng đợi ít phút rồi thử lại.',
+  [ApiErrorCode.EMAIL_LINKED_TO_OTHER_ACCOUNT]:
+    'Email này đã được liên kết với một tài khoản Google khác. Vui lòng đăng nhập bằng đúng tài khoản Google đã đăng ký.',
 };
 
 /**
