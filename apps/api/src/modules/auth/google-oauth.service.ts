@@ -37,6 +37,15 @@ export class GoogleOAuthService {
     }
   }
 
+  /**
+   * Cho phép ghi đè endpoint Google bằng env (chỉ để giả Google trong smoke test);
+   * ở production luôn dùng URL Google thật.
+   */
+  private resolveEndpoint(envName: string, defaultUrl: string): string {
+    if (process.env.NODE_ENV === 'production') return defaultUrl;
+    return process.env[envName]?.trim() || defaultUrl;
+  }
+
   getAuthorizationUrl(state: string): string {
     this.assertConfigured();
     const clientId = process.env.GOOGLE_CLIENT_ID || 'mock-google-client-id';
@@ -67,7 +76,10 @@ export class GoogleOAuthService {
       'http://localhost:3001/auth/google/callback';
 
     // 1. Trao đổi authorization code lấy access_token
-    const tokenUrl = 'https://oauth2.googleapis.com/token';
+    const tokenUrl = this.resolveEndpoint(
+      'GOOGLE_TOKEN_URL',
+      'https://oauth2.googleapis.com/token',
+    );
     const tokenParams = new URLSearchParams({
       code,
       client_id: clientId,
@@ -106,7 +118,10 @@ export class GoogleOAuthService {
     }
 
     // 2. Lấy thông tin user profile từ userinfo endpoint
-    const userinfoUrl = 'https://www.googleapis.com/oauth2/v3/userinfo';
+    const userinfoUrl = this.resolveEndpoint(
+      'GOOGLE_USERINFO_URL',
+      'https://www.googleapis.com/oauth2/v3/userinfo',
+    );
     const userinfoRes = await this.fetchImpl(userinfoUrl, {
       method: 'GET',
       headers: {

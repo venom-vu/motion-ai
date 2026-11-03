@@ -34,3 +34,7 @@ Chạy từ thư mục gốc monorepo:
 - `pnpm --filter @motion-ai/web run typecheck`: Chạy `nuxt prepare && nuxt typecheck`.
 - `pnpm --filter @motion-ai/web run build`: Biên dịch đầu ra Cloudflare Pages tại `.output/public`.
 - `pnpm --filter @motion-ai/web run test`: Chạy bộ kiểm thử tự động trong `apps/web/test/smoke.test.mjs`.
+
+## 4. Chạy FE với BE cục bộ và smoke test
+
+Chỉ có chế độ `live`; "mock" là các hằng `MOCK_*` trong `@motion-ai/contracts`, được kiểm tra khớp BE thật trong smoke test (`apps/api/test/smoke-login.test.mjs`). Chạy BE cục bộ (xem README gốc) rồi: `NUXT_PUBLIC_API_BASE_URL=http://localhost:3001 pnpm --filter @motion-ai/web run dev`. Đăng nhập Google thật là bước thủ công một lần khi có thông tin OAuth.

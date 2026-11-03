@@ -1,0 +1,15 @@
+# Override chỉ dành cho smoke test; không thêm container mới (vẫn bốn container).
+# Dùng: docker compose -f compose.yml -f compose.smoke.yml up -d --build --wait
+# Google được giả bằng máy chủ chạy trên host (tiến trình test), nên chỉ hợp lệ khi NODE_ENV != production.
+services:
+  nestjs-api:
+    environment:
+      NODE_ENV: test
+      COOKIE_SECURE: "false"
+      JWT_SECRET: smoke-jwt-secret-for-compose-tests-only-0123456789
+      ANTI_ABUSE_SECRET: smoke-anti-abuse-secret-for-compose-tests-0123456789
+      FRONTEND_URL: http://localhost:3000
+      GOOGLE_TOKEN_URL: ${GOOGLE_TOKEN_URL:-http://host.docker.internal:3199/token}
+      GOOGLE_USERINFO_URL: ${GOOGLE_USERINFO_URL:-http://host.docker.internal:3199/userinfo}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

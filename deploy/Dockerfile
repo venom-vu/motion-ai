@@ -22,6 +22,7 @@ COPY --chown=node:node --from=build /app/package.json ./package.json
 COPY --chown=node:node --from=build /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 COPY --chown=node:node --from=build /app/packages/contracts/package.json ./packages/contracts/package.json
 COPY --chown=node:node --from=build /app/packages/contracts/dist ./packages/contracts/dist
+COPY --chown=node:node --from=build /app/packages/contracts/node_modules ./packages/contracts/node_modules
 COPY --chown=node:node --from=build /app/apps/api/package.json ./apps/api/package.json
 COPY --chown=node:node --from=build /app/apps/api/prisma.config.ts ./apps/api/prisma.config.ts
 COPY --chown=node:node --from=build /app/apps/api/prisma ./apps/api/prisma

@@ -56,3 +56,12 @@ pnpm run check:boundaries
 | `be/*` | Chỉ `apps/api/**`, `deploy/**` (và `package-lock.json` gốc) |
 | `contract/*` | Chỉ `packages/contracts/**` (và `package-lock.json` gốc) |
 | `shared/*` | Toàn bộ kho mã (cấu hình gốc, `packages/contracts/**`, `apps/**`, `deploy/**`) |
+
+## Chạy thử toàn bộ Epic 1 (FE nối BE) và smoke test đăng nhập
+
+FE chỉ có một chế độ `live` (không có chế độ mock). "Mock" là các hằng `MOCK_*` trong `packages/contracts`; smoke test kiểm tra chúng khớp schema và khớp hình dạng phản hồi BE thật.
+
+1. Chạy stack: `cp deploy/.env.example deploy/.env`, rồi `docker compose -f deploy/compose.yml --env-file deploy/.env up -d --build --wait` (4 container: Postgres, Redis, api, worker). API mặc định ở cổng `3001`.
+2. Chạy FE: `NUXT_PUBLIC_API_BASE_URL=http://localhost:3001 pnpm --filter @motion-ai/web run dev` (hoặc trỏ tới BE đã triển khai).
+3. Chạy test: `pnpm test` (bỏ qua smoke Docker). Smoke đầy đủ: `RUN_COMPOSE_E2E=1 pnpm --filter @motion-ai/api test` (cần Docker). Smoke giả Google bằng `GOOGLE_TOKEN_URL`/`GOOGLE_USERINFO_URL` (chỉ có tác dụng khi `NODE_ENV` khác `production`), kiểm tra người dùng mới có 500 credit và đúng một dòng "Tặng", tài khoản thứ hai cùng thiết bị có 0 credit, rồi chạy đối soát.
+4. Đăng nhập Google thật là bước thủ công, chạy một lần khi có `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_CALLBACK_URL` thật (không nằm trong CI, không commit bí mật): mở FE, đăng nhập Google, kiểm tra số dư 500 và dòng "Tặng" ở trang lịch sử.
