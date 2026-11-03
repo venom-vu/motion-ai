@@ -2,22 +2,15 @@
 import { onBeforeUnmount, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from '#imports';
 import { TOS_VERSION } from '@motion-ai/contracts';
-import { useAuth } from '~/composables/useAuth';
 import { useAuthDialog } from '~/composables/useAuthDialog';
 import { usePricingConfig } from '~/composables/usePricingConfig';
 import { resolveApiErrorMessageVi } from '~/utils/api-client';
 import { formatNumberVi } from '~/utils/catalog';
 
-const { logout } = useAuth();
 const { pricing, me } = usePricingConfig();
 const { mode, errorVi, open, close } = useAuthDialog();
 const route = useRoute();
 const router = useRouter();
-
-async function handleLogout(): Promise<void> {
-  await logout();
-  close();
-}
 
 function handleKeydown(event: KeyboardEvent): void {
   if (mode.value && event.key === 'Escape') {
@@ -145,16 +138,6 @@ onBeforeUnmount(() => {
             <dd class="mt-1 font-mono">{{ me.tosVersion }}</dd>
           </div>
         </dl>
-
-        <button
-          type="button"
-          data-testid="logout-button"
-          class="touch-target mt-5 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-cyber-border px-5 py-3 text-sm font-semibold transition hover:border-cyber-danger hover:text-cyber-danger"
-          @click="handleLogout"
-        >
-          <Icon name="lucide:log-out" class="h-4 w-4 shrink-0" />
-          <span>Đăng xuất</span>
-        </button>
       </template>
     </div>
   </div>

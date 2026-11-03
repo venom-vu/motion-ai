@@ -22,10 +22,6 @@ const {
           <h1 class="font-display text-2xl font-bold text-cyber-text">
             Bảng Giá Gói Nạp & Quyền Lợi Hạng Tài Khoản
           </h1>
-          <p class="text-sm text-cyber-muted">
-            Mọi đơn giá công cụ, trần giây video và gói nạp dưới đây được đồng bộ
-            trực tiếp từ <span class="font-mono text-cyber-cyan">GET /config/pricing</span>.
-          </p>
         </div>
 
         <span
@@ -51,42 +47,6 @@ const {
     </div>
 
     <template v-else-if="pricing">
-      <!-- Bảng đơn giá từng pipeline từ pricing.pipelines -->
-      <section
-        data-testid="pricing-pipelines-section"
-        class="grid grid-cols-1 gap-4 sm:grid-cols-3"
-      >
-        <div class="rounded-2xl border border-cyber-border bg-cyber-surface p-4">
-          <div class="flex items-center gap-2 text-xs text-cyber-muted">
-            <Icon name="lucide:scan-face" class="h-4 w-4 text-cyber-violet" />
-            <span>Hoán Đổi Khuôn Mặt (Face Swap)</span>
-          </div>
-          <p class="mt-2 font-mono text-xl font-bold text-cyber-cyan">
-            {{ formatNumberVi(pricing.pipelines.faceSwapCredits) }} credit / lượt
-          </p>
-        </div>
-
-        <div class="rounded-2xl border border-cyber-border bg-cyber-surface p-4">
-          <div class="flex items-center gap-2 text-xs text-cyber-muted">
-            <Icon name="lucide:person-standing" class="h-4 w-4 text-cyber-violet" />
-            <span>Chỉnh Dáng (Body Retouch)</span>
-          </div>
-          <p class="mt-2 font-mono text-xl font-bold text-cyber-cyan">
-            {{ formatNumberVi(pricing.pipelines.bodyRetouchCredits) }} credit / lượt
-          </p>
-        </div>
-
-        <div class="rounded-2xl border border-cyber-border bg-cyber-surface p-4">
-          <div class="flex items-center gap-2 text-xs text-cyber-muted">
-            <Icon name="lucide:clapperboard" class="h-4 w-4 text-cyber-violet" />
-            <span>Điều Khiển Chuyển Động (Motion Control)</span>
-          </div>
-          <p class="mt-2 font-mono text-xl font-bold text-cyber-cyan">
-            {{ formatNumberVi(pricing.pipelines.motionControlCreditsPerSecond) }} credit / giây
-          </p>
-        </div>
-      </section>
-
       <!-- Danh sách các gói nạp và Tier từ pricing.tiers -->
       <section
         aria-label="Danh sách các hạng tài khoản"

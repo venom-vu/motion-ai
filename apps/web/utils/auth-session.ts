@@ -1,6 +1,7 @@
 // Logic phiên không phụ thuộc Nuxt để kiểm thử trực tiếp.
 
-export const LOGIN_PATH = '/login';
+/** Đăng nhập là dialog nên mất phiên/đăng xuất chỉ cần về trang chủ. */
+export const SIGNED_OUT_PATH = '/';
 
 export interface RefreshedSession {
   accessToken: string;
@@ -71,7 +72,7 @@ export function createUnauthorizedHandler(deps: {
   };
 }
 
-/** Xử lý khi phiên đã mất: chỉ chuyển /login nếu request đó đã mang token (khách giữ nguyên trang). */
+/** Xử lý khi phiên đã mất: chỉ về trang chủ nếu request đó đã mang token (khách giữ nguyên trang). */
 export function createSessionLostHandler(deps: {
   markChecked: () => void;
   clearData: () => void;
@@ -81,7 +82,7 @@ export function createSessionLostHandler(deps: {
     deps.markChecked();
     if (hadToken) {
       deps.clearData();
-      await deps.navigate(LOGIN_PATH);
+      await deps.navigate(SIGNED_OUT_PATH);
     }
   };
 }
@@ -99,7 +100,7 @@ export async function runLogout(deps: {
   } finally {
     deps.clearSession();
   }
-  await deps.navigate(LOGIN_PATH);
+  await deps.navigate(SIGNED_OUT_PATH);
 }
 
 export function isOutOfCredit(me: { balance: number } | null | undefined): boolean {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { navigateTo, useRoute } from '#imports';
+import { useRoute } from '#imports';
 import { useAuthDialog } from '~/composables/useAuthDialog';
 import { usePricingConfig } from '~/composables/usePricingConfig';
 
@@ -32,7 +32,7 @@ function handleAccountClick(): void {
   if (me.value) {
     openAuthDialog('account');
   } else {
-    void navigateTo('/login');
+    openAuthDialog('login');
   }
 }
 

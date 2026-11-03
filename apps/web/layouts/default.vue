@@ -7,7 +7,7 @@ const { me } = usePricingConfig();
 <template>
   <div
     data-testid="layout-default"
-    class="flex min-h-dvh w-full max-w-[100vw] flex-col overflow-x-hidden bg-cyber-bg text-cyber-text"
+    class="flex min-h-dvh w-full max-w-[100vw] flex-col overflow-x-hidden bg-cyber-bg pt-[68px] text-cyber-text"
   >
     <AppTopHeader
       :balance="me?.balance ?? null"

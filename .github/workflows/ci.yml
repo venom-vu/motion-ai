@@ -43,6 +43,9 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      - name: Khởi động Postgres và Redis một lần (tránh các file test tự dựng song song)
+        run: docker compose -f deploy/compose.yml up -d --wait postgres-16 redis-7
+
       - name: Test
         run: pnpm test
 
@@ -68,6 +71,9 @@ jobs:
 
       - name: Build contracts
         run: pnpm --filter @motion-ai/contracts run build
+
+      - name: Khởi động Postgres và Redis một lần (tránh các file test tự dựng song song)
+        run: docker compose -f deploy/compose.yml up -d --wait postgres-16 redis-7
 
       - name: Smoke test (stack Compose, Google giả)
         run: pnpm --filter @motion-ai/api test

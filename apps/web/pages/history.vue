@@ -4,6 +4,7 @@ import { clearNuxtData, useAsyncData } from '#imports';
 import type { WalletLedgerResponse } from '@motion-ai/contracts';
 import { useApiClient } from '~/composables/useApiClient';
 import { useAuth } from '~/composables/useAuth';
+import { useAuthDialog } from '~/composables/useAuthDialog';
 import { resolveApiErrorMessageVi } from '~/utils/api-client';
 import { isUnauthorizedError } from '~/utils/auth-session';
 import { formatSignedCreditsVi } from '~/utils/catalog';
@@ -14,6 +15,7 @@ import {
 
 const { client, accessToken } = useApiClient();
 const { isAuthenticated, sessionChecked } = useAuth();
+const { open: openAuthDialog } = useAuthDialog();
 
 const ledgerAsync = useAsyncData<WalletLedgerResponse>(
   'motion-ai-wallet-ledger',
@@ -164,10 +166,6 @@ onBeforeUnmount(() => {
         <h1 class="font-display text-2xl font-bold text-cyber-text">
           Lịch Sử Biến Động Credit & Tác Vụ
         </h1>
-        <p class="text-sm text-cyber-muted">
-          Sổ cái bất biến xếp theo thứ tự mới nhất trước từ
-          <span class="font-mono text-cyber-cyan">GET /wallet/ledger</span>.
-        </p>
       </div>
 
       <button
@@ -238,14 +236,15 @@ onBeforeUnmount(() => {
         <p class="mt-1.5 max-w-sm text-sm text-cyber-muted">
           Vui lòng đăng nhập để xem lịch sử biến động credit và chi tiết các tác vụ của bạn.
         </p>
-        <NuxtLink
-          to="/login"
+        <button
+          type="button"
           data-testid="history-login-button"
           class="touch-target mt-6 inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl bg-cyber-violet px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyber-violet/25 transition hover:brightness-110"
+          @click="openAuthDialog('login')"
         >
           <Icon name="lucide:log-in" class="h-4 w-4" />
           <span>Đăng nhập ngay</span>
-        </NuxtLink>
+        </button>
       </div>
 
       <!-- Trạng thái lỗi tải trang đầu (bên trong khung khi danh sách rỗng) -->

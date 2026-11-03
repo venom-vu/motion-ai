@@ -710,7 +710,7 @@ describe('@motion-ai/web — Story 1.9 đăng nhập, ToS và phiên', () => {
     assert.equal(refreshes, 0);
   });
 
-  it('createSessionLostHandler: đánh dấu đã kiểm tra, chỉ xóa dữ liệu và chuyển /login khi request đã mang token', async () => {
+  it('createSessionLostHandler: đánh dấu đã kiểm tra, chỉ xóa dữ liệu và về trang chủ khi request đã mang token', async () => {
     const calls = [];
     const handler = createSessionLostHandler({
       markChecked: () => calls.push('mark'),
@@ -718,20 +718,20 @@ describe('@motion-ai/web — Story 1.9 đăng nhập, ToS và phiên', () => {
       navigate: (path) => calls.push(`nav:${path}`),
     });
     await handler(true);
-    assert.deepEqual(calls, ['mark', 'clear', 'nav:/login']);
+    assert.deepEqual(calls, ['mark', 'clear', 'nav:/']);
     calls.length = 0;
     await handler(false);
     assert.deepEqual(calls, ['mark'], 'khách xem công khai giữ nguyên trang');
   });
 
-  it('runLogout chuyển tới /login và đi qua cùng hằng đường dẫn', async () => {
+  it('runLogout về trang chủ và đi qua cùng hằng đường dẫn', async () => {
     const paths = [];
     await runLogout({
       apiLogout: async () => {},
       clearSession: () => {},
       navigate: (path) => paths.push(path),
     });
-    assert.deepEqual(paths, ['/login']);
+    assert.deepEqual(paths, ['/']);
   });
 
   it('trang chính render thông báo hết credit ở balance = 0, kèm liên kết /pricing, và không render ở balance 500', async () => {
@@ -810,7 +810,7 @@ describe('@motion-ai/web — Story 1.9 đăng nhập, ToS và phiên', () => {
     assert.equal(state.refreshCount, 0);
   });
 
-  it('runLogout: API lỗi vẫn xóa phiên rồi chuyển /login', async () => {
+  it('runLogout: API lỗi vẫn xóa phiên rồi về trang chủ', async () => {
     const order = [];
     await runLogout({
       apiLogout: async () => {
@@ -875,56 +875,6 @@ describe('@motion-ai/web — Story 1.9 đăng nhập, ToS và phiên', () => {
     assert.equal(refreshes, 0);
     assert.match(seenUrl, /tosVersion=/);
     assert.match(seenUrl, /deviceId=/);
-  });
-
-  it('SSR /login trả 200 với nút Google bị vô hiệu và văn bản ToS', async () => {
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = async (input) => {
-      const { pathname } = new URL(String(input));
-      if (pathname === '/config/pricing') return json(MOCK_PRICING_CONFIG_RESPONSE);
-      return json({ code: 'UNAUTHORIZED' }, 401);
-    };
-    try {
-      const worker = (await import('../.output/public/_worker.js/index.js')).default;
-      const res = await worker.fetch(
-        new Request('https://motion.ai.vn/login'),
-        { ASSETS: { fetch: async () => new Response('x', { status: 404 }) } },
-        { waitUntil() {}, passThroughOnException() {} },
-      );
-      assert.equal(res.status, 200);
-      const html = await res.text();
-      assert.match(html, /data-testid="page-login"/);
-      assert.match(html, /data-testid="google-login-button"[^>]*disabled/);
-      assert.match(html, /Điều khoản dịch vụ phiên bản/);
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
-  });
-
-  it('SSR /login?authError=ACCOUNT_LOCKED hiện thông báo tiếng Việt đã ánh xạ', async () => {
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = async (input) => {
-      const { pathname } = new URL(String(input));
-      if (pathname === '/config/pricing') return json(MOCK_PRICING_CONFIG_RESPONSE);
-      return json({ code: 'UNAUTHORIZED' }, 401);
-    };
-    try {
-      const worker = (await import('../.output/public/_worker.js/index.js')).default;
-      const res = await worker.fetch(
-        new Request('https://motion.ai.vn/login?authError=ACCOUNT_LOCKED'),
-        { ASSETS: { fetch: async () => new Response('x', { status: 404 }) } },
-        { waitUntil() {}, passThroughOnException() {} },
-      );
-      assert.equal(res.status, 200);
-      const html = await res.text();
-      const escaped = API_ERROR_MESSAGES_VI.ACCOUNT_LOCKED
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-      assert.ok(html.includes(escaped), 'HTML phải chứa thông báo ACCOUNT_LOCKED');
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
   });
 });
 
@@ -1071,7 +1021,7 @@ describe('@motion-ai/web — Story 1.10 Lịch sử credit & phân trang vô t�
       );
       assert.match(unauthHtml, /data-testid="history-unauthenticated"/);
       assert.match(unauthHtml, /Yêu Cầu Đăng Nhập/);
-      assert.match(unauthHtml, /href="\/login"/);
+      assert.match(unauthHtml, /<button[^>]*data-testid="history-login-button"/);
       assert.doesNotMatch(unauthHtml, /data-testid="ledger-list"/);
 
       // 4. Trạng thái rỗng (đã đăng nhập, không có bút toán nào)
@@ -1456,6 +1406,135 @@ describe('@motion-ai/web — Story 1.10 Lịch sử credit & phân trang vô t�
       assert.match(html, /Yêu Cầu Đăng Nhập/);
       assert.match(html, /data-testid="history-login-button"/);
       assert.doesNotMatch(html, /data-testid="ledger-list"/);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe('@motion-ai/web — Header cố định, popover tài khoản và đăng nhập bằng dialog', () => {
+  const read = (rel) => fs.readFileSync(path.join(webRoot, rel), 'utf8');
+  const json = (body, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  it('không còn trang /login và không còn đường dẫn /login trong mã nguồn FE', () => {
+    assert.equal(fs.existsSync(path.join(webRoot, 'pages/login.vue')), false);
+    for (const rel of [
+      'components/AppTopHeader.vue',
+      'components/AppBottomNav.vue',
+      'components/AccountPopover.vue',
+      'pages/history.vue',
+      'utils/auth-session.ts',
+    ]) {
+      assert.doesNotMatch(read(rel), /['"`]\/login['"`]/, `${rel} không được trỏ tới /login`);
+    }
+  });
+
+  it('header cố định (fixed) và layout chừa 68px, không còn sticky', () => {
+    const header = read('components/AppTopHeader.vue');
+    assert.match(header, /fixed inset-x-0 top-0/);
+    assert.doesNotMatch(header, /sticky top-0/);
+    assert.match(read('layouts/default.vue'), /pt-\[68px\]/);
+  });
+
+  it('header: menu căn trái; khách thấy Bảng giá, đã đăng nhập thấy Nạp Credit sát avatar', () => {
+    const header = read('components/AppTopHeader.vue');
+    assert.doesNotMatch(header, /Lịch Sử|lucide:history/);
+    assert.doesNotMatch(header, /labelVi: 'Bảng Giá'/);
+    // Menu nằm ngay sau logo (không justify-between), cụm bên phải đẩy sang phải bằng ml-auto.
+    assert.doesNotMatch(header, /justify-between/);
+    assert.match(header, /ml-auto flex items-center/);
+    // Khách: Bảng giá; đã đăng nhập: Nạp Credit đứng trước khung credit.
+    assert.match(header, /v-if="!isLoggedIn"[\s\S]{0,80}data-testid="pricing-link"[\s\S]*?>\s*Bảng giá\s*</);
+    assert.match(header, /v-if="isLoggedIn"[\s\S]{0,80}data-testid="topup-link"[\s\S]*?<span>Nạp Credit<\/span>/);
+    assert.ok(
+      header.indexOf('data-testid="credit-badge"') < header.indexOf('data-testid="topup-link"') &&
+        header.indexOf('data-testid="topup-link"') < header.indexOf('<AccountPopover'),
+      'Nạp Credit phải nằm giữa khung credit và avatar (sát avatar)',
+    );
+    assert.match(header, /bg-cyber-violet[^"]*text-cyber-text[^"]*hover:bg-cyber-violet\/90/);
+    assert.match(header, /v-if="isLoggedIn"[\s\S]{0,120}data-testid="credit-badge"/);
+    assert.match(header, /<AccountPopover v-if="isLoggedIn"/);
+    assert.match(header, /data-testid="login-button"/);
+  });
+
+  it('trang Bảng giá và Lịch sử không còn chú thích endpoint API; Bảng giá bỏ 3 card đơn giá công cụ', () => {
+    const pricing = read('pages/pricing.vue');
+    const history = read('pages/history.vue');
+    assert.doesNotMatch(pricing, /GET \/config\/pricing|đồng bộ/);
+    assert.doesNotMatch(pricing, /pricing-pipelines-section|credit \/ lượt|credit \/ giây/);
+    assert.match(pricing, /data-testid="pricing-tiers-grid"/);
+    assert.doesNotMatch(history, /GET \/wallet\/ledger|Sổ cái bất biến/);
+  });
+
+  it('popover có Thông tin tài khoản, Lịch sử (sang /history) và Đăng xuất', () => {
+    const popover = read('components/AccountPopover.vue');
+    assert.match(popover, /data-testid="account-button"/);
+    assert.match(popover, /data-testid="menu-account-info"/);
+    assert.match(popover, /openAuthDialog\('account'\)/);
+    assert.match(popover, /data-testid="menu-history"/);
+    assert.match(popover, /navigateTo\('\/history'\)/);
+    assert.match(popover, /data-testid="logout-button"/);
+    assert.match(popover, /Escape/);
+    assert.match(popover, /pointerdown/);
+  });
+
+  it('dialog thông tin tài khoản không còn nút đăng xuất', () => {
+    const dialog = read('components/AuthDialog.vue');
+    assert.doesNotMatch(dialog, /logout-button|Đăng xuất|useAuth\(/);
+  });
+
+  it('khách bấm tab Tôi mở dialog đăng nhập thay vì chuyển trang', () => {
+    const nav = read('components/AppBottomNav.vue');
+    assert.match(nav, /openAuthDialog\('login'\)/);
+    assert.doesNotMatch(nav, /navigateTo/);
+  });
+
+  it('SSR trang chủ khi chưa đăng nhập: header cố định, có nút Đăng nhập và Bảng giá, ẩn credit và avatar', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input) => {
+      const { pathname } = new URL(String(input));
+      if (pathname === '/config/pricing') return json(MOCK_PRICING_CONFIG_RESPONSE);
+      return json({ code: 'UNAUTHORIZED' }, 401);
+    };
+    try {
+      const worker = (await import('../.output/public/_worker.js/index.js')).default;
+      const res = await worker.fetch(
+        new Request('https://motion.ai.vn/'),
+        { ASSETS: { fetch: async () => new Response('x', { status: 404 }) } },
+        { waitUntil() {}, passThroughOnException() {} },
+      );
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      assert.match(html, /data-testid="app-top-header"[^>]*fixed/);
+      assert.match(html, /data-testid="login-button"/);
+      assert.match(html, /data-testid="pricing-link"/);
+      assert.doesNotMatch(html, /data-testid="credit-badge"/);
+      assert.doesNotMatch(html, /data-testid="account-button"/);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('/login không còn là trang riêng (không render page-login)', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input) => {
+      const { pathname } = new URL(String(input));
+      if (pathname === '/config/pricing') return json(MOCK_PRICING_CONFIG_RESPONSE);
+      return json({ code: 'UNAUTHORIZED' }, 401);
+    };
+    try {
+      const worker = (await import('../.output/public/_worker.js/index.js')).default;
+      const res = await worker.fetch(
+        new Request('https://motion.ai.vn/login'),
+        { ASSETS: { fetch: async () => new Response('x', { status: 404 }) } },
+        { waitUntil() {}, passThroughOnException() {} },
+      );
+      const html = await res.text();
+      assert.doesNotMatch(html, /data-testid="page-login"/);
     } finally {
       globalThis.fetch = originalFetch;
     }

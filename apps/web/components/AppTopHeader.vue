@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { navigateTo, useRoute } from '#imports';
+import { useRoute } from '#imports';
 import type { AccountTier, UserRole } from '@motion-ai/contracts';
 import { useAuthDialog } from '~/composables/useAuthDialog';
 import { formatNumberVi } from '~/utils/catalog';
@@ -31,16 +31,6 @@ const baseNavItems = [
     labelVi: 'Kho Công Cụ AI',
     icon: 'lucide:layout-grid',
   },
-  {
-    to: '/history',
-    labelVi: 'Lịch Sử',
-    icon: 'lucide:clock-3',
-  },
-  {
-    to: '/pricing',
-    labelVi: 'Bảng Giá',
-    icon: 'lucide:gem',
-  },
 ] as const;
 
 const navItems = computed(() => {
@@ -57,6 +47,8 @@ const navItems = computed(() => {
   return baseNavItems;
 });
 
+const isLoggedIn = computed<boolean>(() => Boolean(props.email));
+
 const formattedBalance = computed<string>(() => {
   if (typeof props.balance !== 'number' || !Number.isFinite(props.balance)) {
     return '---';
@@ -66,12 +58,8 @@ const formattedBalance = computed<string>(() => {
 
 const tierLabel = computed<string>(() => props.tier ?? 'FREE');
 
-function handleAccountClick(): void {
-  if (props.email) {
-    openAuthDialog('account');
-  } else {
-    void navigateTo('/login');
-  }
+function openLogin(): void {
+  openAuthDialog('login');
 }
 
 function isActiveRoute(targetPath: string): boolean {
@@ -85,10 +73,10 @@ function isActiveRoute(targetPath: string): boolean {
 <template>
   <header
     data-testid="app-top-header"
-    class="sticky top-0 z-40 h-[68px] w-full border-b border-cyber-border bg-cyber-bg/95 backdrop-blur"
+    class="fixed inset-x-0 top-0 z-40 h-[68px] w-full border-b border-cyber-border bg-cyber-bg/95 backdrop-blur"
   >
     <div
-      class="mx-auto flex h-full max-w-7xl items-center justify-between gap-2 px-3 sm:px-6 lg:px-8"
+      class="mx-auto flex h-full max-w-7xl items-center gap-2 px-3 sm:gap-6 sm:px-6 lg:px-8"
     >
       <NuxtLink
         to="/"
@@ -131,9 +119,24 @@ function isActiveRoute(targetPath: string): boolean {
         </NuxtLink>
       </nav>
 
-      <!-- Cụm thông tin số dư credit, nút Nạp và Tài khoản -->
-      <div class="flex items-center gap-2">
+      <!-- Khách: Bảng giá. Đã đăng nhập: số dư credit, Nạp Credit và avatar -->
+      <div class="ml-auto flex items-center gap-2">
         <NuxtLink
+          v-if="!isLoggedIn"
+          to="/pricing"
+          data-testid="pricing-link"
+          class="touch-target hidden min-h-[48px] min-w-[48px] items-center rounded-lg px-3 text-sm font-medium transition sm:inline-flex"
+          :class="
+            isActiveRoute('/pricing')
+              ? 'text-cyber-text'
+              : 'text-cyber-muted hover:text-cyber-text'
+          "
+        >
+          Bảng giá
+        </NuxtLink>
+
+        <NuxtLink
+          v-if="isLoggedIn"
           to="/pricing"
           data-testid="credit-badge"
           class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center gap-2 rounded-xl border border-cyber-cyan/40 bg-cyber-surface px-3 py-2 text-xs transition hover:border-cyber-cyan"
@@ -150,24 +153,27 @@ function isActiveRoute(targetPath: string): boolean {
         </NuxtLink>
 
         <NuxtLink
+          v-if="isLoggedIn"
           to="/pricing"
+          data-testid="topup-link"
           class="touch-target hidden min-h-[48px] min-w-[48px] items-center gap-1.5 rounded-xl bg-cyber-violet px-4 py-2.5 text-xs font-semibold text-cyber-text transition hover:bg-cyber-violet/90 sm:inline-flex"
         >
           <Icon name="lucide:plus-circle" class="h-4 w-4 shrink-0" />
           <span>Nạp Credit</span>
         </NuxtLink>
 
+        <AccountPopover v-if="isLoggedIn" :email="email" />
+
         <button
+          v-else
           type="button"
-          data-testid="account-button"
-          :aria-label="email ? `Tài khoản ${email}` : 'Đăng nhập tài khoản'"
-          class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-surface px-3 py-2 text-xs font-medium text-cyber-text transition hover:border-cyber-violet"
-          @click="handleAccountClick"
+          data-testid="login-button"
+          aria-label="Đăng nhập tài khoản"
+          class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-surface px-4 py-2 text-xs font-medium text-cyber-text transition hover:border-cyber-violet"
+          @click="openLogin"
         >
-          <Icon name="lucide:user-round" class="h-4 w-4 shrink-0 text-cyber-violet" />
-          <span class="hidden max-w-[140px] truncate xl:inline">
-            {{ email || 'Đăng nhập' }}
-          </span>
+          <Icon name="lucide:log-in" class="h-4 w-4 shrink-0 text-cyber-violet" />
+          <span>Đăng nhập</span>
         </button>
       </div>
     </div>
