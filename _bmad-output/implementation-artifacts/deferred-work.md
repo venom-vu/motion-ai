@@ -41,3 +41,11 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-7-be-tier-api-vi-va-doi-soat-so-cai.md`
   summary: Chỉ mục/cột tuần tự cho `/wallet/ledger`; `adjust` thêm actor và lý do; hợp nhất `PRICING_CONFIG` với contracts.
   evidence: Truy vấn dùng `date_trunc` không dùng được chỉ mục; ADJUST thiếu dấu vết; cấu hình giá bị chép hai nơi.
+
+## Deferred from: code review of spec-1-7-be-tier-api-vi-va-doi-soat-so-cai (2026-11-03)
+
+- Job đối soát tải toàn bộ user không phân trang, một cảnh báo mỗi user, không chống chạy chồng; cần khóa advisory và cảnh báo gộp.
+- Đối soát chưa kiểm `tier_pack` so với tổng credit và chưa phát hiện CAPTURED/RELEASED mồ côi; mở rộng sau.
+- `PRICING_CONFIG` chép tay khỏi contracts và truy vấn ledger dùng `date_trunc` không tận dụng chỉ mục (đã ghi ở spec).
+- Migration `tier_pack` chưa backfill/rollback (đã ghi ở spec); chờ Epic 3.
+- `WalletService` dùng `@Optional()` cho `PrismaService`, thiếu phụ thuộc chỉ lộ thành 500 lúc request. Lý do hoãn: giữ để test gọi `new WalletService()`; cân nhắc tách `WalletQueryService`.

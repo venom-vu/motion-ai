@@ -20,6 +20,7 @@ import { bootstrapApi } from '../dist/main.js';
 import { WalletService } from '../dist/modules/wallet/index.js';
 import { ReconcileService } from '../dist/modules/ops/index.js';
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const apiRoot = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(apiRoot, '../..');
@@ -246,7 +247,10 @@ describe('Story 1.7: [BE] Tier, API ví và đối soát sổ cái', () => {
   it('GET /wallet/ledger phân trang, không lẫn user khác, lỗi tham số -> 400', async () => {
     const a = await newUser();
     const b = await newUser();
-    for (let i = 0; i < 5; i += 1) await grant(a, 10 + i);
+    for (let i = 0; i < 5; i += 1) {
+      await grant(a, 10 + i);
+      await sleep(5);
+    }
     await grant(b, 999);
     const seen = [];
     let cursor = null;
@@ -267,12 +271,53 @@ describe('Story 1.7: [BE] Tier, API ví và đối soát sổ cái', () => {
     assert.equal(seen.length, 5);
     assert.ok(seen.every((e) => e.userId === a && e.labelVi === 'Tặng'));
     assert.equal(new Set(seen.map((e) => e.id)).size, 5);
+    assert.deepEqual(seen.map((e) => e.amount), [14, 13, 12, 11, 10], 'mới nhất trước, không trùng/thiếu giữa các trang');
     for (const q of ['pageSize=0', 'pageSize=101', 'pageSize=abc', 'cursor=!!!', `cursor=${Buffer.from('x|y').toString('base64url')}`]) {
       const res = await fetch(`${baseUrl}/wallet/ledger?${q}`, { headers: authHeader(a) });
       assert.equal(res.status, 400, q);
     }
     const unauth = await fetch(`${baseUrl}/wallet/ledger`);
     assert.equal(unauth.status, 401);
+  });
+
+  it('GET /wallet/ledger ánh xạ đúng type/labelVi/pack/taskId/topupId và nextCursor', async () => {
+    const u = await newUser();
+    const topupId = uuid();
+    const taskId = uuid();
+    await tx((t) => wallet.topup(t, u, topupId, 5000, 'pro'));
+    await sleep(5);
+    await tx((t) => wallet.hold(t, u, taskId, 100));
+    await sleep(5);
+    await tx((t) => wallet.capture(t, taskId));
+    await sleep(5);
+    await adjust(u, -10);
+    const res = await fetch(`${baseUrl}/wallet/ledger?pageSize=2`, { headers: authHeader(u) });
+    assert.equal(res.status, 200);
+    const page1 = await res.json();
+    assert.ok(WalletLedgerResponseSchema.safeParse(page1).success);
+    assert.deepEqual(page1.items.map((e) => e.type), ['ADJUST', 'CAPTURED']);
+    assert.equal(page1.hasMore, true);
+    assert.equal(typeof page1.nextCursor, 'string');
+    const [last] = Buffer.from(page1.nextCursor, 'base64url').toString().split('|');
+    assert.equal(last, new Date(page1.items[1].createdAt).toISOString(), 'nextCursor mã hóa hàng cuối của trang');
+    const res2 = await fetch(`${baseUrl}/wallet/ledger?pageSize=10&cursor=${page1.nextCursor}`, { headers: authHeader(u) });
+    const page2 = await res2.json();
+    assert.deepEqual(page2.items.map((e) => e.type), ['HOLD', 'TOPUP']);
+    assert.equal(page2.hasMore, false);
+    const all = [...page1.items, ...page2.items];
+    const by = Object.fromEntries(all.map((e) => [e.type, e]));
+    assert.equal(by.ADJUST.amount, -10);
+    assert.equal(by.CAPTURED.amount, 0);
+    assert.equal(by.CAPTURED.taskId, taskId);
+    assert.equal(by.HOLD.amount, -100);
+    assert.equal(by.HOLD.taskId, taskId);
+    assert.equal(by.TOPUP.amount, 5000);
+    assert.equal(by.TOPUP.pack, 'pro');
+    assert.equal(by.TOPUP.topupId, topupId);
+    assert.equal(by.TOPUP.taskId, null);
+    assert.equal(by.ADJUST.pack, null);
+    for (const e of all) assert.ok(typeof e.labelVi === 'string' && e.labelVi.length > 0, e.type);
+    assert.equal(new Set(all.map((e) => e.labelVi)).size, 4, 'mỗi type một nhãn riêng');
   });
 
   describe('đối soát sổ cái', () => {
@@ -354,14 +399,17 @@ describe('Story 1.7: [BE] Tier, API ví và đối soát sổ cái', () => {
       let calls = 0;
       svc.reconcile = async () => void (calls += 1);
       const prev = process.env.MOTION_PROCESS_ROLE;
-      delete process.env.MOTION_PROCESS_ROLE;
-      await svc.scheduledReconcile();
-      assert.equal(calls, 0);
-      process.env.MOTION_PROCESS_ROLE = 'worker';
-      await svc.scheduledReconcile();
-      assert.equal(calls, 1);
-      if (prev === undefined) delete process.env.MOTION_PROCESS_ROLE;
-      else process.env.MOTION_PROCESS_ROLE = prev;
+      try {
+        delete process.env.MOTION_PROCESS_ROLE;
+        await svc.scheduledReconcile();
+        assert.equal(calls, 0);
+        process.env.MOTION_PROCESS_ROLE = 'worker';
+        await svc.scheduledReconcile();
+        assert.equal(calls, 1);
+      } finally {
+        if (prev === undefined) delete process.env.MOTION_PROCESS_ROLE;
+        else process.env.MOTION_PROCESS_ROLE = prev;
+      }
     });
   });
 });

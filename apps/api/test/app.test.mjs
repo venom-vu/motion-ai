@@ -285,8 +285,14 @@ describe('@motion-ai/api infrastructure, worker, PostgreSQL 16 & Redis 7', () =>
   });
 
   it('creates worker application context with InfraModule and all 8 modules without opening HTTP port', async () => {
+    const prevRole = process.env.MOTION_PROCESS_ROLE;
     const ctx = await bootstrapWorker();
     try {
+      assert.equal(
+        process.env.MOTION_PROCESS_ROLE,
+        'worker',
+        'bootstrapWorker phải đặt MOTION_PROCESS_ROLE=worker để job đối soát chạy',
+      );
       assert.ok(ctx);
       assert.ok(ctx.get(AppModule));
       assert.ok(ctx.get(InfraModule));
@@ -314,6 +320,8 @@ describe('@motion-ai/api infrastructure, worker, PostgreSQL 16 & Redis 7', () =>
       );
     } finally {
       await ctx.close();
+      if (prevRole === undefined) delete process.env.MOTION_PROCESS_ROLE;
+      else process.env.MOTION_PROCESS_ROLE = prevRole;
     }
   });
 

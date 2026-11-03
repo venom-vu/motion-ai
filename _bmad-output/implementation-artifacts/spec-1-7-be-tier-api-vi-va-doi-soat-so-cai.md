@@ -116,3 +116,23 @@ Cursor ledger: base64url của `createdAt ISO|id`; truy vấn `(created_at, id) 
 - `pnpm run build` -- expected: exit 0
 - `pnpm --filter @motion-ai/api test` -- expected: exit 0
 - `pnpm test` -- expected: exit 0
+
+### Review Findings
+
+- [x] [Review][Defer] `WalletService` nhận `PrismaService` dạng `@Optional()` — thiếu phụ thuộc chỉ lộ thành 500 lúc request [wallet.service.ts:constructor] — deferred: giữ nguyên để test gọi `new WalletService()`; cân nhắc tách `WalletQueryService` sau.
+- [x] [Review][Patch] Worker-only gate và cron không được kiểm chứng: xóa `process.env.MOTION_PROCESS_ROLE = 'worker'` ở `worker.ts` mà test vẫn xanh, job đối soát sẽ không bao giờ chạy; thêm assertion sau `bootstrapWorker()` trong `app.test.mjs` (và dọn env) [apps/api/src/worker.ts:9, apps/api/test/app.test.mjs]
+- [x] [Review][Patch] Test `/wallet/ledger` không khẳng định thứ tự mới nhất trước, nội dung `nextCursor`, và ánh xạ `type/labelVi/pack/taskId/topupId` cho TOPUP/HOLD/CAPTURED/ADJUST; đổi `DESC`→`ASC` vẫn xanh [apps/api/test/tier.test.mjs:~1147]
+- [x] [Review][Patch] Test đặt/khôi phục `MOTION_PROCESS_ROLE` không dùng `try/finally` ở ca "không phải worker"; assertion lỗi sẽ làm rò biến môi trường sang test sau [apps/api/test/tier.test.mjs:356-364]
+- [x] [Review][Defer] Job đối soát tải toàn bộ user, không phân trang, gửi một cảnh báo mỗi user (nguy cơ bão cảnh báo), không chống chạy chồng — deferred: đã ghi ở spec; cần khóa advisory/gộp cảnh báo
+- [x] [Review][Defer] Đối soát chưa kiểm `tier_pack` so với tổng credit và chưa phát hiện bút toán CAPTURED/RELEASED mồ côi — deferred: ngoài AC của story, mở rộng phạm vi đối soát sau
+- [x] [Review][Defer] `PRICING_CONFIG` chép tay khỏi contracts; truy vấn ledger dùng `date_trunc` không tận dụng được chỉ mục — deferred: đã ghi ở spec; cần story `contract/*`
+- [x] [Review][Defer] Migration `tier_pack` chưa backfill, chưa có ghi chú rollback — deferred: đã ghi ở spec; chờ Epic 3 ghi TOPUP thật
+
+#### Rejected
+
+- `false` — "Sửa file ngoài `apps/api/**`": spec, `sprint-status.yaml`, `deferred-work.md` là artifact theo dõi BMad, không phải mã nguồn.
+- `false` — "HOLD có `task_id` NULL bị ẩn khỏi `open_hold`": `s.task_id = h.task_id` với NULL không bao giờ đúng nên `NOT EXISTS` đúng và HOLD vẫn được tính là mở.
+- `false` — "`adjust` bỏ qua `held`": quy tắc spec chỉ cấm `balance` âm.
+- `low` — `adjust` tràn BIGINT / nhận `boolean`; `topup` nhận pack sai kiểu: người gọi nội bộ có kiểu TypeScript, thêm guard không đáng.
+- `low` — `getMe`/`getSummary` đọc hai lần không nguyên tử; `getPricing` trả object chia sẻ; `!` trong `snapshotFromPack`; cursor rỗng/độ dài 128 chưa có test; kiểm tra cursor trùng lặp với schema: ít gặp, sửa thêm phức tạp.
+- `low` — Job cron chạy chồng khi lần trước chưa xong: cron 1 lần/ngày, khó xảy ra.
