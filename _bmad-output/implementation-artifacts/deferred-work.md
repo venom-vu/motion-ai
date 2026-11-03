@@ -48,4 +48,16 @@
 - Đối soát chưa kiểm `tier_pack` so với tổng credit và chưa phát hiện CAPTURED/RELEASED mồ côi; mở rộng sau.
 - `PRICING_CONFIG` chép tay khỏi contracts và truy vấn ledger dùng `date_trunc` không tận dụng chỉ mục (đã ghi ở spec).
 - Migration `tier_pack` chưa backfill/rollback (đã ghi ở spec); chờ Epic 3.
+
+## Deferred from: code review of spec-1-8-be-tang-500-credit-va-chong-lam-dung (2026-11-03)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-8-be-tang-500-credit-va-chong-lam-dung.md`
+  summary: Tích hợp ThrottlerStorageRedisService để rate limit đồng bộ khi scale nhiều pod API.
+  evidence: Hiện ThrottlerModule dùng bộ nhớ RAM mặc định; khi triển khai nhiều container API độc lập cần lưu tracker vào Redis dùng chung.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-8-be-tang-500-credit-va-chong-lam-dung.md`
+  summary: Gom nhóm subnet IPv6 (/64) cho rate limit và chống lạm dụng thiết bị IPv6.
+  evidence: Thiết bị di động/mạng IPv6 có thể xoay interface ID trong cùng subnet /64; cần chính sách gom subnet khi vận hành thực tế.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-8-be-tang-500-credit-va-chong-lam-dung.md`
+  summary: Phân tách namespace cho pg_advisory_xact_lock(classid, objid).
+  evidence: Tránh khả năng đụng độ mã băm 64-bit advisory lock với các tính năng locking khác trong tương lai.
 - `WalletService` dùng `@Optional()` cho `PrismaService`, thiếu phụ thuộc chỉ lộ thành 500 lúc request. Lý do hoãn: giữ để test gọi `new WalletService()`; cân nhắc tách `WalletQueryService`.

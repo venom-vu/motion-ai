@@ -17,6 +17,13 @@ import {
 import { PrismaService } from '../../infra/prisma.service.js';
 import { RedisService } from '../../infra/redis.service.js';
 import { GoogleOAuthService, type GoogleUserProfile } from './google-oauth.service.js';
+import {
+  SIGNUP_GRANT_AMOUNT,
+  SIGNUP_GRANT_IP_WINDOW_MS,
+  SIGNUP_GRANT_MAX_PER_IP,
+  hmacHex,
+} from './anti-abuse.js';
+import { WalletService } from '../wallet/wallet.service.js';
 import { AccountLockedException } from './guards/account-locked.guard.js';
 
 export class ConsentRequiredException extends BadRequestException {
@@ -40,6 +47,7 @@ export interface GoogleCallbackSessionResult {
   tokenType: 'Bearer';
   expiresIn: number;
   isNewUser: boolean;
+  grantedCredits?: number;
   refreshToken: string;
 }
 
@@ -59,6 +67,7 @@ export class AuthService {
     private readonly redis: RedisService,
     private readonly jwtService: JwtService,
     private readonly googleOAuthService: GoogleOAuthService,
+    private readonly walletService: WalletService,
   ) {}
 
   private getJwtSecret(): string {
@@ -195,6 +204,7 @@ export class AuthService {
 
   async handleGoogleCallback(
     query: AuthGoogleCallbackQuery,
+    clientIp = 'unknown',
   ): Promise<GoogleCallbackSessionResult> {
     // 1. Luôn xác minh state trước để chống CSRF kể cả khi Google trả callback lỗi
     const statePayload = await this.verifyOAuthState(query.state);
@@ -230,6 +240,7 @@ export class AuthService {
     });
 
     let isNewUser = false;
+    let granted = 0n;
 
     if (user) {
       // Kiểm tra tài khoản bị khóa
@@ -252,15 +263,60 @@ export class AuthService {
       isNewUser = true;
       const role = this.resolveRoleForEmail(normalizedEmail);
 
-      user = await this.prisma.user.create({
-        data: {
-          googleId: profile.googleId,
-          email: normalizedEmail,
-          role,
-          tosVersion: statePayload.tosVersion,
-          tosAcceptedAt: new Date(),
+      const ipHash = hmacHex(`ip:${clientIp}`);
+      const fingerprintHash = hmacHex(`device:${statePayload.deviceId}`);
+
+      user = await this.prisma.$transaction(
+        async (tx) => {
+          // Khóa advisory theo thứ tự số cố định để tránh deadlock
+          const rows = await tx.$queryRaw<{ k: bigint }[]>`
+            SELECT hashtextextended(${ipHash}, 0) AS k
+            UNION ALL
+            SELECT hashtextextended(${fingerprintHash}, 0) AS k`;
+          const keys = [...new Set(rows.map((r) => BigInt(r.k)))].sort((a, b) =>
+            a < b ? -1 : a > b ? 1 : 0,
+          );
+          for (const key of keys) {
+            await tx.$executeRaw`SELECT pg_advisory_xact_lock(${key})`;
+          }
+
+          const deviceGranted = await tx.signupGrant.findFirst({
+            where: { fingerprintHash, granted: { gt: 0n } },
+            select: { userId: true },
+          });
+          const ipGrants = await tx.signupGrant.count({
+            where: {
+              ipHash,
+              granted: { gt: 0n },
+              createdAt: {
+                gte: new Date(Date.now() - SIGNUP_GRANT_IP_WINDOW_MS),
+              },
+            },
+          });
+          granted =
+            !deviceGranted && ipGrants < SIGNUP_GRANT_MAX_PER_IP
+              ? SIGNUP_GRANT_AMOUNT
+              : 0n;
+
+          const created = await tx.user.create({
+            data: {
+              googleId: profile.googleId,
+              email: normalizedEmail,
+              role,
+              tosVersion: statePayload.tosVersion,
+              tosAcceptedAt: new Date(),
+            },
+          });
+          await tx.signupGrant.create({
+            data: { userId: created.id, fingerprintHash, ipHash, granted },
+          });
+          if (granted > 0n) {
+            await this.walletService.grant(tx, created.id, granted);
+          }
+          return tx.user.findUniqueOrThrow({ where: { id: created.id } });
         },
-      });
+        { maxWait: 15_000, timeout: 15_000 },
+      );
     }
 
     // 4. Cấp Access JWT và Refresh Token
@@ -293,6 +349,7 @@ export class AuthService {
       tokenType: 'Bearer',
       expiresIn: 900,
       isNewUser,
+      grantedCredits: isNewUser ? Number(granted) : undefined,
       refreshToken: rawRefreshToken,
     };
   }

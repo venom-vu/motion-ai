@@ -30,6 +30,7 @@ model User {
   updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
   refreshTokens RefreshToken[]
   ledgerEntries LedgerEntry[]
+  signupGrant   SignupGrant?
 
   @@map("users")
 }
@@ -60,4 +61,16 @@ model LedgerEntry {
 
   @@index([userId, createdAt])
   @@map("ledger_entries")
+}
+
+model SignupGrant {
+  userId          String   @id @map("user_id") @db.Uuid
+  fingerprintHash String   @map("fingerprint_hash")
+  ipHash          String   @map("ip_hash")
+  granted         BigInt   @map("granted")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([ipHash, createdAt])
+  @@map("signup_grants")
 }

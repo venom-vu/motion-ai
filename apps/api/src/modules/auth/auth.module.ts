@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { WalletModule } from '../wallet/wallet.module.js';
 import { AuthController } from './auth.controller.js';
 import { MeController } from './me.controller.js';
@@ -10,10 +11,14 @@ import { AccountLockedGuard } from './guards/account-locked.guard.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
 import { RolesGuard } from './guards/roles.guard.js';
 import { JwtStrategy } from './jwt.strategy.js';
+import { AuthThrottlerGuard, getAuthThrottleOptions } from './throttler.guard.js';
 
 @Module({
   imports: [
     WalletModule,
+    ThrottlerModule.forRootAsync({
+      useFactory: () => [getAuthThrottleOptions()],
+    }),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       useFactory: () => ({
@@ -34,6 +39,7 @@ import { JwtStrategy } from './jwt.strategy.js';
     JwtAuthGuard,
     RolesGuard,
     AccountLockedGuard,
+    AuthThrottlerGuard,
   ],
   exports: [
     AuthService,

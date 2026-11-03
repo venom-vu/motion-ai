@@ -559,7 +559,8 @@ describe('Story 1.5: [BE] Đăng nhập Google và phiên JWT', () => {
 
     it('từ chối với HTTP 401 khi dùng lại refresh token đã bị thu hồi', async () => {
       // Dùng lại token ban đầu (đã bị thu hồi ở bước trên)
-      const oldHash = crypto.createHash('sha256').update('reused_old_token').digest('hex');
+      const rawOldToken = `reused_old_token_${crypto.randomBytes(8).toString('hex')}`;
+      const oldHash = crypto.createHash('sha256').update(rawOldToken).digest('hex');
       // Tạo một revoked token giả lập trong DB
       const user = await prisma.user.findUnique({ where: { email: regularEmail } });
       await prisma.refreshToken.create({
@@ -574,7 +575,7 @@ describe('Story 1.5: [BE] Đăng nhập Google và phiên JWT', () => {
       const res = await fetch(`${baseUrl}/auth/refresh`, {
         method: 'POST',
         headers: {
-          Cookie: `refreshToken=reused_old_token`,
+          Cookie: `refreshToken=${rawOldToken}`,
         },
       });
       assert.equal(res.status, 401, 'Dùng lại token đã thu hồi phải trả 401');

@@ -28,10 +28,14 @@ import { AccountLockedGuard } from './guards/account-locked.guard.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
 import { RolesGuard } from './guards/roles.guard.js';
 import type { JwtUserPayload } from './jwt.strategy.js';
+import { resolveClientIp } from './client-ip.js';
+import { AuthThrottlerGuard } from './throttler.guard.js';
 
 export interface RequestWithCookies {
   cookies?: Record<string, string>;
   headers?: Record<string, string | string[] | undefined>;
+  ip?: string;
+  socket?: { remoteAddress?: string };
   user?: unknown;
 }
 
@@ -70,6 +74,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Get('google')
+  @UseGuards(AuthThrottlerGuard)
   async googleAuth(
     @Query() rawQuery: Record<string, unknown>,
   ): Promise<AuthGoogleResponse> {
@@ -98,6 +103,7 @@ export class AuthController {
    * (Accept: text/html) thì đặt cookie phiên rồi chuyển về FE; client API/test vẫn nhận JSON.
    */
   @Get('google/callback')
+  @UseGuards(AuthThrottlerGuard)
   async googleCallback(
     @Query() rawQuery: unknown,
     @Req() req: RequestWithCookies,
@@ -115,7 +121,10 @@ export class AuthController {
         });
       }
 
-      const session = await this.authService.handleGoogleCallback(parsed.data);
+      const session = await this.authService.handleGoogleCallback(
+        parsed.data,
+        resolveClientIp(req),
+      );
 
       // Gửi refresh token qua httpOnly, Secure cookie
       res.cookie(
@@ -133,6 +142,7 @@ export class AuthController {
         tokenType: session.tokenType,
         expiresIn: session.expiresIn,
         isNewUser: session.isNewUser,
+        grantedCredits: session.grantedCredits,
       };
     } catch (err) {
       if (!wantsRedirect) {
@@ -148,6 +158,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @UseGuards(AuthThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   async refresh(
     @Req() req: RequestWithCookies,
