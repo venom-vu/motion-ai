@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { WalletModule } from '../wallet/wallet.module.js';
 import { AuthController } from './auth.controller.js';
 import { MeController } from './me.controller.js';
 import { AuthService } from './auth.service.js';
@@ -12,6 +13,7 @@ import { JwtStrategy } from './jwt.strategy.js';
 
 @Module({
   imports: [
+    WalletModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       useFactory: () => ({

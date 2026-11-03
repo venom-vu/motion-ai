@@ -6,6 +6,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 
 export async function bootstrapWorker(): Promise<INestApplicationContext> {
+  process.env.MOTION_PROCESS_ROLE = 'worker';
   const appContext = await NestFactory.createApplicationContext(AppModule);
   appContext.enableShutdownHooks();
 

@@ -10,6 +10,14 @@ export interface StoragePort {
   readonly portName?: 'StoragePort';
 }
 
+export interface NotifierEvent {
+  readonly kind: string;
+  readonly message: string;
+  readonly severity?: 'info' | 'warn' | 'error';
+  readonly data?: Record<string, unknown>;
+}
+
 export interface NotifierPort {
   readonly portName?: 'NotifierPort';
+  notify(event: NotifierEvent): Promise<void>;
 }

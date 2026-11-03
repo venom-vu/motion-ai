@@ -25,6 +25,7 @@ model User {
   lockedAt      DateTime?      @map("locked_at") @db.Timestamptz(6)
   balance       BigInt         @default(0) @map("balance")
   held          BigInt         @default(0) @map("held")
+  tierPack      String?        @map("tier_pack")
   createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
   refreshTokens RefreshToken[]
