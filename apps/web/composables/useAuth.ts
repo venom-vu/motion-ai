@@ -1,12 +1,13 @@
 import { computed } from 'vue';
-import { clearNuxtData, refreshNuxtData, useState } from '#imports';
-import { useApiClient } from '~/composables/useApiClient';
+import { clearNuxtData, navigateTo, refreshNuxtData, useState } from '#imports';
+import { runLogout } from '~/utils/auth-session';
+import {
+  ME_KEY,
+  refreshShared,
+  useApiClient,
+} from '~/composables/useApiClient';
 
-const ME_KEY = 'motion-ai-me-profile';
-
-// Dùng chung một lời gọi refresh đang chạy: refresh token xoay vòng sau mỗi lần dùng,
-// nên hai request song song với cùng một cookie sẽ khiến request sau bị 401.
-let inflight: Promise<boolean> | null = null;
+let restoring: Promise<boolean> | null = null;
 
 export function useAuth() {
   const { client, accessToken, setAccessToken } = useApiClient();
@@ -25,29 +26,33 @@ export function useAuth() {
     if (sessionChecked.value) {
       return false;
     }
-    inflight ??= client
-      .refreshSession()
-      .then(async (session) => {
-        setAccessToken(session.accessToken);
-        await refreshNuxtData(ME_KEY);
-        return true;
+    restoring ??= refreshShared(
+      () => client.refreshSession(),
+      setAccessToken,
+    )
+      .then(async (ok) => {
+        if (ok) {
+          await refreshNuxtData(ME_KEY);
+        }
+        return ok;
       })
-      .catch(() => false)
       .finally(() => {
         sessionChecked.value = true;
-        inflight = null;
+        restoring = null;
       });
-    return inflight;
+    return restoring;
   }
 
-  async function logout(): Promise<void> {
-    try {
-      await client.logout();
-    } finally {
-      setAccessToken(null);
-      sessionChecked.value = true;
-      clearNuxtData(ME_KEY);
-    }
+  function logout(): Promise<void> {
+    return runLogout({
+      apiLogout: () => client.logout(),
+      clearSession: () => {
+        setAccessToken(null);
+        sessionChecked.value = true;
+        clearNuxtData(ME_KEY);
+      },
+      navigate: () => navigateTo('/login', { replace: true }),
+    });
   }
 
   return { isAuthenticated, restoreSession, logout };

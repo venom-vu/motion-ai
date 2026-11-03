@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { isOutOfCredit } from '~/utils/auth-session';
 import { usePricingConfig } from '~/composables/usePricingConfig';
 import {
   FEATURE_CATEGORIES,
@@ -121,6 +122,26 @@ function closeWorkspace(): void {
           </div>
         </div>
       </div>
+    </section>
+
+    <!-- Nhắc nạp khi hết credit -->
+    <section
+      v-if="isOutOfCredit(me)"
+      data-testid="zero-credit-notice"
+      role="status"
+      class="flex flex-col gap-3 rounded-2xl border border-cyber-warning/50 bg-cyber-surface p-4 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div class="flex items-center gap-3 text-sm text-cyber-text">
+        <Icon name="lucide:coins" class="h-5 w-5 shrink-0 text-cyber-warning" />
+        <span>Bạn đã hết credit. Hãy nạp thêm credit để tiếp tục tạo tác vụ AI.</span>
+      </div>
+      <NuxtLink
+        to="/pricing"
+        class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl bg-cyber-violet px-4 py-2.5 text-xs font-semibold text-cyber-text hover:bg-cyber-violet/90"
+      >
+        <Icon name="lucide:plus-circle" class="h-4 w-4" />
+        <span>Nạp Credit</span>
+      </NuxtLink>
     </section>
 
     <!-- Banner thông báo lỗi tiếng Việt (nếu có) -->

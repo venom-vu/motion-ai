@@ -30,6 +30,11 @@ export interface MotionApiClientOptions {
   baseUrl?: string;
   fetchImpl?: typeof globalThis.fetch;
   getAccessToken?: () => string | null | undefined;
+  /**
+   * Gọi khi request trả 401 (trừ các route xác thực). Nhận access token đã gửi đi.
+   * Trả về true nếu đã có phiên mới và client nên thử lại request đúng một lần.
+   */
+  onUnauthorized?: (sentToken: string | null) => Promise<boolean>;
 }
 
 export class MotionApiClientError extends Error {
@@ -104,6 +109,7 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
     path: string,
     init: RequestInit,
     parseResponse: (data: unknown) => T,
+    requestOptions: { skipRefresh?: boolean; retried?: boolean } = {},
   ): Promise<T> {
     if (typeof fetchImpl !== 'function') {
       throw new MotionApiClientError({
@@ -141,6 +147,26 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
       payload = await response.json();
     } catch {
       payload = null;
+    }
+
+    if (
+      response.status === 401 &&
+      !requestOptions.skipRefresh &&
+      !requestOptions.retried &&
+      options.onUnauthorized
+    ) {
+      let refreshed = false;
+      try {
+        refreshed = await options.onUnauthorized(token ?? null);
+      } catch {
+        refreshed = false;
+      }
+      if (refreshed) {
+        return requestLive(path, init, parseResponse, {
+          ...requestOptions,
+          retried: true,
+        });
+      }
     }
 
     if (!response.ok) {
@@ -224,6 +250,7 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
         `/auth/google?${params.toString()}`,
         { method: 'GET' },
         (data) => AuthGoogleResponseSchema.parse(data),
+        { skipRefresh: true },
       );
     },
 
@@ -245,18 +272,21 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
         `/auth/google/callback?${params.toString()}`,
         { method: 'GET' },
         (data) => AuthGoogleCallbackResponseSchema.parse(data),
+        { skipRefresh: true },
       );
     },
 
     async refreshSession(): Promise<AuthRefreshResponse> {
       return requestLive('/auth/refresh', { method: 'POST' }, (data) =>
         AuthRefreshResponseSchema.parse(data),
+        { skipRefresh: true },
       );
     },
 
     async logout(): Promise<AuthLogoutResponse> {
       return requestLive('/auth/logout', { method: 'POST' }, (data) =>
         AuthLogoutResponseSchema.parse(data),
+        { skipRefresh: true },
       );
     },
   };

@@ -61,3 +61,7 @@
   summary: Phân tách namespace cho pg_advisory_xact_lock(classid, objid).
   evidence: Tránh khả năng đụng độ mã băm 64-bit advisory lock với các tính năng locking khác trong tương lai.
 - `WalletService` dùng `@Optional()` cho `PrismaService`, thiếu phụ thuộc chỉ lộ thành 500 lúc request. Lý do hoãn: giữ để test gọi `new WalletService()`; cân nhắc tách `WalletQueryService`.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-9-fe-dang-nhap-cam-ket-tos-va-so-du.md`
+  summary: Thêm liên kết tới trang Điều khoản dịch vụ và `aria-describedby` giải thích vì sao nút đăng nhập bị vô hiệu trong `LoginConsentForm`.
+  evidence: Văn bản cam kết chỉ nêu phiên bản ToS, người dùng không đọc được nội dung họ đồng ý; chưa có trang điều khoản vì văn bản ToS cuối cùng còn chờ PM (PRD §10).

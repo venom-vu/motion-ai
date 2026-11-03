@@ -22,6 +22,12 @@ import {
   resolveApiErrorMessageVi,
 } from '../utils/api-client.ts';
 import {
+  createRefreshCoordinator,
+  createUnauthorizedHandler,
+  isOutOfCredit,
+  runLogout,
+} from '../utils/auth-session.ts';
+import {
   FEATURE_CATEGORIES,
   buildAiFeatureCatalog,
   calculateFeatureEstimatedCredits,
@@ -555,6 +561,220 @@ describe('@motion-ai/web — Story 1.4 Nuxt 4 mobile-first & API client', () => 
         false,
         `HTML render của route ${routePath} không được chứa emoji UTF-8`,
       );
+    }
+  });
+});
+
+describe('@motion-ai/web — Story 1.9 đăng nhập, ToS và phiên', () => {
+  const json = (body, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  function makeClient({ hadToken = true, isServer = false } = {}) {
+    const state = {
+      token: hadToken ? 'old' : null,
+      calls: [],
+      refreshCount: 0,
+      refreshOk: true,
+      lost: [],
+    };
+    const refreshShared = createRefreshCoordinator();
+    const client = createMotionApiClient({
+      baseUrl: 'https://api.test',
+      getAccessToken: () => state.token,
+      onUnauthorized: createUnauthorizedHandler({
+        getToken: () => state.token,
+        setToken: (t) => {
+          state.token = t;
+        },
+        refresh: () => client.refreshSession(),
+        refreshShared,
+        isServer,
+        onSessionLost: (had) => {
+          state.lost.push(had);
+        },
+      }),
+      fetchImpl: async (url, init) => {
+        const { pathname } = new URL(String(url));
+        const auth = new Headers(init?.headers).get('Authorization');
+        state.calls.push({ pathname, auth });
+        if (pathname === '/auth/refresh') {
+          state.refreshCount += 1;
+          await new Promise((r) => setTimeout(r, 5));
+          return state.refreshOk
+            ? json({ accessToken: 'new', tokenType: 'Bearer', expiresIn: 900 })
+            : json({ code: 'UNAUTHORIZED' }, 401);
+        }
+        if (auth === 'Bearer new') return json(MOCK_ME_PRO_RESPONSE);
+        return json({ code: 'UNAUTHORIZED' }, 401);
+      },
+    });
+    return { client, state };
+  }
+
+  it('401: refresh đúng một lần rồi thử lại request gốc', async () => {
+    const { client, state } = makeClient();
+    const me = await client.getMe();
+    assert.equal(me.tier, 'Pro');
+    assert.equal(state.refreshCount, 1);
+    assert.deepEqual(
+      state.calls.map((c) => c.pathname),
+      ['/me', '/auth/refresh', '/me'],
+    );
+  });
+
+  it('3 request 401 song song: chỉ một lời gọi refresh, cả ba thử lại thành công', async () => {
+    const { client, state } = makeClient();
+    const results = await Promise.all([
+      client.getMe(),
+      client.getMe(),
+      client.getMe(),
+    ]);
+    assert.equal(results.length, 3);
+    assert.equal(state.refreshCount, 1);
+  });
+
+  it('refresh lỗi: request gốc ném lỗi 401, không refresh lần hai, refresh không tự đệ quy', async () => {
+    const { client, state } = makeClient();
+    state.refreshOk = false;
+    await assert.rejects(
+      () => client.getMe(),
+      (e) => e instanceof MotionApiClientError && e.status === 401,
+    );
+    assert.equal(state.refreshCount, 1);
+    assert.deepEqual(state.lost, [true]);
+    assert.equal(state.token, null);
+  });
+
+  it('refresh lỗi khi chưa gửi token: báo mất phiên với hadToken=false (không chuyển trang)', async () => {
+    const { client, state } = makeClient({ hadToken: false });
+    state.refreshOk = false;
+    await assert.rejects(() => client.getMe());
+    assert.deepEqual(state.lost, [false]);
+  });
+
+  it('SSR không bao giờ refresh', async () => {
+    const { client, state } = makeClient({ isServer: true });
+    await assert.rejects(() => client.getMe());
+    assert.equal(state.refreshCount, 0);
+  });
+
+  it('runLogout: API lỗi vẫn xóa phiên rồi chuyển /login', async () => {
+    const order = [];
+    await runLogout({
+      apiLogout: async () => {
+        order.push('api');
+        throw new Error('boom');
+      },
+      clearSession: () => order.push('clear'),
+      navigate: () => order.push('nav'),
+    });
+    assert.deepEqual(order, ['api', 'clear', 'nav']);
+  });
+
+  it('isOutOfCredit: chỉ true khi balance = 0', () => {
+    assert.equal(isOutOfCredit({ balance: 0 }), true);
+    assert.equal(isOutOfCredit({ balance: 500 }), false);
+    assert.equal(isOutOfCredit(null), false);
+  });
+
+  it('sau retry vẫn 401 thì không refresh thêm', async () => {
+    let refreshes = 0;
+    const client = createMotionApiClient({
+      onUnauthorized: async () => {
+        refreshes += 1;
+        return true;
+      },
+      fetchImpl: async () => json({ code: 'UNAUTHORIZED' }, 401),
+    });
+    await assert.rejects(() => client.getMe());
+    assert.equal(refreshes, 1);
+  });
+
+  it('ánh xạ mã lỗi đăng nhập sang tiếng Việt', () => {
+    for (const code of [
+      'CONSENT_REQUIRED',
+      'ACCOUNT_LOCKED',
+      'RATE_LIMITED',
+      'EMAIL_LINKED_TO_OTHER_ACCOUNT',
+    ]) {
+      const msg = resolveApiErrorMessageVi(code);
+      assert.equal(msg, API_ERROR_MESSAGES_VI[code]);
+      assert.ok(msg.length > 0);
+    }
+  });
+
+  it('getGoogleAuthUrl gửi tosVersion và deviceId; lỗi 401 không kích hoạt refresh', async () => {
+    let refreshes = 0;
+    let seenUrl = '';
+    const client = createMotionApiClient({
+      baseUrl: 'https://api.test',
+      onUnauthorized: async () => {
+        refreshes += 1;
+        return true;
+      },
+      fetchImpl: async (url) => {
+        seenUrl = String(url);
+        return json({ code: 'CONSENT_REQUIRED' }, 401);
+      },
+    });
+    await assert.rejects(() =>
+      client.getGoogleAuthUrl({ tosVersion: '2026-11-01', deviceId: 'dev_abcdefgh12345678' }),
+    );
+    assert.equal(refreshes, 0);
+    assert.match(seenUrl, /tosVersion=/);
+    assert.match(seenUrl, /deviceId=/);
+  });
+
+  it('SSR /login trả 200 với nút Google bị vô hiệu và văn bản ToS', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input) => {
+      const { pathname } = new URL(String(input));
+      if (pathname === '/config/pricing') return json(MOCK_PRICING_CONFIG_RESPONSE);
+      return json({ code: 'UNAUTHORIZED' }, 401);
+    };
+    try {
+      const worker = (await import('../.output/public/_worker.js/index.js')).default;
+      const res = await worker.fetch(
+        new Request('https://motion.ai.vn/login'),
+        { ASSETS: { fetch: async () => new Response('x', { status: 404 }) } },
+        { waitUntil() {}, passThroughOnException() {} },
+      );
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      assert.match(html, /data-testid="page-login"/);
+      assert.match(html, /data-testid="google-login-button"[^>]*disabled/);
+      assert.match(html, /Điều khoản dịch vụ phiên bản/);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('SSR /login?authError=ACCOUNT_LOCKED hiện thông báo tiếng Việt đã ánh xạ', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input) => {
+      const { pathname } = new URL(String(input));
+      if (pathname === '/config/pricing') return json(MOCK_PRICING_CONFIG_RESPONSE);
+      return json({ code: 'UNAUTHORIZED' }, 401);
+    };
+    try {
+      const worker = (await import('../.output/public/_worker.js/index.js')).default;
+      const res = await worker.fetch(
+        new Request('https://motion.ai.vn/login?authError=ACCOUNT_LOCKED'),
+        { ASSETS: { fetch: async () => new Response('x', { status: 404 }) } },
+        { waitUntil() {}, passThroughOnException() {} },
+      );
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      const escaped = API_ERROR_MESSAGES_VI.ACCOUNT_LOCKED
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      assert.ok(html.includes(escaped), 'HTML phải chứa thông báo ACCOUNT_LOCKED');
+    } finally {
+      globalThis.fetch = originalFetch;
     }
   });
 });

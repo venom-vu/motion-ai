@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useRoute } from '#imports';
+import { navigateTo, useRoute } from '#imports';
 import type { AccountTier, UserRole } from '@motion-ai/contracts';
 import { useAuthDialog } from '~/composables/useAuthDialog';
 import { formatNumberVi } from '~/utils/catalog';
@@ -65,6 +65,14 @@ const formattedBalance = computed<string>(() => {
 });
 
 const tierLabel = computed<string>(() => props.tier ?? 'FREE');
+
+function handleAccountClick(): void {
+  if (props.email) {
+    openAuthDialog('account');
+  } else {
+    void navigateTo('/login');
+  }
+}
 
 function isActiveRoute(targetPath: string): boolean {
   if (targetPath === '/') {
@@ -154,7 +162,7 @@ function isActiveRoute(targetPath: string): boolean {
           data-testid="account-button"
           :aria-label="email ? `Tài khoản ${email}` : 'Đăng nhập tài khoản'"
           class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-surface px-3 py-2 text-xs font-medium text-cyber-text transition hover:border-cyber-violet"
-          @click="openAuthDialog(email ? 'account' : 'login')"
+          @click="handleAccountClick"
         >
           <Icon name="lucide:user-round" class="h-4 w-4 shrink-0 text-cyber-violet" />
           <span class="hidden max-w-[140px] truncate xl:inline">
