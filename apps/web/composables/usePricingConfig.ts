@@ -7,32 +7,13 @@ import type {
 } from '@motion-ai/contracts';
 import { useApiClient } from '~/composables/useApiClient';
 import { resolveApiErrorMessageVi } from '~/utils/api-client';
+import { isUnauthorizedError } from '~/utils/auth-session';
 import {
   buildAiFeatureCatalog,
   getTierCapSeconds,
   resolveTierConfig,
   type AiFeatureTool,
 } from '~/utils/catalog';
-
-function isUnauthorizedError(err: unknown): boolean {
-  if (!err || typeof err !== 'object') {
-    return false;
-  }
-  const candidate = err as {
-    status?: unknown;
-    statusCode?: unknown;
-    code?: unknown;
-    cause?: { status?: unknown; statusCode?: unknown; code?: unknown } | null;
-  };
-  return (
-    candidate.status === 401 ||
-    candidate.statusCode === 401 ||
-    candidate.code === 'UNAUTHORIZED' ||
-    candidate.cause?.status === 401 ||
-    candidate.cause?.statusCode === 401 ||
-    candidate.cause?.code === 'UNAUTHORIZED'
-  );
-}
 
 export function usePricingConfig() {
   const { client } = useApiClient();

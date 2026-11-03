@@ -105,3 +105,23 @@ export async function runLogout(deps: {
 export function isOutOfCredit(me: { balance: number } | null | undefined): boolean {
   return Boolean(me) && me!.balance === 0;
 }
+
+export function isUnauthorizedError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') {
+    return false;
+  }
+  const candidate = err as {
+    status?: unknown;
+    statusCode?: unknown;
+    code?: unknown;
+    cause?: { status?: unknown; statusCode?: unknown; code?: unknown } | null;
+  };
+  return (
+    candidate.status === 401 ||
+    candidate.statusCode === 401 ||
+    candidate.code === 'UNAUTHORIZED' ||
+    candidate.cause?.status === 401 ||
+    candidate.cause?.statusCode === 401 ||
+    candidate.cause?.code === 'UNAUTHORIZED'
+  );
+}

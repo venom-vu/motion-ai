@@ -26,14 +26,20 @@ import {
   createSessionLostHandler,
   createUnauthorizedHandler,
   isOutOfCredit,
+  isUnauthorizedError,
   runLogout,
 } from '../utils/auth-session.ts';
 import {
   FEATURE_CATEGORIES,
   buildAiFeatureCatalog,
   calculateFeatureEstimatedCredits,
+  formatSignedCreditsVi,
   getTierCapSeconds,
 } from '../utils/catalog.ts';
+import {
+  createWalletLedgerPagination,
+  formatTimestampVi,
+} from '../utils/wallet-ledger.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(__dirname, '..');
@@ -916,6 +922,457 @@ describe('@motion-ai/web — Story 1.9 đăng nhập, ToS và phiên', () => {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
       assert.ok(html.includes(escaped), 'HTML phải chứa thông báo ACCOUNT_LOCKED');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe('@motion-ai/web — Story 1.10 Lịch sử credit & phân trang vô tận', () => {
+  it('isUnauthorizedError: nhận diện đúng status 401, code UNAUTHORIZED, cause 401 và loại trừ 500/mạng', () => {
+    assert.equal(isUnauthorizedError({ status: 401 }), true);
+    assert.equal(isUnauthorizedError({ statusCode: 401 }), true);
+    assert.equal(isUnauthorizedError({ code: 'UNAUTHORIZED' }), true);
+    assert.equal(isUnauthorizedError({ cause: { status: 401 } }), true);
+    assert.equal(isUnauthorizedError({ cause: { code: 'UNAUTHORIZED' } }), true);
+    assert.equal(
+      isUnauthorizedError(new MotionApiClientError({ status: 401, code: ApiErrorCode.UNAUTHORIZED })),
+      true,
+    );
+
+    assert.equal(isUnauthorizedError({ status: 500 }), false);
+    assert.equal(isUnauthorizedError({ code: 'RATE_LIMITED' }), false);
+    assert.equal(isUnauthorizedError(null), false);
+    assert.equal(isUnauthorizedError(undefined), false);
+    assert.equal(isUnauthorizedError('some string'), false);
+    assert.equal(isUnauthorizedError(new Error('network error')), false);
+  });
+
+  it('SSR render các trạng thái giao diện của pages/history.vue: đầy đủ 6 nhãn tiếng Việt, skeleton, chưa đăng nhập, rỗng, lỗi tải thêm & hết dữ liệu', async () => {
+    const raw = fs.readFileSync(path.join(webRoot, 'pages/history.vue'), 'utf8');
+    const { descriptor } = parse(raw);
+    const compiled = compileTemplate({
+      id: 'test-history-page',
+      filename: 'history.vue',
+      source: descriptor.template.content,
+      ssr: true,
+      ssrCssVars: [],
+    });
+    assert.equal(compiled.errors.length, 0, 'Template history.vue phải biên dịch thành công');
+
+    const tmpFile = path.join(webRoot, 'test', `.tmp-history-${Date.now()}.mjs`);
+    fs.writeFileSync(tmpFile, compiled.code, 'utf8');
+
+    try {
+      const { ssrRender } = await import(pathToFileURL(tmpFile).href);
+
+      function createHistoryApp(overrides = {}) {
+        const defaultState = {
+          entries: MOCK_WALLET_LEDGER_ITEMS,
+          ledgerAsync: {
+            data: { value: { items: MOCK_WALLET_LEDGER_ITEMS, hasMore: false, nextCursor: null, pageSize: 20 } },
+            pending: { value: false },
+            error: { value: null },
+            refresh: () => {},
+          },
+          isUnauthenticated: false,
+          ledgerErrorVi: null,
+          hasMore: false,
+          loadingMore: false,
+          loadMoreErrorVi: null,
+          bottomSentinel: null,
+          formatSignedCreditsVi,
+          formatTimestampVi,
+          refreshLedger: () => {},
+          loadMore: () => {},
+          ...overrides,
+        };
+
+        const app = createSSRApp({
+          ssrRender,
+          setup() {
+            return defaultState;
+          },
+        });
+
+        app.component('Icon', {
+          props: ['name'],
+          ssrRender(ctx, push) {
+            push(`<span class="icon-${ctx.name}"></span>`);
+          },
+        });
+        app.component('NuxtLink', {
+          props: ['to'],
+          ssrRender(ctx, push) {
+            push(`<a href="${ctx.to}" ${ctx.$attrs?.['data-testid'] ? `data-testid="${ctx.$attrs['data-testid']}"` : ''}>Link</a>`);
+          },
+        });
+        app.component('ApiErrorBanner', {
+          props: ['messageVi', 'dismissible'],
+          ssrRender(ctx, push) {
+            if (ctx.messageVi) {
+              push(`<div data-testid="api-error-banner">${ctx.messageVi}</div>`);
+            }
+          },
+        });
+
+        return app;
+      }
+
+      // 1. Trạng thái có danh sách: đủ 6 nhãn tiếng Việt và định dạng credit có dấu
+      const populatedHtml = await renderToString(createHistoryApp());
+      assert.match(populatedHtml, /data-testid="page-history"/);
+      assert.match(populatedHtml, /data-testid="ledger-list"/);
+      for (const label of ['Tặng', 'Nạp', 'Giữ', 'Hoàn', 'Chốt', 'Điều chỉnh']) {
+        assert.ok(
+          populatedHtml.includes(label),
+          `Danh sách lịch sử phải chứa nhãn tiếng Việt: "${label}"`,
+        );
+      }
+      assert.match(populatedHtml, /\+12\.000 credit/);
+      assert.match(populatedHtml, /-250 credit/);
+      assert.match(populatedHtml, /0 credit/);
+      assert.match(populatedHtml, /text-cyber-success/);
+      assert.match(populatedHtml, /text-cyber-warning/);
+      assert.match(populatedHtml, /text-cyber-muted/);
+      assert.match(populatedHtml, /data-testid="all-loaded-notice"/);
+      assert.match(populatedHtml, /Đã hiển thị toàn bộ lịch sử/);
+
+      // 2. Trạng thái đang tải trang đầu (skeleton)
+      const skeletonHtml = await renderToString(
+        createHistoryApp({
+          entries: [],
+          ledgerAsync: {
+            pending: { value: true },
+            data: { value: null },
+            error: { value: null },
+            refresh: () => {},
+          },
+        }),
+      );
+      assert.match(skeletonHtml, /data-testid="history-skeleton"/);
+      assert.match(skeletonHtml, /animate-pulse/);
+      assert.doesNotMatch(skeletonHtml, /data-testid="ledger-list"/);
+
+      // 3. Trạng thái chưa đăng nhập: ưu tiên hiển thị thẻ chưa đăng nhập ngay cả khi entries đã có dữ liệu trước đó
+      const unauthHtml = await renderToString(
+        createHistoryApp({
+          entries: MOCK_WALLET_LEDGER_ITEMS,
+          isUnauthenticated: true,
+          ledgerAsync: {
+            pending: { value: false },
+            data: { value: null },
+            error: { value: new MotionApiClientError({ status: 401, code: 'UNAUTHORIZED' }) },
+            refresh: () => {},
+          },
+        }),
+      );
+      assert.match(unauthHtml, /data-testid="history-unauthenticated"/);
+      assert.match(unauthHtml, /Yêu Cầu Đăng Nhập/);
+      assert.match(unauthHtml, /href="\/login"/);
+      assert.doesNotMatch(unauthHtml, /data-testid="ledger-list"/);
+
+      // 4. Trạng thái rỗng (đã đăng nhập, không có bút toán nào)
+      const emptyHtml = await renderToString(
+        createHistoryApp({
+          entries: [],
+          isUnauthenticated: false,
+          ledgerErrorVi: null,
+          ledgerAsync: {
+            pending: { value: false },
+            data: { value: { items: [], hasMore: false, nextCursor: null, pageSize: 20 } },
+            error: { value: null },
+            refresh: () => {},
+          },
+        }),
+      );
+      assert.match(emptyHtml, /data-testid="history-empty"/);
+      assert.match(emptyHtml, /Chưa Có Biến Động Số Dư Nào/);
+      assert.match(emptyHtml, /icon-lucide:inbox/);
+
+      // 5. Trạng thái lỗi tải trang đầu khi danh sách rỗng (chỉ hiện thẻ trong khung, không trùng banner trên)
+      const errorHtml = await renderToString(
+        createHistoryApp({
+          entries: [],
+          isUnauthenticated: false,
+          ledgerErrorVi: 'Máy chủ phản hồi chậm. Vui lòng thử lại.',
+          ledgerAsync: {
+            pending: { value: false },
+            data: { value: null },
+            error: { value: new Error('500') },
+            refresh: () => {},
+          },
+        }),
+      );
+      assert.match(errorHtml, /data-testid="history-error-state"/);
+      assert.match(errorHtml, /Không Thể Tải Sổ Cái/);
+      assert.match(errorHtml, /data-testid="history-retry-button"/);
+      assert.doesNotMatch(errorHtml, /data-testid="api-error-banner"/);
+
+      // 5b. Trạng thái lỗi làm mới khi danh sách đã có dữ liệu (banner trên hiện, danh sách cũ được giữ)
+      const refreshErrorHtml = await renderToString(
+        createHistoryApp({
+          entries: MOCK_WALLET_LEDGER_ITEMS,
+          isUnauthenticated: false,
+          ledgerErrorVi: 'Không thể làm mới sổ cái.',
+          ledgerAsync: {
+            pending: { value: false },
+            data: { value: { items: MOCK_WALLET_LEDGER_ITEMS, hasMore: false, nextCursor: null, pageSize: 20 } },
+            error: { value: new Error('500') },
+            refresh: () => {},
+          },
+        }),
+      );
+      assert.match(refreshErrorHtml, /data-testid="api-error-banner"/);
+      assert.match(refreshErrorHtml, /data-testid="ledger-list"/);
+      assert.doesNotMatch(refreshErrorHtml, /data-testid="history-error-state"/);
+
+      // 6. Phân trang: có thêm trang (hasMore = true) hiển thị nút dự phòng và sentinel
+      const hasMoreHtml = await renderToString(
+        createHistoryApp({
+          hasMore: true,
+          loadingMore: false,
+        }),
+      );
+      assert.match(hasMoreHtml, /data-testid="load-more-button"/);
+      assert.match(hasMoreHtml, /data-testid="bottom-sentinel"/);
+      assert.doesNotMatch(hasMoreHtml, /data-testid="all-loaded-notice"/);
+
+      // 7. Phân trang: đang tải thêm (loadingMore = true) hiển thị spinner với role status
+      const loadingMoreHtml = await renderToString(
+        createHistoryApp({
+          hasMore: true,
+          loadingMore: true,
+        }),
+      );
+      assert.match(loadingMoreHtml, /data-testid="loading-more-spinner"/);
+      assert.match(loadingMoreHtml, /role="status"/);
+      assert.match(loadingMoreHtml, /aria-live="polite"/);
+      assert.match(loadingMoreHtml, /Đang tải thêm bút toán/);
+
+      // 8. Phân trang: lỗi tải thêm hiển thị banner lỗi với role alert, không làm mất danh sách cũ
+      const loadMoreErrorHtml = await renderToString(
+        createHistoryApp({
+          hasMore: true,
+          loadingMore: false,
+          loadMoreErrorVi: 'Lỗi đường truyền khi tải trang tiếp theo.',
+        }),
+      );
+      assert.match(loadMoreErrorHtml, /data-testid="load-more-error"/);
+      assert.match(loadMoreErrorHtml, /role="alert"/);
+      assert.match(loadMoreErrorHtml, /data-testid="ledger-list"/);
+    } finally {
+      fs.rmSync(tmpFile, { force: true });
+    }
+  });
+
+  it('hành vi logic phân trang cursor qua createWalletLedgerPagination: chống gọi trùng, giữ nguyên danh sách khi lỗi và làm mới sổ cái', async () => {
+    const page1Items = [MOCK_WALLET_LEDGER_ITEMS[0], MOCK_WALLET_LEDGER_ITEMS[1]];
+    const page2Items = [MOCK_WALLET_LEDGER_ITEMS[2], MOCK_WALLET_LEDGER_ITEMS[3]];
+    const page3Items = [MOCK_WALLET_LEDGER_ITEMS[4]];
+
+    const requestedCursors = [];
+    let shouldFail = false;
+    let isPending = false;
+
+    const mockClient = {
+      async getWalletLedger(query) {
+        requestedCursors.push(query.cursor ?? null);
+        if (shouldFail && query.cursor === 'cursor_p1') {
+          throw new MotionApiClientError({ status: 500, code: null, serverMessage: 'Server 500' });
+        }
+        if (query.cursor === 'cursor_p1') {
+          return {
+            items: page2Items,
+            pageSize: 2,
+            hasMore: true,
+            nextCursor: 'cursor_p2',
+          };
+        }
+        if (query.cursor === 'cursor_p2') {
+          return {
+            items: page3Items,
+            pageSize: 2,
+            hasMore: false,
+            nextCursor: null,
+          };
+        }
+        return {
+          items: page1Items,
+          pageSize: 2,
+          hasMore: true,
+          nextCursor: 'cursor_p1',
+        };
+      },
+    };
+
+    const pagination = createWalletLedgerPagination({
+      client: mockClient,
+      pageSize: 2,
+      isInitialPending: () => isPending,
+    });
+
+    pagination.syncInitialData({
+      items: page1Items,
+      pageSize: 2,
+      hasMore: true,
+      nextCursor: 'cursor_p1',
+    });
+
+    // 1. Tải ban đầu
+    assert.equal(pagination.entries.value.length, 2);
+    assert.equal(pagination.hasMore.value, true);
+    assert.equal(pagination.nextCursor.value, 'cursor_p1');
+
+    // 2. Tải thêm trang 2 thành công
+    const okPage2 = await pagination.loadMore();
+    assert.equal(okPage2, true);
+    assert.equal(pagination.entries.value.length, 4);
+    assert.equal(pagination.hasMore.value, true);
+    assert.equal(pagination.nextCursor.value, 'cursor_p2');
+    assert.equal(pagination.loadMoreErrorVi.value, null);
+
+    // 3. Chống gọi trùng: khi isPending hoặc loadingMore đang chạy thì bỏ qua
+    isPending = true;
+    const callsBefore = requestedCursors.length;
+    const okBlocked = await pagination.loadMore();
+    assert.equal(okBlocked, false);
+    assert.equal(requestedCursors.length, callsBefore, 'Không được gọi API khi đang pending');
+    isPending = false;
+
+    // 4. Lỗi tải thêm: giữ nguyên danh sách hiện tại và giữ nguyên cursor để thử lại
+    shouldFail = true;
+    pagination.nextCursor.value = 'cursor_p1'; // Thử lại cursor_p1 với lỗi
+    const okFailed = await pagination.loadMore();
+    assert.equal(okFailed, false);
+    assert.equal(pagination.entries.value.length, 4, 'Bút toán đã tải trước đó không bị xóa khi lỗi');
+    assert.ok(pagination.loadMoreErrorVi.value !== null);
+    assert.equal(pagination.nextCursor.value, 'cursor_p1', 'Cursor phải được giữ nguyên để thử lại');
+
+    // 5. Thử lại sau lỗi thành công
+    shouldFail = false;
+    const okRetry = await pagination.loadMore();
+    assert.equal(okRetry, true);
+    assert.equal(pagination.loadMoreErrorVi.value, null);
+    assert.equal(pagination.nextCursor.value, 'cursor_p2');
+
+    // 6. Tải trang cuối cùng: hasMore chuyển false, nextCursor chuyển null
+    const okEnd = await pagination.loadMore();
+    assert.equal(okEnd, true);
+    assert.equal(pagination.hasMore.value, false);
+    assert.equal(pagination.nextCursor.value, null);
+    assert.equal(pagination.entries.value.length, 5);
+
+    // 7. Bấm làm mới sổ cái: tải lại từ trang 1, đồng bộ lại danh sách ban đầu
+    await pagination.refresh();
+    assert.equal(pagination.entries.value.length, 2);
+    assert.equal(pagination.hasMore.value, true);
+    assert.equal(pagination.nextCursor.value, 'cursor_p1');
+    assert.equal(pagination.loadMoreErrorVi.value, null);
+  });
+
+  it('tuân thủ vùng chạm tối thiểu 48px (touch-target) và không chứa emoji UTF-8 trong pages/history.vue', () => {
+    const historyFile = path.join(webRoot, 'pages/history.vue');
+    const content = fs.readFileSync(historyFile, 'utf8');
+
+    // Không chứa emoji
+    const emojiRegex = /\p{Extended_Pictographic}/u;
+    assert.equal(
+      emojiRegex.test(content),
+      false,
+      'pages/history.vue không được chứa ký tự emoji UTF-8',
+    );
+
+    // Vùng chạm tối thiểu 48px
+    assert.match(content, /touch-target.*min-h-\[48px\]/);
+    assert.match(content, /data-testid="refresh-ledger-button"/);
+    assert.match(content, /data-testid="history-login-button"/);
+    assert.match(content, /data-testid="history-retry-button"/);
+    assert.match(content, /data-testid="load-more-button"/);
+  });
+
+  it('SSR /history qua Cloudflare Pages Worker bundle trả 200, hiển thị danh sách bút toán và không có emoji', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input) => {
+      const { pathname } = new URL(String(input));
+      const makeJson = (body, status = 200) =>
+        new Response(JSON.stringify(body), {
+          status,
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+      if (pathname === '/config/pricing') {
+        return makeJson(MOCK_PRICING_CONFIG_RESPONSE);
+      }
+      if (pathname === '/wallet/ledger') {
+        return makeJson({
+          items: MOCK_WALLET_LEDGER_ITEMS,
+          pageSize: 20,
+          hasMore: false,
+          nextCursor: null,
+        });
+      }
+      return makeJson({ code: 'UNAUTHORIZED' }, 401);
+    };
+
+    try {
+      const worker = (await import('../.output/public/_worker.js/index.js')).default;
+      const res = await worker.fetch(
+        new Request('https://motion.ai.vn/history'),
+        { ASSETS: { fetch: async () => new Response('x', { status: 404 }) } },
+        { waitUntil() {}, passThroughOnException() {} },
+      );
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      assert.match(html, /data-testid="page-history"/);
+      assert.match(html, /Tặng/);
+      assert.match(html, /Nạp/);
+      assert.match(html, /Giữ/);
+      assert.match(html, /Hoàn/);
+      assert.match(html, /Chốt/);
+      assert.match(html, /Điều chỉnh/);
+      assert.match(html, /Đã hiển thị toàn bộ lịch sử/);
+
+      const emojiRegex = /\p{Extended_Pictographic}/u;
+      assert.equal(emojiRegex.test(html), false, 'SSR /history không được chứa ký tự emoji UTF-8');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('SSR /history qua Cloudflare Pages Worker bundle khi nhận 401 UNAUTHORIZED render ra data-testid="history-unauthenticated"', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input) => {
+      const { pathname } = new URL(String(input));
+      const makeJson = (body, status = 200) =>
+        new Response(JSON.stringify(body), {
+          status,
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+      if (pathname === '/config/pricing') {
+        return makeJson(MOCK_PRICING_CONFIG_RESPONSE);
+      }
+      if (pathname === '/wallet/ledger') {
+        return makeJson({ code: 'UNAUTHORIZED', message: 'Unauthorized' }, 401);
+      }
+      return makeJson({ code: 'UNAUTHORIZED' }, 401);
+    };
+
+    try {
+      const worker = (await import('../.output/public/_worker.js/index.js')).default;
+      const res = await worker.fetch(
+        new Request('https://motion.ai.vn/history'),
+        { ASSETS: { fetch: async () => new Response('x', { status: 404 }) } },
+        { waitUntil() {}, passThroughOnException() {} },
+      );
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      assert.match(html, /data-testid="page-history"/);
+      assert.match(html, /data-testid="history-unauthenticated"/);
+      assert.match(html, /Yêu Cầu Đăng Nhập/);
+      assert.match(html, /data-testid="history-login-button"/);
+      assert.doesNotMatch(html, /data-testid="ledger-list"/);
     } finally {
       globalThis.fetch = originalFetch;
     }
