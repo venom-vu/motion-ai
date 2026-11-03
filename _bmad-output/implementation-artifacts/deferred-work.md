@@ -73,3 +73,8 @@
 ## Deferred from: code review lượt 3 of spec-1-9-fe-dang-nhap-cam-ket-tos-va-so-du (2026-11-03)
 
 - `useAuth.restoreSession` (ánh xạ `outcome === 'ok'` và `sessionChecked` trong `.finally`) chưa có test chạy composable thật; đảo thành `outcome !== 'invalid'` thì mọi test vẫn xanh. Cần khung test Nuxt hoặc tách thêm một hàm thuần vào `auth-session.ts`.
+
+## Deferred from: code review of spec-1-10-fe-lich-su-credit.md (2026-11-03)
+
+- Kiểm thử reactive watcher `accessToken` trên Nuxt client runtime (`apps/web/pages/history.vue:52-59`): cần bổ sung test harness component mount chuyên dụng (@nuxt/test-utils hoặc @vue/test-utils) hiện chưa cấu hình trong repo.
+

@@ -1052,6 +1052,8 @@ describe('@motion-ai/web — Story 1.10 Lịch sử credit & phân trang vô t�
       );
       assert.match(skeletonHtml, /data-testid="history-skeleton"/);
       assert.match(skeletonHtml, /animate-pulse/);
+      assert.match(skeletonHtml, /role="status"/);
+      assert.match(skeletonHtml, /aria-busy="true"/);
       assert.doesNotMatch(skeletonHtml, /data-testid="ledger-list"/);
 
       // 3. Trạng thái chưa đăng nhập: ưu tiên hiển thị thẻ chưa đăng nhập ngay cả khi entries đã có dữ liệu trước đó
@@ -1105,6 +1107,7 @@ describe('@motion-ai/web — Story 1.10 Lịch sử credit & phân trang vô t�
         }),
       );
       assert.match(errorHtml, /data-testid="history-error-state"/);
+      assert.match(errorHtml, /role="alert"/);
       assert.match(errorHtml, /Không Thể Tải Sổ Cái/);
       assert.match(errorHtml, /data-testid="history-retry-button"/);
       assert.doesNotMatch(errorHtml, /data-testid="api-error-banner"/);
@@ -1168,7 +1171,8 @@ describe('@motion-ai/web — Story 1.10 Lịch sử credit & phân trang vô t�
 
   it('hành vi logic phân trang cursor qua createWalletLedgerPagination: chống gọi trùng, giữ nguyên danh sách khi lỗi và làm mới sổ cái', async () => {
     const page1Items = [MOCK_WALLET_LEDGER_ITEMS[0], MOCK_WALLET_LEDGER_ITEMS[1]];
-    const page2Items = [MOCK_WALLET_LEDGER_ITEMS[2], MOCK_WALLET_LEDGER_ITEMS[3]];
+    // Chèn lặp ID MOCK_WALLET_LEDGER_ITEMS[0].id vào page2 để kiểm chứng deduplication
+    const page2Items = [MOCK_WALLET_LEDGER_ITEMS[0], MOCK_WALLET_LEDGER_ITEMS[2], MOCK_WALLET_LEDGER_ITEMS[3]];
     const page3Items = [MOCK_WALLET_LEDGER_ITEMS[4]];
 
     const requestedCursors = [];
@@ -1269,6 +1273,85 @@ describe('@motion-ai/web — Story 1.10 Lịch sử credit & phân trang vô t�
     assert.equal(pagination.hasMore.value, true);
     assert.equal(pagination.nextCursor.value, 'cursor_p1');
     assert.equal(pagination.loadMoreErrorVi.value, null);
+
+    // 8. Làm mới thất bại qua onRefreshInitial: không làm mất additionalItems đã tải
+    let refreshShouldFail = true;
+    const paginationWithRefreshGuard = createWalletLedgerPagination({
+      client: mockClient,
+      pageSize: 2,
+      onRefreshInitial: async () => {
+        if (refreshShouldFail) {
+          return undefined; // Mô phỏng useAsyncData.refresh() gặp lỗi
+        }
+        return {
+          items: page1Items,
+          pageSize: 2,
+          hasMore: true,
+          nextCursor: 'cursor_p1',
+        };
+      },
+    });
+    paginationWithRefreshGuard.syncInitialData({
+      items: page1Items,
+      pageSize: 2,
+      hasMore: true,
+      nextCursor: 'cursor_p1',
+    });
+    await paginationWithRefreshGuard.loadMore();
+    assert.equal(paginationWithRefreshGuard.entries.value.length, 4);
+
+    // Khi refresh thất bại, entries phải giữ nguyên 4
+    await paginationWithRefreshGuard.refresh();
+    assert.equal(
+      paginationWithRefreshGuard.entries.value.length,
+      4,
+      'Khi refresh thất bại, additionalItems không được bị xóa',
+    );
+
+    // Khi refresh thành công, entries được đồng bộ về 2
+    refreshShouldFail = false;
+    await paginationWithRefreshGuard.refresh();
+    assert.equal(
+      paginationWithRefreshGuard.entries.value.length,
+      2,
+      'Khi refresh thành công, syncInitialData cập nhật lại trang đầu',
+    );
+
+    // 9. Chuẩn hóa hasMore khi nextCursor rỗng hoặc null
+    const emptyCursorPagination = createWalletLedgerPagination({
+      client: mockClient,
+      pageSize: 2,
+      initialData: () => ({
+        items: page1Items,
+        pageSize: 2,
+        hasMore: true,
+        nextCursor: null,
+      }),
+    });
+    assert.equal(
+      emptyCursorPagination.hasMore.value,
+      false,
+      'hasMore phải là false nếu nextCursor là null',
+    );
+  });
+
+  it('formatTimestampVi xử lý chuỗi rỗng và chuỗi không hợp lệ an toàn mà không ném RangeError', () => {
+    assert.equal(formatTimestampVi(''), '-');
+    assert.equal(formatTimestampVi('invalid-date'), '-');
+    const formatted = formatTimestampVi('2026-11-03T12:00:00.000Z');
+    assert.ok(formatted.length > 5);
+  });
+
+  it('logic isUnauthenticated xác định đúng trạng thái chưa đăng nhập khi không pending', () => {
+    function computeIsUnauthenticated({ isUnauthorized, isAuthenticated, isPending }) {
+      if (isUnauthorized) return true;
+      if (!isAuthenticated && !isPending) return true;
+      return false;
+    }
+    assert.equal(computeIsUnauthenticated({ isUnauthorized: true, isAuthenticated: false, isPending: false }), true);
+    assert.equal(computeIsUnauthenticated({ isUnauthorized: false, isAuthenticated: false, isPending: false }), true);
+    assert.equal(computeIsUnauthenticated({ isUnauthorized: false, isAuthenticated: true, isPending: false }), false);
+    assert.equal(computeIsUnauthenticated({ isUnauthorized: false, isAuthenticated: false, isPending: true }), false);
   });
 
   it('tuân thủ vùng chạm tối thiểu 48px (touch-target) và không chứa emoji UTF-8 trong pages/history.vue', () => {

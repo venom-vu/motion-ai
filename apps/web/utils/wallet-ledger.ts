@@ -15,7 +15,14 @@ const VIETNAM_TIMESTAMP_FORMATTER = new Intl.DateTimeFormat('vi-VN', {
 });
 
 export function formatTimestampVi(isoString: string): string {
-  return VIETNAM_TIMESTAMP_FORMATTER.format(new Date(isoString));
+  if (!isoString) {
+    return '-';
+  }
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) {
+    return '-';
+  }
+  return VIETNAM_TIMESTAMP_FORMATTER.format(d);
 }
 
 export interface WalletLedgerPaginationClient {
@@ -69,10 +76,14 @@ export function createWalletLedgerPagination(
   ]);
 
   const initialNextCursor = computed(
-    () => initialResponse.value?.nextCursor ?? null,
+    () => initialResponse.value?.nextCursor?.trim() || null,
   );
   const initialHasMore = computed(
-    () => initialResponse.value?.hasMore ?? false,
+    () =>
+      Boolean(
+        initialResponse.value?.hasMore &&
+          initialResponse.value?.nextCursor?.trim(),
+      ),
   );
 
   const cursorOverride = ref<string | null | undefined>(undefined);
@@ -84,7 +95,7 @@ export function createWalletLedgerPagination(
         ? cursorOverride.value
         : initialNextCursor.value,
     set: (val) => {
-      cursorOverride.value = val;
+      cursorOverride.value = val?.trim() || null;
     },
   });
 
@@ -100,8 +111,10 @@ export function createWalletLedgerPagination(
 
   const loadingMore = ref<boolean>(false);
   const loadMoreErrorVi = ref<string | null>(null);
+  let operationSeq = 0;
 
   function clearAdditionalItems(): void {
+    operationSeq++;
     additionalItems.value = [];
     cursorOverride.value = undefined;
     hasMoreOverride.value = undefined;
@@ -130,6 +143,7 @@ export function createWalletLedgerPagination(
       return false;
     }
 
+    const currentSeq = operationSeq;
     loadingMore.value = true;
     loadMoreErrorVi.value = null;
 
@@ -138,17 +152,26 @@ export function createWalletLedgerPagination(
         pageSize,
         cursor: nextCursor.value,
       });
+      if (currentSeq !== operationSeq) {
+        return false;
+      }
       const existingIds = new Set(entries.value.map((e) => e.id));
       const newItems = res.items.filter((item) => !existingIds.has(item.id));
       additionalItems.value = [...additionalItems.value, ...newItems];
-      nextCursor.value = res.nextCursor;
-      hasMore.value = res.hasMore;
+      const normalizedHasMore = Boolean(res.hasMore && res.nextCursor?.trim());
+      nextCursor.value = res.nextCursor?.trim() || null;
+      hasMore.value = normalizedHasMore;
       return true;
     } catch (err) {
+      if (currentSeq !== operationSeq) {
+        return false;
+      }
       loadMoreErrorVi.value = resolveApiErrorMessageVi(err);
       return false;
     } finally {
-      loadingMore.value = false;
+      if (currentSeq === operationSeq) {
+        loadingMore.value = false;
+      }
     }
   }
 
@@ -158,16 +181,20 @@ export function createWalletLedgerPagination(
     }
     loadMoreErrorVi.value = null;
 
-    if (options.onRefreshInitial) {
-      const result = await options.onRefreshInitial();
-      if (result) {
-        syncInitialData(result);
+    try {
+      if (options.onRefreshInitial) {
+        const result = await options.onRefreshInitial();
+        if (result) {
+          syncInitialData(result);
+        }
+        return;
       }
-      return;
-    }
 
-    const res = await options.client.getWalletLedger({ pageSize });
-    syncInitialData(res);
+      const res = await options.client.getWalletLedger({ pageSize });
+      syncInitialData(res);
+    } catch {
+      // Lỗi làm mới được xử lý phía caller
+    }
   }
 
   return {

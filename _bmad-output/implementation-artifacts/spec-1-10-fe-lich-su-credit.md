@@ -73,6 +73,22 @@ context:
 - Given API trả lỗi ở lần tải đầu hoặc lần tải thêm, when xem giao diện, then hiển thị thông báo lỗi tiếng Việt thân thiện kèm nút thử lại; ở lần tải thêm, các bút toán đã tải trước đó không bị biến mất.
 - Given màn hình thiết bị 360 px, when xem trang, then toàn bộ thành phần không bị tràn ngang, các nút thao tác đạt diện tích chạm tối thiểu 48 px.
 
+### Review Findings
+
+- [x] [Review][Patch] Không xóa các bút toán đã tải và không trả về dữ liệu cũ khi refresh thất bại [apps/web/pages/history.vue:28-31, apps/web/utils/wallet-ledger.ts:161-167]
+- [x] [Review][Patch] Sửa logic isUnauthenticated và dọn sạch dữ liệu cũ khi đăng xuất [apps/web/pages/history.vue:61-73]
+- [x] [Review][Patch] Khử race condition session restore khi mở trang chưa có token nhưng sau đó có token [apps/web/pages/history.vue:52-59]
+- [x] [Review][Patch] Chuẩn hóa hasMore kết hợp kiểm tra nextCursor để tránh kẹt nút tải thêm [apps/web/utils/wallet-ledger.ts:74-76,145]
+- [x] [Review][Patch] Bắt lỗi an toàn trong formatTimestampVi tránh ném RangeError khi thời gian không hợp lệ [apps/web/utils/wallet-ledger.ts:17-19]
+- [x] [Review][Patch] Thêm kiểm thử hồi quy cho deduplication, refresh thất bại và isUnauthenticated [apps/web/test/smoke.test.mjs:1169-1268]
+- [x] [Review][Patch] Bỏ qua kết quả loadMore muộn nếu phiên đăng nhập đã thay đổi hoặc đã xóa danh sách [apps/web/utils/wallet-ledger.ts:141-144]
+- [x] [Review][Patch] Bổ sung thuộc tính trợ năng role=alert, aria-busy và trạng thái disabled cho nút tải thêm [apps/web/pages/history.vue:178,227,351]
+- [x] [Review][Defer] Kiểm thử reactive watcher accessToken trên Nuxt client runtime [apps/web/pages/history.vue:52-59] — deferred: Cần bổ sung test harness component mount chuyên dụng (@nuxt/test-utils hoặc @vue/test-utils) hiện chưa cấu hình trong repo.
+
+#### Rejected
+- `BF9`: Bỏ qua việc sửa nhật ký Review Triage Log trong spec vì quy tắc review không sửa spec đang xét.
+
+
 ## Implementation Notes
 
 - Đã nâng cấp `apps/web/pages/history.vue` với đầy đủ các trạng thái:

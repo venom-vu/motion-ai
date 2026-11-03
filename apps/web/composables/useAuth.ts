@@ -55,5 +55,5 @@ export function useAuth() {
     });
   }
 
-  return { isAuthenticated, restoreSession, logout };
+  return { isAuthenticated, sessionChecked, restoreSession, logout };
 }

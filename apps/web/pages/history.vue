@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useAsyncData } from '#imports';
+import { clearNuxtData, useAsyncData } from '#imports';
 import type { WalletLedgerResponse } from '@motion-ai/contracts';
 import { useApiClient } from '~/composables/useApiClient';
 import { useAuth } from '~/composables/useAuth';
@@ -13,7 +13,7 @@ import {
 } from '~/utils/wallet-ledger';
 
 const { client, accessToken } = useApiClient();
-const { isAuthenticated } = useAuth();
+const { isAuthenticated, sessionChecked } = useAuth();
 
 const ledgerAsync = useAsyncData<WalletLedgerResponse>(
   'motion-ai-wallet-ledger',
@@ -27,6 +27,9 @@ const pagination = createWalletLedgerPagination({
   isInitialPending: () => Boolean(ledgerAsync.pending.value),
   onRefreshInitial: async () => {
     await ledgerAsync.refresh();
+    if (ledgerAsync.error.value) {
+      return undefined;
+    }
     return ledgerAsync.data.value ?? undefined;
   },
 });
@@ -43,30 +46,51 @@ const {
 watch(
   () => ledgerAsync.data.value,
   (newData) => {
-    pagination.syncInitialData(newData);
+    if (newData) {
+      pagination.syncInitialData(newData);
+    }
   },
   { immediate: true },
 );
+
+let tokenRefreshQueued = false;
 
 // Dọn dẹp khi đăng xuất và tự động làm mới khi token thay đổi
 watch(accessToken, (newToken, oldToken) => {
   if (newToken !== oldToken) {
     if (!newToken) {
-      pagination.clearAdditionalItems();
+      clearNuxtData('motion-ai-wallet-ledger');
+      pagination.reset();
     }
-    void refreshLedger();
+    if (ledgerAsync.pending.value) {
+      tokenRefreshQueued = true;
+    } else {
+      void refreshLedger();
+    }
   }
 });
+
+watch(
+  () => ledgerAsync.pending.value,
+  (pending) => {
+    if (!pending && tokenRefreshQueued) {
+      tokenRefreshQueued = false;
+      void refreshLedger();
+    }
+  },
+);
 
 const isUnauthenticated = computed<boolean>(() => {
   if (isUnauthorizedError(ledgerAsync.error.value)) {
     return true;
   }
-  if (
-    !isAuthenticated.value &&
-    !ledgerAsync.pending.value &&
-    !ledgerAsync.data.value?.items?.length
-  ) {
+  if (import.meta.server) {
+    return false;
+  }
+  if (!isAuthenticated.value && !ledgerAsync.pending.value) {
+    if (!sessionChecked.value && ledgerAsync.data.value?.items?.length) {
+      return false;
+    }
     return true;
   }
   return false;
@@ -176,6 +200,9 @@ onBeforeUnmount(() => {
       <div
         v-if="ledgerAsync.pending.value && entries.length === 0"
         data-testid="history-skeleton"
+        role="status"
+        aria-busy="true"
+        aria-live="polite"
         class="divide-y divide-cyber-border"
       >
         <div
@@ -225,6 +252,7 @@ onBeforeUnmount(() => {
       <div
         v-else-if="entries.length === 0 && ledgerErrorVi"
         data-testid="history-error-state"
+        role="alert"
         class="flex flex-col items-center justify-center p-10 text-center sm:p-12"
       >
         <div
@@ -348,7 +376,8 @@ onBeforeUnmount(() => {
           <button
             type="button"
             data-testid="load-more-button"
-            class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-bg px-5 py-2.5 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet"
+            class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-bg px-5 py-2.5 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet disabled:opacity-50"
+            :disabled="Boolean(ledgerAsync.pending.value)"
             @click="loadMore"
           >
             <Icon name="lucide:arrow-down" class="h-4 w-4" />
