@@ -68,6 +68,62 @@ context:
 - Given đã đăng nhập, when vào trang bất kỳ, then tiêu đề hiện số dư và Tier từ `GET /me`.
 - Given 401, when gọi API, then refresh đúng một lần rồi thử lại; refresh lỗi thì về `/login`.
 
+### Review Findings
+
+Lượt `bmad-code-review` thứ hai (sau khi vá), chế độ `full`, 4 lớp: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor. 39 phát hiện thô, gộp theo nguyên nhân gốc. Kết quả: 2 quyết định, 3 patch (đã xử lý), 2 hoãn, 21 loại.
+
+- [x] [Review][Decision] Mất phiên khi request chưa gửi token thì không chuyển `/login` — Đã quyết định: giữ nguyên trang. Khách xem công khai không bị đẩy đi; chỉ request đã mang token mới chuyển `/login`. Đây là ngoại lệ có chủ đích của hàng ma trận "Access JWT hết hạn". [auth-session.ts:createSessionLostHandler]
+- [x] [Review][Decision] Lỗi tạm thời khi refresh (mạng, 5xx) — Đã quyết định: chỉ 401/403 từ `/auth/refresh` mới mất phiên. Lỗi mạng hoặc 5xx giữ token, request gốc báo lỗi của nó. Hẹp hơn chữ AC "refresh thất bại thì về `/login`", do người dùng chọn. [auth-session.ts:createRefreshCoordinator]
+- [x] [Review][Patch] Thiếu test render cho thông báo 0 credit — Đã vá: biên dịch template `pages/index.vue` và render ở balance 0, 500 và khách; kiểm `zero-credit-notice` kèm `href="/pricing"`. [smoke.test.mjs]
+- [x] [Review][Patch] Nhánh "token đã được request khác làm mới" — Đã vá: gọi trực tiếp `createUnauthorizedHandler` với `getToken = 'new'`, `sentToken = 'old'`, khẳng định không refresh và trả true. Xóa nhánh này thì test đỏ. [smoke.test.mjs]
+- [x] [Review][Patch] Phần nối `onSessionLost` và logout — Đã vá: tách thành `createSessionLostHandler` và hằng `LOGIN_PATH` trong `auth-session.ts`, `useApiClient.ts` và `useAuth.ts` gọi lại; test kiểm thứ tự mark/clear/navigate và `hadToken`. Đảo `if (hadToken)` thì test đỏ. [auth-session.ts, smoke.test.mjs]
+- [x] [Review][Defer] Không có đường quay lại trang cũ sau khi đăng nhập hoặc hết phiên — `navigateTo('/login')` không mang `redirect`, `login.vue` luôn về `/`; cần thiết kế OAuth state mang đích về (kiểm tra chỉ nhận đường dẫn tương đối cùng origin) [useApiClient.ts, login.vue] — deferred: ngoài AC của 1.9, thuộc story tích hợp 1.11 (blind-hunter)
+- [x] [Review][Defer] Văn bản ToS chưa có liên kết tới trang điều khoản — deferred: đã ghi ở lượt review trước (xem `deferred-work.md`), chờ văn bản ToS cuối của PM [LoginConsentForm.vue] (blind-hunter+acceptance-auditor)
+
+#### Rejected
+
+- `onSessionLost` chạy N lần khi N request 401 song song cùng thất bại (low): `navigateTo('/login')` trùng đích bị Vue Router bỏ qua và `clearNuxtData` idempotent; sửa chỉ thêm cờ một lần.
+- Refresh lặp lại khi phiên đã mất, kể cả khách gặp 401 (low): chỉ xảy ra khi có request 401 sau khi mất phiên, hiếm; sửa cần thêm nhánh bảo vệ liên quan `sessionChecked`.
+- Biến module `refreshShared`/`restoring` dùng chung giữa các request SSR (false): `onUnauthorized` trả sớm khi `import.meta.server`; `restoreSession` chỉ được gọi từ `plugins/session.client.ts` và `pages/auth/callback.vue` (`onMounted`), cả hai chỉ chạy ở client.
+- `refreshNuxtData` reject làm `restoreSession` reject (false): `asyncData.js:415` bắt lỗi của lần làm mới và ghi vào `asyncData.error`, không ném ra.
+- `/me` nhận 401 ngay sau khi vừa refresh gây refresh lần hai (low, chưa chứng minh tới được): cần token vừa cấp bị BE từ chối ngay.
+- `logout` lỗi API thì cookie refresh còn hiệu lực, tải lại trang đăng nhập lại (low): đúng hành vi spec yêu cầu ("Logout lỗi vẫn xóa phiên cục bộ"); thêm cảnh báo là quyết định UX ngoài AC.
+- `navigate` reject sau `clearSession` làm `logout` reject, dialog không đóng (low): `navigateTo` trả kết quả lỗi chứ không ném; sửa chỉ thêm try/catch.
+- Lỗi bị đóng trong form nhưng `useAuthDialog().errorVi` vẫn giữ nên lỗi cũ hiện lại (false): `close()` đặt `errorVi = null` (useAuthDialog.ts:17-19), prop đổi sang null nên watcher chạy; mở lại với lỗi mới thì prop đổi lại.
+- `redirectUrl` không kiểm tra scheme/host (false): URL do BE dựng cố định `https://accounts.google.com/o/oauth2/v2/auth` (google-oauth.service.ts:57), không nhận từ người dùng.
+- Bấm đúp hoặc "thử lại" từ banner gọi song song `getGoogleAuthUrl` (false): `submitting = true` đặt đồng bộ trong handler nên lần bấm sau thấy nút đã vô hiệu; banner chỉ hiện khi `errorVi` có giá trị mà `handleGoogleLogin` xóa ngay đầu hàm.
+- `/login` đẩy người dùng ra do `me` cũ hoặc nhấp nháy form trước khi khôi phục phiên (false/low): logout gọi `clearNuxtData` trước khi điều hướng; nhấp nháy ngắn không sai chức năng vì access token chỉ nằm trong bộ nhớ.
+- `shownErrorVi` lưu lỗi cũ, `authError` tùy ý, lệch hydration (false): luôn gán lại ở mỗi lần setup; `getApiErrorMessageVi` dùng `hasOwnProperty` và rơi về thông báo chung, Vue escape khi hiển thị; `router.replace` chạy sau lần render đầu.
+- `isOutOfCredit` chỉ so `=== 0`, bỏ qua số âm/NaN/dưới giá tác vụ (false/low): CSDL có `CHECK (balance >= 0)` và JSON không có NaN; AC ghi "0 credit".
+- Request thử lại vẫn 401 thì không xóa phiên (low, chưa chứng minh tới được): cần token vừa cấp bị từ chối ngay; hiện lỗi vẫn ném ra cho người gọi.
+- Test SSR cần build sẵn và regex phụ thuộc thứ tự thuộc tính (low): `pnpm --filter @motion-ai/web test` luôn build trước; thứ tự thuộc tính do template cố định.
+- `export { refreshShared }` đặt trước khai báo `const` (false): liên kết export ESM là động và không có mã nào đọc trước khi dòng khai báo chạy.
+- Test thiếu cho ToS/`deviceId` qua component, `pageshow`, kiểm tra `CONSENT_REQUIRED` phía client, định tuyến nút tài khoản (low): cần khung test DOM mà repo chưa có; phần hành vi chính đã có test ở mức client và SSR.
+- Chế độ `login` của `AuthDialog` là "chết" (false): `AuthDialog.vue:40` vẫn dùng `open('login', ...)` cho redirect `/?authError=` của BE (auth.controller.ts:173).
+- `getDeviceId` sinh id mới mỗi lần khi `localStorage` lỗi làm vô hiệu chống lạm dụng (false): BE đã bỏ qua `deviceId` của client, dùng cookie `motion_device` do server ký (commit sửa Story 1.8).
+- Đua giữa logout và request 401 đang bay (low): cần logout API lỗi cùng lúc có request đang bay; hiếm và chỉ tạo thêm một lần refresh.
+- Đường thử lại có thể dùng token đã bị từ chối (low): cờ `retried` chặn lặp, lần thử lại chỉ chạy một lần.
+
+#### Lượt review thứ ba (sau khi áp dụng 2 quyết định và 3 patch)
+
+Chế độ `full`, 4 lớp, diff 342 dòng (4 file). 0 `decision-needed`, 0 `patch`, 1 `defer`, phần còn lại bị loại. Acceptance Auditor không thấy vi phạm AC; hai điểm thu hẹp hành vi (khách giữ nguyên trang, chỉ 401/403 mất phiên) đã được người dùng chốt.
+
+- [x] [Review][Defer] `useAuth.restoreSession` (ánh xạ `outcome === 'ok'`, `sessionChecked` trong `.finally`) chưa có test chạy composable thật — đảo thành `outcome !== 'invalid'` thì mọi test vẫn xanh; cần khung Nuxt hoặc tách thêm một hàm thuần [useAuth.ts:30-40] — deferred: logic nằm trong một dòng ánh xạ, cần khung test Nuxt mà repo chưa có (verification-gap)
+
+##### Rejected (lượt 3)
+
+- Mã trạng thái cứng, 400/422/429 bị coi là tạm thời, 403 có thể không phải "phiên mất" (low): đã đối chiếu BE, `/auth/refresh` chỉ ném `UnauthorizedException` (401) cho mọi cookie thiếu/sai/thu hồi/hết hạn và `AccountLockedException` (403) khi bị khóa (auth.service.ts, account-locked.guard.ts:15). 401/403 khớp đúng hợp đồng; 429 của throttler cố ý là tạm thời để người dùng bị giới hạn tần suất không bị đăng xuất.
+- `sessionChecked` không được đánh dấu ở nhánh tạm thời của interceptor (false): `sessionChecked` chỉ được đọc ở `useAuth.restoreSession` (useAuth.ts:26), và hàm này trả sớm khi đã có `accessToken`; nhánh tạm thời giữ token nên không có gì chờ cờ này.
+- Nhánh tạm thời không có thử lại hoặc backoff, mỗi request sau đều gọi refresh lại (low): access token sống 15 phút nên chỉ phát sinh khi mạng hỏng đúng lúc token hết hạn; thêm backoff là thêm trạng thái, ngoài AC.
+- Khởi động nguội gặp lỗi tạm thời thì hiện như chưa đăng nhập và không tự thử lại (low): không có route guard nên không bị đẩy đi; tải lại trang khôi phục vì cookie còn hiệu lực. Chỉ gặp khi mạng hỏng đúng lúc mở trang.
+- `onSessionLost` chạy N lần với N request 401 song song, và request 401 đến muộn gọi refresh lần hai với cookie đã chết (low): trùng mục đã loại ở lượt 2; `navigateTo` trùng đích bị bỏ qua, `clearNuxtData` idempotent.
+- `clearData`/`navigate` ném lỗi che lỗi 401 gốc (low): trùng mục đã loại ở lượt 2; `requestLive` đã bọc `onUnauthorized` trong try/catch (api-client.ts:159-163) nên lỗi không lan ra và request gốc báo lỗi của chính nó.
+- Lỗi 401/403 không từ BE (proxy/CDN) ép đăng xuất, hoặc lỗi không có `status` bị coi tạm thời (low): `MotionApiClientError` luôn mang `status` số; giả định có proxy trả 401 cho `/auth/refresh` chưa có bằng chứng.
+- Test: thiếu khẳng định `setToken` không được gọi, thiếu ca token gửi là null, thiếu ca trộn `invalid` và `transient` (low): các ca này kiểm tra cùng một nhánh đã được test chặn (đảo `if (current && current !== sentToken)` làm test đỏ).
+- Tệp tạm `.tmp-index-*.mjs` trong `apps/web/test/` có thể va chạm hoặc để sót (false): `node --test test/*.test.mjs` chỉ nhận `*.test.mjs` nên không chạy nhầm; tệp phải nằm trong gói để `import 'vue'` phân giải được, và cùng mẫu với test `.tmp-dialog-*` của Story 1.4; có `finally` xóa tệp.
+- Stub `setup` của test trang chính cứng nhắc, vỡ khi `index.vue` đổi (low): khi template đổi, test báo lỗi rõ ràng chứ không âm thầm xanh; derive từ script là thay đổi lớn hơn lợi ích.
+- Các điểm nhỏ: chú thích đặt trên cả handler, `navigate` trả `Promise<unknown> | unknown`, `clearNuxtData` chỉ có test mock (low): không gây hành vi sai.
+
 ## Implementation Notes
 
 ## Spec Change Log

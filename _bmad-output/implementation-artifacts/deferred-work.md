@@ -65,3 +65,11 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-9-fe-dang-nhap-cam-ket-tos-va-so-du.md`
   summary: Thêm liên kết tới trang Điều khoản dịch vụ và `aria-describedby` giải thích vì sao nút đăng nhập bị vô hiệu trong `LoginConsentForm`.
   evidence: Văn bản cam kết chỉ nêu phiên bản ToS, người dùng không đọc được nội dung họ đồng ý; chưa có trang điều khoản vì văn bản ToS cuối cùng còn chờ PM (PRD §10).
+
+## Deferred from: code review of spec-1-9-fe-dang-nhap-cam-ket-tos-va-so-du (2026-11-03)
+
+- Không có đường quay lại trang cũ sau khi đăng nhập hoặc hết phiên: `navigateTo('/login')` không mang `redirect` và `login.vue` luôn về `/`. Cần thiết kế OAuth state mang đích về, chỉ nhận đường dẫn tương đối cùng origin. Ngoài AC của 1.9, phù hợp với story tích hợp 1.11.
+
+## Deferred from: code review lượt 3 of spec-1-9-fe-dang-nhap-cam-ket-tos-va-so-du (2026-11-03)
+
+- `useAuth.restoreSession` (ánh xạ `outcome === 'ok'` và `sessionChecked` trong `.finally`) chưa có test chạy composable thật; đảo thành `outcome !== 'invalid'` thì mọi test vẫn xanh. Cần khung test Nuxt hoặc tách thêm một hàm thuần vào `auth-session.ts`.

@@ -1,6 +1,7 @@
 import { clearNuxtData, navigateTo, useNuxtApp, useRuntimeConfig, useState } from '#imports';
 import {
   createRefreshCoordinator,
+  createSessionLostHandler,
   createUnauthorizedHandler,
 } from '~/utils/auth-session';
 import { createMotionApiClient, type MotionApiClient } from '~/utils/api-client';
@@ -43,16 +44,15 @@ export function useApiClient(): {
       refresh: () => client.refreshSession(),
       refreshShared,
       isServer: import.meta.server,
-      onSessionLost: async (hadToken) => {
-        sessionChecked.value = true;
-        // Khách xem công khai (chưa có token) giữ nguyên trang.
-        if (hadToken) {
-          clearNuxtData(ME_KEY);
-          await nuxtApp.runWithContext(() =>
-            navigateTo('/login', { replace: true }),
-          );
-        }
-      },
+      // Khách xem công khai (chưa có token) giữ nguyên trang.
+      onSessionLost: createSessionLostHandler({
+        markChecked: () => {
+          sessionChecked.value = true;
+        },
+        clearData: () => clearNuxtData(ME_KEY),
+        navigate: (path) =>
+          nuxtApp.runWithContext(() => navigateTo(path, { replace: true })),
+      }),
     }),
   });
 

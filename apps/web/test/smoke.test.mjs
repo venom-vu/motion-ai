@@ -23,6 +23,7 @@ import {
 } from '../utils/api-client.ts';
 import {
   createRefreshCoordinator,
+  createSessionLostHandler,
   createUnauthorizedHandler,
   isOutOfCredit,
   runLogout,
@@ -578,6 +579,8 @@ describe('@motion-ai/web — Story 1.9 đăng nhập, ToS và phiên', () => {
       calls: [],
       refreshCount: 0,
       refreshOk: true,
+      refreshMode: null,
+      refreshStatus: null,
       lost: [],
     };
     const refreshShared = createRefreshCoordinator();
@@ -603,9 +606,11 @@ describe('@motion-ai/web — Story 1.9 đăng nhập, ToS và phiên', () => {
         if (pathname === '/auth/refresh') {
           state.refreshCount += 1;
           await new Promise((r) => setTimeout(r, 5));
+          if (state.refreshMode === 'network') throw new TypeError('network down');
+          if (state.refreshMode === 'server-error') return json({ code: 'X' }, 503);
           return state.refreshOk
             ? json({ accessToken: 'new', tokenType: 'Bearer', expiresIn: 900 })
-            : json({ code: 'UNAUTHORIZED' }, 401);
+            : json({ code: 'UNAUTHORIZED' }, state.refreshStatus ?? 401);
         }
         if (auth === 'Bearer new') return json(MOCK_ME_PRO_RESPONSE);
         return json({ code: 'UNAUTHORIZED' }, 401);
@@ -653,6 +658,144 @@ describe('@motion-ai/web — Story 1.9 đăng nhập, ToS và phiên', () => {
     state.refreshOk = false;
     await assert.rejects(() => client.getMe());
     assert.deepEqual(state.lost, [false]);
+  });
+
+  it('refresh lỗi mạng hoặc 5xx: giữ token, không báo mất phiên, request gốc báo lỗi của nó', async () => {
+    for (const mode of ['network', 'server-error']) {
+      const { client, state } = makeClient();
+      state.refreshMode = mode;
+      await assert.rejects(
+        () => client.getMe(),
+        (e) => e instanceof MotionApiClientError && e.status === 401,
+      );
+      assert.equal(state.refreshCount, 1, mode);
+      assert.deepEqual(state.lost, [], `${mode}: không được báo mất phiên`);
+      assert.equal(state.token, 'old', `${mode}: token phải được giữ`);
+    }
+  });
+
+  it('refresh bị từ chối 401/403 mới là mất phiên', async () => {
+    for (const status of [401, 403]) {
+      const { client, state } = makeClient();
+      state.refreshOk = false;
+      state.refreshStatus = status;
+      await assert.rejects(() => client.getMe());
+      assert.deepEqual(state.lost, [true], `status ${status}`);
+      assert.equal(state.token, null);
+    }
+  });
+
+  it('request 401 đến muộn khi token đã được request khác làm mới: thử lại, không refresh thêm', async () => {
+    let refreshes = 0;
+    const handler = createUnauthorizedHandler({
+      getToken: () => 'new',
+      setToken: () => {},
+      refresh: async () => {
+        refreshes += 1;
+        return { accessToken: 'x' };
+      },
+      refreshShared: createRefreshCoordinator(),
+      isServer: false,
+      onSessionLost: () => {
+        throw new Error('không được báo mất phiên');
+      },
+    });
+    assert.equal(await handler('old'), true);
+    assert.equal(refreshes, 0);
+  });
+
+  it('createSessionLostHandler: đánh dấu đã kiểm tra, chỉ xóa dữ liệu và chuyển /login khi request đã mang token', async () => {
+    const calls = [];
+    const handler = createSessionLostHandler({
+      markChecked: () => calls.push('mark'),
+      clearData: () => calls.push('clear'),
+      navigate: (path) => calls.push(`nav:${path}`),
+    });
+    await handler(true);
+    assert.deepEqual(calls, ['mark', 'clear', 'nav:/login']);
+    calls.length = 0;
+    await handler(false);
+    assert.deepEqual(calls, ['mark'], 'khách xem công khai giữ nguyên trang');
+  });
+
+  it('runLogout chuyển tới /login và đi qua cùng hằng đường dẫn', async () => {
+    const paths = [];
+    await runLogout({
+      apiLogout: async () => {},
+      clearSession: () => {},
+      navigate: (path) => paths.push(path),
+    });
+    assert.deepEqual(paths, ['/login']);
+  });
+
+  it('trang chính render thông báo hết credit ở balance = 0, kèm liên kết /pricing, và không render ở balance 500', async () => {
+    const raw = fs.readFileSync(path.join(webRoot, 'pages/index.vue'), 'utf8');
+    const { descriptor } = parse(raw);
+    const compiled = compileTemplate({
+      id: 'test-index-page',
+      filename: 'index.vue',
+      source: descriptor.template.content,
+      ssr: true,
+      ssrCssVars: [],
+    });
+    assert.equal(compiled.errors.length, 0);
+
+    const tmpFile = path.join(webRoot, 'test', `.tmp-index-${Date.now()}.mjs`);
+    fs.writeFileSync(tmpFile, compiled.code, 'utf8');
+    try {
+      const { ssrRender } = await import(pathToFileURL(tmpFile).href);
+      async function render(me) {
+        const app = createSSRApp({
+          ssrRender,
+          setup() {
+            return {
+              me,
+              isOutOfCredit,
+              pricing: MOCK_PRICING_CONFIG_RESPONSE,
+              currentTier: 'FREE',
+              currentTierCapSeconds: 5,
+              features: [],
+              filteredFeatures: [],
+              categories: [],
+              FEATURE_CATEGORIES: [],
+              isLoading: false,
+              errorMessageVi: null,
+              selectedCategory: 'all',
+              searchKeyword: '',
+              activeFeature: null,
+              isWorkspaceOpen: false,
+              formatNumberVi: (n) => String(n),
+              refreshAll: () => {},
+              clearError: () => {},
+              openWorkspace: () => {},
+              closeWorkspace: () => {},
+            };
+          },
+        });
+        for (const name of ['Icon', 'ApiErrorBanner', 'FeatureCard', 'FeatureWorkspaceDialog']) {
+          app.component(name, { ssrRender(_c, push) { push('<span></span>'); } });
+        }
+        app.component('NuxtLink', {
+          props: ['to'],
+          ssrRender(ctx, push) {
+            push(`<a href="${ctx.to}">link</a>`);
+          },
+        });
+        return renderToString(app);
+      }
+
+      const empty = await render({ ...MOCK_ME_PRO_RESPONSE, balance: 0 });
+      assert.match(empty, /data-testid="zero-credit-notice"/);
+      assert.match(empty, /href="\/pricing"/);
+
+      const funded = await render({ ...MOCK_ME_PRO_RESPONSE, balance: 500 });
+      assert.doesNotMatch(funded, /data-testid="zero-credit-notice"/);
+
+      const guest = await render(null);
+      assert.doesNotMatch(guest, /data-testid="zero-credit-notice"/);
+    } finally {
+      fs.rmSync(tmpFile, { force: true });
+    }
   });
 
   it('SSR không bao giờ refresh', async () => {

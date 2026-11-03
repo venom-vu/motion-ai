@@ -30,11 +30,11 @@ export function useAuth() {
       () => client.refreshSession(),
       setAccessToken,
     )
-      .then(async (ok) => {
-        if (ok) {
+      .then(async (outcome) => {
+        if (outcome === 'ok') {
           await refreshNuxtData(ME_KEY);
         }
-        return ok;
+        return outcome === 'ok';
       })
       .finally(() => {
         sessionChecked.value = true;
@@ -51,7 +51,7 @@ export function useAuth() {
         sessionChecked.value = true;
         clearNuxtData(ME_KEY);
       },
-      navigate: () => navigateTo('/login', { replace: true }),
+      navigate: (path) => navigateTo(path, { replace: true }),
     });
   }
 

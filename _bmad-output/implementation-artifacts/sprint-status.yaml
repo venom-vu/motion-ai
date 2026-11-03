@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-01-2026 14:32
-last_updated: 11-03-2026 17:53
+last_updated: 11-03-2026 19:16
 project: motion-ai
 project_key: NOKEY
 tracking_system: file-system
@@ -45,7 +45,7 @@ development_status:
   1-6-be-sổ-cái-credit-bất-biến: done
   1-7-be-tier-api-ví-và-đối-soát-sổ-cái: done
   1-8-be-tặng-500-credit-và-chống-lạm-dụng: done
-  1-9-fe-đăng-nhập-cam-kết-tos-và-số-dư: review
+  1-9-fe-đăng-nhập-cam-kết-tos-và-số-dư: done
   1-10-fe-lịch-sử-credit: backlog
   1-11-integration-nối-fe-với-be-và-smoke-test-đăng-nhập: backlog
   epic-1-retrospective: optional
