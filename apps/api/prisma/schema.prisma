@@ -23,9 +23,12 @@ model User {
   tosVersion    String         @map("tos_version")
   tosAcceptedAt DateTime       @default(now()) @map("tos_accepted_at") @db.Timestamptz(6)
   lockedAt      DateTime?      @map("locked_at") @db.Timestamptz(6)
+  balance       BigInt         @default(0) @map("balance")
+  held          BigInt         @default(0) @map("held")
   createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
   refreshTokens RefreshToken[]
+  ledgerEntries LedgerEntry[]
 
   @@map("users")
 }
@@ -41,4 +44,19 @@ model RefreshToken {
 
   @@index([userId])
   @@map("refresh_tokens")
+}
+
+model LedgerEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  type      String   @map("type")
+  amount    BigInt   @map("amount")
+  taskId    String?  @map("task_id") @db.Uuid
+  topupId   String?  @map("topup_id") @db.Uuid
+  pack      String?  @map("pack")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@map("ledger_entries")
 }

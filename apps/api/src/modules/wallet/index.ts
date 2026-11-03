@@ -1,4 +1,2 @@
-import { Module } from '@nestjs/common';
-
-@Module({})
-export class WalletModule {}
+export * from './wallet.module.js';
+export * from './wallet.service.js';

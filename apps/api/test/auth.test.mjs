@@ -138,7 +138,7 @@ describe('Story 1.5: [BE] Đăng nhập Google và phiên JWT', () => {
   });
 
   describe('AC8: Ràng buộc cơ sở dữ liệu và cấu trúc bảng users, refresh_tokens', () => {
-    it('chỉ tạo bảng users (không có cột balance, held, tier) và refresh_tokens', async () => {
+    it('bảng users (chưa có cột tier) và refresh_tokens', async () => {
       const userColumns = await pool.query(`
         SELECT column_name, data_type 
         FROM information_schema.columns 
@@ -156,9 +156,7 @@ describe('Story 1.5: [BE] Đăng nhập Google và phiên JWT', () => {
       assert.ok(colNames.includes('created_at'), 'bảng users phải có cột created_at');
       assert.ok(colNames.includes('updated_at'), 'bảng users phải có cột updated_at');
 
-      // Bắt buộc: tuyệt đối KHÔNG có cột ví ở story 1.5
-      assert.ok(!colNames.includes('balance'), 'bảng users tuyệt đối không có cột balance');
-      assert.ok(!colNames.includes('held'), 'bảng users tuyệt đối không có cột held');
+      // balance/held do Story 1.6 (wallet) thêm; tier thuộc Story 1.7
       assert.ok(!colNames.includes('tier'), 'bảng users tuyệt đối không có cột tier');
 
       const tokenColumns = await pool.query(`
