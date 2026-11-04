@@ -56,6 +56,14 @@ export class UploadsService {
     const uuid = crypto.randomUUID();
     const key = `in-raw/${userId}/${uuid}`;
 
+    // Ký trước khi ghi DB: lỗi ký không để lại bản ghi pending chiếm hạn mức.
+    const presigned = await this.storage.presignPut({
+      key,
+      contentType: req.mimeType,
+      contentLength: req.sizeBytes,
+      expiresInSeconds: PRESIGN_TTL_SECONDS,
+    });
+
     await this.prisma.$transaction(async (tx) => {
       // Khóa dòng user để hai request song song không cùng vượt giới hạn.
       await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
@@ -81,21 +89,6 @@ export class UploadsService {
       });
     });
 
-    let presigned;
-    try {
-      presigned = await this.storage.presignPut({
-        key,
-        contentType: req.mimeType,
-        contentLength: req.sizeBytes,
-        expiresInSeconds: PRESIGN_TTL_SECONDS,
-      });
-    } catch (err) {
-      await this.prisma.upload.updateMany({
-        where: { key, status: 'pending' },
-        data: { status: 'expired' },
-      });
-      throw err;
-    }
     return {
       key,
       method: 'PUT',
@@ -106,15 +99,17 @@ export class UploadsService {
   }
 
   private async rejectInvalid(rawKey: string, message: string): Promise<never> {
+    // Đánh dấu expired trước: nếu xóa đối tượng lỗi thì lifecycle in-raw/ dọn sau,
+    // còn bản ghi không bị kẹt pending trỏ tới đối tượng đã mất.
+    await this.prisma.upload.updateMany({
+      where: { key: rawKey, status: 'pending' },
+      data: { status: 'expired' },
+    });
     try {
       await this.storage.delete(rawKey);
     } catch (err) {
       this.logger.warn(`Không xóa được đối tượng ${rawKey}: ${String(err)}`);
     }
-    await this.prisma.upload.updateMany({
-      where: { key: rawKey, status: 'pending' },
-      data: { status: 'expired' },
-    });
     throw apiError(BadRequestException, ApiErrorCode.VALIDATION_FAILED, message);
   }
 
@@ -154,8 +149,10 @@ export class UploadsService {
     ) {
       return this.rejectInvalid(rawKey, 'Tệp tải lên không phải ảnh hợp lệ.');
     }
-    width = meta.width;
-    height = meta.height;
+    // EXIF orientation 5-8 hoán đổi chiều ngang/dọc khi hiển thị; kiểm tra và báo cáo theo kích thước sau xoay.
+    const rotated = (meta.orientation ?? 1) >= 5;
+    width = rotated ? meta.height : meta.width;
+    height = rotated ? meta.width : meta.height;
     const pre = ImageMetaSchema.safeParse({
       mimeType: upload.mimeType,
       sizeBytes: head.sizeBytes,

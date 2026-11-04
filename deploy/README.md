@@ -32,3 +32,5 @@ node --env-file=apps/api/.env apps/api/dist/scripts/configure-bucket.js
 ```
 
 Script đặt CORS chỉ cho `FRONTEND_URL` (PUT/GET/HEAD) và lifecycle: `in-raw/` xóa sau 1 ngày, `in/` xóa sau 7 ngày. Job worker mỗi giờ chuyển bản ghi `uploads` pending quá 24 giờ sang `expired`.
+
+Presigned PUT ký kèm `Content-Type` và `Content-Length`: client phải PUT đúng `Content-Type` trả về trong `headers` và body có độ dài đúng bằng `sizeBytes` đã khai báo (không dùng chunked/stream), nếu không R2 trả 403.
