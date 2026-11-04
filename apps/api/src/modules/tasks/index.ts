@@ -1,4 +1,3 @@
-import { Module } from '@nestjs/common';
-
-@Module({})
-export class TasksModule {}
+export * from './tasks.module.js';
+export * from './tasks.service.js';
+export * from './tasks.controller.js';

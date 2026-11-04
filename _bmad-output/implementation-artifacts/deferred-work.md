@@ -90,3 +90,13 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-2-be-tai-anh-len-r2-an-toan.md`
   summary: Script `configure-bucket` thay toàn bộ lifecycle, chưa có rule `out/` 30 ngày, chưa kiểm bucket riêng tư, `FRONTEND_URL` rỗng rơi về localhost.
   evidence: `PutBucketLifecycleConfiguration` ghi đè; thêm rule `out/` ở Story 2.6.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-3-be-tao-task-face-swap-va-xep-vao-hang-doi.md`
+  summary: `queue.add` có thể treo khi Redis mất kết nối, làm `POST /tasks/face-swap` vượt 2 giây (chưa kiểm chứng).
+  evidence: `maxRetriesPerRequest: null` khiến lệnh BullMQ xếp hàng chờ thay vì lỗi; cần thử tắt Redis để xác nhận rồi thêm timeout quanh enqueue.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-3-be-tao-task-face-swap-va-xep-vao-hang-doi.md`
+  summary: Giao dịch tạo Task có thể vượt timeout mặc định 5 giây của Prisma khi chờ khóa dòng user (P2028), chưa kiểm chứng.
+  evidence: Chưa có test chờ khóa lâu; cần mô phỏng để quyết định đặt `maxWait`/`timeout` và ánh xạ lỗi.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-3-be-tao-task-face-swap-va-xep-vao-hang-doi.md`
+  summary: Test throttle auth trong `signup-grant.test.mjs` flaky khi chạy cả bộ vì các file test song song dùng chung bộ đếm Redis.
+  evidence: Thấy fail một lần ở dòng 881 (429 sớm) trong lần chạy đầu, hai lần sau xanh; diff Story 2.3 không đụng auth.

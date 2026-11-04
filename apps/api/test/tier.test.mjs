@@ -18,6 +18,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../dist/generated/prisma/client.js';
 import { bootstrapApi } from '../dist/main.js';
 import { WalletService } from '../dist/modules/wallet/index.js';
+import { withTaskRows } from './helpers/task-fixture.mjs';
 import { ReconcileService } from '../dist/modules/ops/index.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -72,7 +73,7 @@ describe('Story 1.7: [BE] Tier, API ví và đối soát sổ cái', () => {
   let app;
   let baseUrl;
   let jwt;
-  const wallet = new WalletService();
+  const wallet = withTaskRows(new WalletService());
   const runId = crypto.randomBytes(4).toString('hex');
   const userIds = [];
   const uuid = () => crypto.randomUUID();
@@ -120,6 +121,7 @@ describe('Story 1.7: [BE] Tier, API ví và đối soát sổ cái', () => {
   after(async () => {
     if (pool) {
       await pool.query('DELETE FROM ledger_entries WHERE user_id = ANY($1::uuid[])', [userIds]);
+      await pool.query('DELETE FROM tasks WHERE user_id = ANY($1::uuid[])', [userIds]);
       await prisma.user.deleteMany({ where: { id: { in: userIds } } });
       await prisma.$disconnect();
     }

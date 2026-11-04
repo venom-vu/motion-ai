@@ -10,6 +10,7 @@ import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../dist/generated/prisma/client.js';
 import { WalletService } from '../dist/modules/wallet/index.js';
+import { insertTaskRow, withTaskRows } from './helpers/task-fixture.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const apiRoot = path.resolve(__dirname, '..');
@@ -53,7 +54,7 @@ async function ensureInfra() {
 describe('Story 1.6: [BE] Sổ cái credit bất biến', () => {
   let pool;
   let prisma;
-  const wallet = new WalletService();
+  const wallet = withTaskRows(new WalletService());
   const runId = crypto.randomBytes(4).toString('hex');
   const userIds = [];
 
@@ -106,6 +107,7 @@ describe('Story 1.6: [BE] Sổ cái credit bất biến', () => {
     if (prisma) {
       // Dọn dẹp bằng SQL thô (test-only); sổ cái là append-only trong mã ứng dụng.
       await pool.query('DELETE FROM ledger_entries WHERE user_id = ANY($1::uuid[])', [userIds]);
+      await pool.query('DELETE FROM tasks WHERE user_id = ANY($1::uuid[])', [userIds]);
       await prisma.user.deleteMany({ where: { id: { in: userIds } } });
       await prisma.$disconnect();
     }
@@ -171,6 +173,7 @@ describe('Story 1.6: [BE] Sổ cái credit bất biến', () => {
   it('chỉ mục duy nhất từ chối HOLD kép ở mức DB (P2002)', async () => {
     const u = await newUser(0);
     const task = uuid();
+    await insertTaskRow(prisma, u, task);
     await prisma.ledgerEntry.create({ data: { userId: u, type: 'HOLD', amount: -1n, taskId: task } });
     await assert.rejects(
       prisma.ledgerEntry.create({ data: { userId: u, type: 'HOLD', amount: -1n, taskId: task } }),
@@ -237,6 +240,7 @@ describe('Story 1.6: [BE] Sổ cái credit bất biến', () => {
   it('chỉ mục DB từ chối CAPTURED + RELEASED cùng task', async () => {
     const u = await newUser(0);
     const task = uuid();
+    await insertTaskRow(prisma, u, task);
     await prisma.ledgerEntry.create({ data: { userId: u, type: 'CAPTURED', amount: 0n, taskId: task } });
     await assert.rejects(
       prisma.ledgerEntry.create({ data: { userId: u, type: 'RELEASED', amount: 1n, taskId: task } }),

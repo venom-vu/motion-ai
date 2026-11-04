@@ -32,6 +32,7 @@ model User {
   ledgerEntries LedgerEntry[]
   signupGrant   SignupGrant?
   uploads       Upload[]
+  tasks         Task[]
 
   @@map("users")
 }
@@ -59,6 +60,7 @@ model LedgerEntry {
   pack      String?  @map("pack")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: Restrict)
 
   @@index([userId, createdAt])
   @@map("ledger_entries")
@@ -96,4 +98,28 @@ model Upload {
 
   @@index([userId, status, createdAt])
   @@map("uploads")
+}
+
+model Task {
+  id              String        @id @db.Uuid
+  userId          String        @map("user_id") @db.Uuid
+  pipeline        String        @map("pipeline")
+  status          String        @default("queued") @map("status")
+  reasonCode      String?       @map("reason_code")
+  tierSnapshot    Json          @map("tier_snapshot")
+  consent         Boolean       @map("consent")
+  tosVersion      String        @map("tos_version")
+  inputKeys       Json          @map("input_keys")
+  params          Json          @default("{}") @map("params")
+  holdAmount      Int           @map("hold_amount")
+  queuedAt        DateTime      @default(now()) @map("queued_at") @db.Timestamptz(6)
+  enqueueAttempts Int           @default(0) @map("enqueue_attempts")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ledgerEntries   LedgerEntry[]
+
+  @@index([userId, status])
+  @@index([status, queuedAt])
+  @@map("tasks")
 }

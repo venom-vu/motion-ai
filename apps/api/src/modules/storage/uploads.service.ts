@@ -227,6 +227,16 @@ export class UploadsService {
     return { key: confirmedKey, image: image.data } as UploadConfirmResponse;
   }
 
+  /** Trả true khi mọi khóa `in/` đều thuộc userId và đã confirmed (AD-1: chỉ storage đọc bảng uploads). */
+  async areConfirmedKeysOwnedBy(userId: string, keys: string[]): Promise<boolean> {
+    const unique = [...new Set(keys)];
+    const rows = await this.prisma.upload.findMany({
+      where: { userId, status: 'confirmed', confirmedKey: { in: unique } },
+      select: { confirmedKey: true },
+    });
+    return rows.length === unique.length;
+  }
+
   /** Chuyển bản ghi pending quá 24 giờ sang expired. Trả số bản ghi đã chuyển. */
   async expireStalePending(now: Date = new Date()): Promise<number> {
     const res = await this.prisma.upload.updateMany({
