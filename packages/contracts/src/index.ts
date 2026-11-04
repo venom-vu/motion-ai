@@ -7,4 +7,6 @@ export interface HealthContract {
 export * from './errors.js';
 export * from './auth.js';
 export * from './wallet.js';
+export * from './uploads.js';
+export * from './tasks.js';
 export * from './mocks.js';

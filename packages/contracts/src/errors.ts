@@ -12,6 +12,9 @@ export enum ApiErrorCode {
   VALIDATION_FAILED = 'VALIDATION_FAILED',
   RATE_LIMITED = 'RATE_LIMITED',
   EMAIL_LINKED_TO_OTHER_ACCOUNT = 'EMAIL_LINKED_TO_OTHER_ACCOUNT',
+  NOT_FOUND = 'NOT_FOUND',
+  FORBIDDEN = 'FORBIDDEN',
+  CONFLICT = 'CONFLICT',
 }
 
 export const ApiErrorCodeSchema = z.nativeEnum(ApiErrorCode);
@@ -48,6 +51,12 @@ export const API_ERROR_MESSAGES_VI: Readonly<Record<ApiErrorCode, string>> = {
     'Bạn thao tác quá nhanh. Vui lòng đợi ít phút rồi thử lại.',
   [ApiErrorCode.EMAIL_LINKED_TO_OTHER_ACCOUNT]:
     'Email này đã được liên kết với một tài khoản Google khác. Vui lòng đăng nhập bằng đúng tài khoản Google đã đăng ký.',
+  [ApiErrorCode.NOT_FOUND]:
+    'Không tìm thấy nội dung bạn yêu cầu hoặc liên kết đã bị thu hồi.',
+  [ApiErrorCode.FORBIDDEN]:
+    'Bạn không có quyền thực hiện thao tác này.',
+  [ApiErrorCode.CONFLICT]:
+    'Thao tác không phù hợp với trạng thái hiện tại của tác vụ. Vui lòng tải lại và thử lại.',
 };
 
 /**

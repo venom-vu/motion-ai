@@ -43,3 +43,13 @@ Gói hợp đồng dùng chung (Shared Contracts) giữa Backend (`@motion-ai/ap
 ### 4. Dữ liệu Mock (`src/mocks.ts`)
 
 - Cung cấp `DEFAULT_PRICING_CONFIG`, `MOCK_PRICING_CONFIG_RESPONSE`, `MOCK_ME_RESPONSE`, `MOCK_ME_ZERO_BALANCE_RESPONSE`, `MOCK_ME_PRO_RESPONSE`, `MOCK_WALLET_LEDGER_ITEMS`, `MOCK_WALLET_LEDGER_RESPONSE` và các phản hồi mock cho luồng đăng nhập để Frontend phát triển độc lập ở chế độ mock.
+
+### 5. Tải lên, Task và kết quả (Epic 2: `src/uploads.ts`, `src/tasks.ts`)
+
+- Quy tắc ảnh dùng chung FE/BE: `ImageFileDeclarationSchema` (loại + dung lượng khai báo, dùng cho `POST /uploads`), `ImageMetaSchema` (thêm `width`/`height`: JPG/PNG/WebP, tối đa 10 MB, cạnh ngắn >= 512 px, tỷ lệ 1:2 đến 2:1) và các hằng số giới hạn.
+- Endpoint tải lên: `POST /uploads` (`UploadCreateRequestSchema`/`UploadCreateResponseSchema`), `POST /uploads/{key}/confirm` (`UploadConfirm*`; `{key}` là khóa `in-raw/<uuid>/<uuid>`, cần URL-encode khi đặt vào đường dẫn).
+- Enum `ReasonCode` (16 mã), `TaskStatus` (6 trạng thái), `TaskSchema` với bất biến trạng thái/`reasonCode`/`queuePosition`/`resultKey`.
+- Endpoint Task: `POST /tasks/face-swap` (`consent` chỉ nhận `true`, không nhận credit từ client), `GET /tasks` (cursor), `GET /tasks/{id}`, `POST /tasks/{id}/cancel`, `GET /tasks/{id}/result` (`sourceUrl` nullable), `POST`/`DELETE /tasks/{id}/share`, `GET /s/{token}` (chỉ params; thành công là chuyển hướng, 404 dùng `ApiError`).
+- Thông báo tiếng Việt theo `reasonCode`: `REASON_CODE_MESSAGES_VI`, `getReasonCodeMessageVi(code, pipeline?)` (ghi đè `NO_POSE` cho `body_retouch`/`motion_control`).
+- Mã lỗi API mới: `NOT_FOUND`, `FORBIDDEN`, `CONFLICT`.
+- Mock: `MOCK_TASKS_BY_STATUS` (6 trạng thái), `MOCK_TASK_LIST_RESPONSE`, `MOCK_UPLOAD_*`, `MOCK_TASK_RESULT_*`, `MOCK_TASK_SHARE_*`.

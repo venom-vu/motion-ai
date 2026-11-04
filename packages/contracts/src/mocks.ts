@@ -6,6 +6,20 @@ import {
   type AuthLogoutResponse,
   type AuthRefreshResponse,
 } from './auth.js';
+import type {
+  FaceSwapCreateRequest,
+  Task,
+  TaskListResponse,
+  TaskResultResponse,
+  TaskShareResponse,
+  TaskShareRevokeResponse,
+  TaskStatus,
+} from './tasks.js';
+import type {
+  UploadConfirmResponse,
+  UploadCreateRequest,
+  UploadCreateResponse,
+} from './uploads.js';
 import {
   LEDGER_ENTRY_LABELS_VI,
   type LedgerEntry,
@@ -274,4 +288,114 @@ export const MOCK_AUTH_REFRESH_RESPONSE: AuthRefreshResponse = {
 
 export const MOCK_AUTH_LOGOUT_RESPONSE: AuthLogoutResponse = {
   success: true,
+};
+
+/* ---------------- Epic 2: tải lên, Task, kết quả, chia sẻ ---------------- */
+
+const MOCK_USER_ID = '10000000-0000-4000-8000-000000000001';
+const mockTaskBase = {
+  pipeline: 'face_swap',
+  creditCost: 100,
+  createdAt: '2026-11-04T08:00:00.000Z',
+  updatedAt: '2026-11-04T08:01:00.000Z',
+} as const;
+
+export const MOCK_UPLOAD_CREATE_REQUEST: UploadCreateRequest = {
+  mimeType: 'image/jpeg',
+  sizeBytes: 2 * 1024 * 1024,
+};
+
+export const MOCK_UPLOAD_CREATE_RESPONSE: UploadCreateResponse = {
+  key: `in-raw/${MOCK_USER_ID}/60000000-0000-4000-8000-000000000001`,
+  method: 'PUT',
+  uploadUrl: 'https://uploads.example.test/in-raw/presigned',
+  headers: { 'Content-Type': 'image/jpeg' },
+  expiresAt: '2026-11-04T08:10:00.000Z',
+};
+
+export const MOCK_UPLOAD_CONFIRM_RESPONSE: UploadConfirmResponse = {
+  key: `in/${MOCK_USER_ID}/60000000-0000-4000-8000-000000000001`,
+  image: { mimeType: 'image/jpeg', sizeBytes: 2 * 1024 * 1024, width: 1024, height: 1280 },
+};
+
+export const MOCK_FACE_SWAP_CREATE_REQUEST: FaceSwapCreateRequest = {
+  sourceKey: `in/${MOCK_USER_ID}/60000000-0000-4000-8000-000000000001`,
+  targetKey: `in/${MOCK_USER_ID}/60000000-0000-4000-8000-000000000002`,
+  consent: true,
+};
+
+export const MOCK_TASK_QUEUED: Task = {
+  ...mockTaskBase,
+  id: '70000000-0000-4000-8000-000000000001',
+  status: 'queued',
+  queuePosition: 3,
+};
+export const MOCK_TASK_RUNNING: Task = {
+  ...mockTaskBase,
+  id: '70000000-0000-4000-8000-000000000002',
+  status: 'running',
+};
+export const MOCK_TASK_SUCCEEDED: Task = {
+  ...mockTaskBase,
+  id: '70000000-0000-4000-8000-000000000003',
+  status: 'succeeded',
+  resultKey: `out/${MOCK_USER_ID}/80000000-0000-4000-8000-000000000003`,
+};
+export const MOCK_TASK_FAILED: Task = {
+  ...mockTaskBase,
+  id: '70000000-0000-4000-8000-000000000004',
+  status: 'failed',
+  reasonCode: 'NO_FACE',
+};
+export const MOCK_TASK_TIMED_OUT: Task = {
+  ...mockTaskBase,
+  id: '70000000-0000-4000-8000-000000000005',
+  status: 'timed_out',
+  reasonCode: 'FREE_WAIT_EXPIRED',
+};
+export const MOCK_TASK_CANCELLED: Task = {
+  ...mockTaskBase,
+  id: '70000000-0000-4000-8000-000000000006',
+  status: 'cancelled',
+  reasonCode: 'USER_CANCEL',
+};
+
+export const MOCK_TASKS_BY_STATUS: Record<TaskStatus, Task> = {
+  queued: MOCK_TASK_QUEUED,
+  running: MOCK_TASK_RUNNING,
+  succeeded: MOCK_TASK_SUCCEEDED,
+  failed: MOCK_TASK_FAILED,
+  timed_out: MOCK_TASK_TIMED_OUT,
+  cancelled: MOCK_TASK_CANCELLED,
+};
+
+export const MOCK_TASK_LIST_RESPONSE: TaskListResponse = {
+  items: [
+    MOCK_TASK_QUEUED,
+    MOCK_TASK_RUNNING,
+    MOCK_TASK_SUCCEEDED,
+    MOCK_TASK_FAILED,
+    MOCK_TASK_TIMED_OUT,
+    MOCK_TASK_CANCELLED,
+  ],
+  pageSize: 20,
+  hasMore: false,
+  nextCursor: null,
+};
+
+export const MOCK_TASK_RESULT_RESPONSE: TaskResultResponse = {
+  resultUrl: 'https://cdn.example.test/out/signed-result.jpg',
+  sourceUrl: 'https://cdn.example.test/in/signed-source.jpg',
+};
+export const MOCK_TASK_RESULT_EXPIRED_SOURCE_RESPONSE: TaskResultResponse = {
+  resultUrl: 'https://cdn.example.test/out/signed-result.jpg',
+  sourceUrl: null,
+};
+
+export const MOCK_TASK_SHARE_RESPONSE: TaskShareResponse = {
+  token: 'mock-share-token-0123456789abcdef',
+  shareUrl: 'https://motion.example.test/s/mock-share-token-0123456789abcdef',
+};
+export const MOCK_TASK_SHARE_REVOKE_RESPONSE: TaskShareRevokeResponse = {
+  revoked: true,
 };

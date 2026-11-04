@@ -16,6 +16,34 @@ import {
   AuthRefreshRequestSchema,
   AuthRefreshResponseSchema,
   CONTRACTS_PACKAGE_VERSION,
+  FaceSwapCreateRequestSchema,
+  ConfirmedUploadKeySchema,
+  RawUploadKeySchema,
+  ImageMetaSchema,
+  MOCK_FACE_SWAP_CREATE_REQUEST,
+  MOCK_TASKS_BY_STATUS,
+  MOCK_TASK_LIST_RESPONSE,
+  MOCK_TASK_RESULT_EXPIRED_SOURCE_RESPONSE,
+  MOCK_TASK_RESULT_RESPONSE,
+  MOCK_TASK_SHARE_RESPONSE,
+  MOCK_TASK_SHARE_REVOKE_RESPONSE,
+  MOCK_UPLOAD_CONFIRM_RESPONSE,
+  MOCK_UPLOAD_CREATE_REQUEST,
+  MOCK_UPLOAD_CREATE_RESPONSE,
+  REASON_CODES,
+  ReasonCodeSchema,
+  SharePublicParamsSchema,
+  TASK_STATUSES,
+  TaskListQuerySchema,
+  TaskListResponseSchema,
+  TaskResultResponseSchema,
+  TaskSchema,
+  TaskShareResponseSchema,
+  TaskShareRevokeResponseSchema,
+  UploadConfirmResponseSchema,
+  UploadCreateRequestSchema,
+  UploadCreateResponseSchema,
+  getReasonCodeMessageVi,
   LEDGER_ENTRY_LABELS_VI,
   LedgerEntrySchema,
   MOCK_AUTH_GOOGLE_CALLBACK_RESPONSE,
@@ -49,7 +77,7 @@ describe('@motion-ai/contracts', () => {
   });
 
   describe('ApiErrorCode & ApiErrorSchema (AC1)', () => {
-    it('exports all 8 required ApiErrorCode values and fallback message for unknown codes', () => {
+    it('exports all 11 required ApiErrorCode values and fallback message for unknown codes', () => {
       const expectedCodes = [
         'PAUSED',
         'INSUFFICIENT_CREDIT',
@@ -59,6 +87,9 @@ describe('@motion-ai/contracts', () => {
         'VALIDATION_FAILED',
         'RATE_LIMITED',
         'EMAIL_LINKED_TO_OTHER_ACCOUNT',
+        'NOT_FOUND',
+        'FORBIDDEN',
+        'CONFLICT',
       ];
       assert.deepEqual(Object.values(ApiErrorCode), expectedCodes);
 
@@ -655,6 +686,129 @@ describe('@motion-ai/contracts', () => {
           '[ASSUMPTION: ARCHITECTURE-SPINE chưa ghim thư viện schema]',
         ),
       );
+    });
+  });
+
+  describe('Epic 2 contracts', () => {
+    const baseTask = MOCK_TASKS_BY_STATUS.running;
+
+    it('exports 16 reasonCode and 6 statuses', () => {
+      assert.equal(REASON_CODES.length, 16);
+      assert.equal(new Set(REASON_CODES).size, 16);
+      assert.deepEqual(TASK_STATUSES, [
+        'queued', 'running', 'succeeded', 'failed', 'timed_out', 'cancelled',
+      ]);
+      assert.equal(ReasonCodeSchema.safeParse('FOO').success, false);
+    });
+
+    it('validates upload declaration and measured image', () => {
+      assert.equal(UploadCreateRequestSchema.safeParse(MOCK_UPLOAD_CREATE_REQUEST).success, true);
+      assert.equal(UploadCreateRequestSchema.safeParse({ mimeType: 'image/gif', sizeBytes: 100 }).success, false);
+      const big = UploadCreateRequestSchema.safeParse({ mimeType: 'image/png', sizeBytes: 10 * 1024 * 1024 + 1 });
+      assert.equal(big.success, false);
+      assert.deepEqual(big.error.issues[0].path, ['sizeBytes']);
+      const ok = { mimeType: 'image/webp', sizeBytes: 1000, width: 512, height: 1024 };
+      assert.equal(ImageMetaSchema.safeParse(ok).success, true);
+      const small = ImageMetaSchema.safeParse({ ...ok, width: 511, height: 600 });
+      assert.equal(small.success, false);
+      assert.deepEqual(small.error.issues[0].path, ['width']);
+      const ratio = ImageMetaSchema.safeParse({ ...ok, width: 1300, height: 600 });
+      assert.equal(ratio.success, false);
+      assert.deepEqual(ratio.error.issues[0].path, ['width']);
+      const landscapeSmall = ImageMetaSchema.safeParse({ ...ok, width: 600, height: 511 });
+      assert.equal(landscapeSmall.success, false);
+      assert.deepEqual(landscapeSmall.error.issues[0].path, ['height']);
+      const portraitRatio = ImageMetaSchema.safeParse({ ...ok, width: 600, height: 1300 });
+      assert.equal(portraitRatio.success, false);
+      assert.deepEqual(portraitRatio.error.issues[0].path, ['height']);
+    });
+
+    it('requires consent === true', () => {
+      assert.equal(FaceSwapCreateRequestSchema.safeParse(MOCK_FACE_SWAP_CREATE_REQUEST).success, true);
+      const { consent: _c, ...noConsent } = MOCK_FACE_SWAP_CREATE_REQUEST;
+      assert.equal(FaceSwapCreateRequestSchema.safeParse(noConsent).success, false);
+      assert.equal(FaceSwapCreateRequestSchema.safeParse({ ...noConsent, consent: false }).success, false);
+    });
+
+    it('enforces Task invariants', () => {
+      const bad = [
+        { ...MOCK_TASKS_BY_STATUS.failed, reasonCode: undefined },
+        { ...MOCK_TASKS_BY_STATUS.succeeded, reasonCode: 'NO_FACE' },
+        { ...MOCK_TASKS_BY_STATUS.queued, queuePosition: undefined },
+        { ...baseTask, queuePosition: 1 },
+        { ...baseTask, resultKey: 'out/u/k' },
+        { ...MOCK_TASKS_BY_STATUS.succeeded, resultKey: undefined },
+        { ...MOCK_TASKS_BY_STATUS.cancelled, reasonCode: 'NO_FACE' },
+        { ...MOCK_TASKS_BY_STATUS.failed, reasonCode: 'FREE_WAIT_EXPIRED' },
+        { ...MOCK_TASKS_BY_STATUS.failed, reasonCode: 'FOO' },
+      ];
+      bad.forEach((t, i) => assert.equal(TaskSchema.safeParse(t).success, false, `case ${i}`));
+      const missing = TaskSchema.safeParse(bad[0]);
+      assert.deepEqual(missing.error.issues[0].path, ['reasonCode']);
+    });
+
+    it('rejects cross-state reasonCode and malformed keys', () => {
+      const f = MOCK_TASKS_BY_STATUS.failed;
+      assert.equal(TaskSchema.safeParse({ ...f, reasonCode: 'USER_CANCEL' }).success, false);
+      assert.equal(TaskSchema.safeParse({ ...f, reasonCode: 'PREP_TIMEOUT' }).success, false);
+      assert.equal(
+        TaskSchema.safeParse({ ...MOCK_TASKS_BY_STATUS.timed_out, reasonCode: 'PREP_TIMEOUT' }).success,
+        true,
+      );
+      assert.equal(
+        FaceSwapCreateRequestSchema.safeParse({ ...MOCK_FACE_SWAP_CREATE_REQUEST, creditCost: 1 }).success,
+        false,
+      );
+      assert.equal(
+        FaceSwapCreateRequestSchema.safeParse({
+          ...MOCK_FACE_SWAP_CREATE_REQUEST,
+          sourceKey: MOCK_UPLOAD_CREATE_RESPONSE.key,
+        }).success,
+        false,
+      );
+      assert.equal(ConfirmedUploadKeySchema.safeParse('in/../x').success, false);
+      assert.equal(RawUploadKeySchema.safeParse('in-raw/../x').success, false);
+      assert.equal(
+        TaskSchema.safeParse({ ...MOCK_TASKS_BY_STATUS.succeeded, resultKey: 'out/../x' }).success,
+        false,
+      );
+      assert.equal(
+        ImageMetaSchema.safeParse({ mimeType: 'image/png', sizeBytes: 1000, width: 1024, height: 512 }).success,
+        true,
+      );
+    });
+
+    it('parses all mocks against their schemas', () => {
+      for (const status of TASK_STATUSES) {
+        assert.equal(MOCK_TASKS_BY_STATUS[status].status, status);
+        assert.equal(TaskSchema.safeParse(MOCK_TASKS_BY_STATUS[status]).success, true, status);
+      }
+      assert.equal(TaskListResponseSchema.safeParse(MOCK_TASK_LIST_RESPONSE).success, true);
+      assert.equal(TaskListQuerySchema.parse({}).pageSize, 20);
+      assert.equal(UploadCreateResponseSchema.safeParse(MOCK_UPLOAD_CREATE_RESPONSE).success, true);
+      assert.equal(UploadConfirmResponseSchema.safeParse(MOCK_UPLOAD_CONFIRM_RESPONSE).success, true);
+      assert.equal(TaskResultResponseSchema.safeParse(MOCK_TASK_RESULT_RESPONSE).success, true);
+      assert.equal(TaskResultResponseSchema.safeParse(MOCK_TASK_RESULT_EXPIRED_SOURCE_RESPONSE).success, true);
+      assert.equal(TaskShareResponseSchema.safeParse(MOCK_TASK_SHARE_RESPONSE).success, true);
+      assert.equal(TaskShareRevokeResponseSchema.safeParse(MOCK_TASK_SHARE_REVOKE_RESPONSE).success, true);
+      assert.equal(SharePublicParamsSchema.safeParse({ token: 'abc' }).success, true);
+    });
+
+    it('looks up reasonCode messages with pipeline overrides', () => {
+      assert.equal(getReasonCodeMessageVi('NO_FACE'), 'Không nhận diện được khuôn mặt trong ảnh');
+      assert.equal(
+        getReasonCodeMessageVi('CONTENT_BLOCKED'),
+        'Ảnh/video vi phạm tiêu chuẩn cộng đồng, vui lòng chọn file khác.',
+      );
+      const base = getReasonCodeMessageVi('NO_POSE');
+      const body = getReasonCodeMessageVi('NO_POSE', 'body_retouch');
+      const motion = getReasonCodeMessageVi('NO_POSE', 'motion_control');
+      assert.notEqual(body, base);
+      assert.notEqual(motion, base);
+      assert.notEqual(body, motion);
+      assert.equal(getReasonCodeMessageVi('NO_FACE', 'body_retouch'), getReasonCodeMessageVi('NO_FACE'));
+      assert.equal(getReasonCodeMessageVi('FOO'), 'Tác vụ không thành công. Vui lòng thử lại sau.');
+      for (const c of REASON_CODES) assert.ok(getReasonCodeMessageVi(c).length > 0);
     });
   });
 });
