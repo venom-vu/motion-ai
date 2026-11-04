@@ -106,6 +106,7 @@ model Task {
   pipeline        String        @map("pipeline")
   status          String        @default("queued") @map("status")
   reasonCode      String?       @map("reason_code")
+  resultKey       String?       @map("result_key")
   tierSnapshot    Json          @map("tier_snapshot")
   consent         Boolean       @map("consent")
   tosVersion      String        @map("tos_version")

@@ -100,3 +100,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-3-be-tao-task-face-swap-va-xep-vao-hang-doi.md`
   summary: Test throttle auth trong `signup-grant.test.mjs` flaky khi chạy cả bộ vì các file test song song dùng chung bộ đếm Redis.
   evidence: Thấy fail một lần ở dòng 881 (429 sớm) trong lần chạy đầu, hai lần sau xanh; diff Story 2.3 không đụng auth.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-4-be-may-trang-thai-task-bang-compare-and-set.md`
+  summary: Job BullMQ của Task đã `cancelled` có thể còn trong hàng đợi khi `job.remove()` lỗi; worker (Story 2.5) phải bỏ job khi CAS `queued→running` trả 0 dòng.
+  evidence: `cancel` xóa job nỗ lực tốt nhất và chỉ log lỗi; worker chưa tồn tại nên chưa kiểm chứng được.

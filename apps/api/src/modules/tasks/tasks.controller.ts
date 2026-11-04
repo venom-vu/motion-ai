@@ -1,7 +1,9 @@
-import { BadRequestException, Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
 import {
   ApiErrorCode,
   FaceSwapCreateRequestSchema,
+  TaskIdParamsSchema,
+  type Task,
   getApiErrorMessageVi,
   type FaceSwapCreateResponse,
 } from '@motion-ai/contracts';
@@ -33,5 +35,27 @@ export class TasksController {
       });
     }
     return this.tasks.createFaceSwap(user.sub, parsed.data);
+  }
+
+  private parseId(id: string): string {
+    const p = TaskIdParamsSchema.safeParse({ id });
+    if (!p.success) {
+      throw new NotFoundException({
+        code: ApiErrorCode.NOT_FOUND,
+        message: getApiErrorMessageVi(ApiErrorCode.NOT_FOUND),
+      });
+    }
+    return p.data.id;
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(200)
+  async cancel(@CurrentUser() user: JwtUserPayload, @Param('id') id: string): Promise<Task> {
+    return this.tasks.cancel(user.sub, this.parseId(id));
+  }
+
+  @Get(':id')
+  async get(@CurrentUser() user: JwtUserPayload, @Param('id') id: string): Promise<Task> {
+    return this.tasks.getById(user.sub, this.parseId(id));
   }
 }

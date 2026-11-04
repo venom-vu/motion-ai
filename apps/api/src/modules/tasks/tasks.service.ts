@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 import {
   BadRequestException,
+  ConflictException,
+  NotFoundException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -11,11 +13,15 @@ import {
   ApiErrorCode,
   getApiErrorMessageVi,
   type FaceSwapCreateRequest,
+  type ReasonCode,
   type Task,
+  type TaskStatus,
   type TierSnapshot,
 } from '@motion-ai/contracts';
 import type { Queue } from 'bullmq';
 import { PrismaService } from '../../infra/prisma.service.js';
+import { RedisService } from '../../infra/redis.service.js';
+import { assertValidTransition, isTerminal } from './task-transitions.js';
 import { AccountLockedException } from '../auth/guards/account-locked.guard.js';
 import { UploadsService } from '../storage/uploads.service.js';
 import { PRICING_CONFIG } from '../wallet/tier.js';
@@ -42,7 +48,93 @@ export class TasksService {
     private readonly wallet: WalletService,
     private readonly uploads: UploadsService,
     @InjectQueue(TASKS_QUEUE) private readonly queue: Queue,
+    private readonly redis: RedisService,
   ) {}
+
+  /**
+   * Cửa duy nhất đổi trạng thái Task (compare-and-set). Trả applied=false khi Task không còn ở `from`.
+   */
+  async transition(
+    taskId: string,
+    from: TaskStatus,
+    to: TaskStatus,
+    reasonCode?: ReasonCode | null,
+    opts: { resultKey?: string } = {},
+  ): Promise<{ applied: boolean }> {
+    assertValidTransition(from, to, reasonCode);
+    const resultKey = opts.resultKey ?? null;
+    if (to === 'succeeded') {
+      if (!resultKey || !/^out\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resultKey)) {
+        throw new Error('Chuyển sang succeeded cần resultKey dạng out/<userId>/<uuid>');
+      }
+    } else if (resultKey !== null) {
+      throw new Error('resultKey chỉ dùng khi chuyển sang succeeded');
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<Array<{ id: string; user_id: string }>>`
+        UPDATE tasks
+        SET status = ${to}, reason_code = ${reasonCode ?? null}, result_key = ${resultKey}, updated_at = now()
+        WHERE id = ${taskId}::uuid AND status = ${from}
+        RETURNING id, user_id`;
+      if (rows.length === 0) return { applied: false };
+      if (resultKey !== null && !resultKey.startsWith(`out/${rows[0].user_id}/`)) {
+        throw new Error('resultKey không thuộc chủ Task');
+      }
+      if (to === 'succeeded') await this.wallet.capture(tx, taskId);
+      else if (to === 'failed' || to === 'timed_out' || to === 'cancelled') {
+        await this.wallet.release(tx, taskId);
+      }
+      return { applied: true };
+    });
+    if (result.applied && isTerminal(to)) {
+      try {
+        await this.redis.client.set(`task:terminal:${taskId}`, '1', 'EX', 30, 'NX');
+      } catch {
+        // Chỉ là gợi ý; bỏ qua.
+      }
+    }
+    return result;
+  }
+
+  async cancel(userId: string, taskId: string): Promise<Task> {
+    const row = await this.prisma.task.findUnique({ where: { id: taskId } });
+    if (!row || row.userId !== userId) throw this.apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
+    if (row.status !== 'queued') throw this.apiError(ConflictException, ApiErrorCode.CONFLICT);
+    const { applied } = await this.transition(taskId, 'queued', 'cancelled', 'USER_CANCEL');
+    if (!applied) throw this.apiError(ConflictException, ApiErrorCode.CONFLICT);
+    try {
+      const job = await this.queue.getJob(taskId);
+      await job?.remove();
+    } catch (err) {
+      this.logger.warn(`Không xóa được job của Task ${taskId}: ${String(err)}`);
+    }
+    return this.getById(userId, taskId);
+  }
+
+  async getById(userId: string, taskId: string): Promise<Task> {
+    const row = await this.prisma.task.findUnique({ where: { id: taskId } });
+    if (!row || row.userId !== userId) throw this.apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
+    const queued = row.status === 'queued';
+    return {
+      id: row.id,
+      pipeline: row.pipeline as Task['pipeline'],
+      status: row.status as TaskStatus,
+      reasonCode: (row.reasonCode as ReasonCode | null) ?? null,
+      queuePosition: queued ? await this.queuePosition(row.id) : null,
+      resultKey: row.resultKey ?? null,
+      creditCost: row.holdAmount,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+
+  private apiError(
+    Ctor: new (body: { code: ApiErrorCode; message: string }) => Error,
+    code: ApiErrorCode,
+  ): Error {
+    return new Ctor({ code, message: getApiErrorMessageVi(code) });
+  }
 
   async createFaceSwap(userId: string, req: FaceSwapCreateRequest): Promise<Task> {
     const owned = await this.uploads.areConfirmedKeysOwnedBy(userId, [

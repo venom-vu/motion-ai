@@ -11,7 +11,7 @@
     "build": "prisma generate && tsc -p tsconfig.json",
     "start": "node --env-file-if-exists=.env dist/main.js",
     "start:worker": "node --env-file-if-exists=.env dist/worker.js",
-    "test": "pnpm run build && node --test test/*.test.mjs"
+    "test": "pnpm run build && node --test --test-concurrency=1 test/*.test.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1161.0",

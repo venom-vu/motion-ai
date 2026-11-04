@@ -366,7 +366,7 @@ describe('Story 2.3: [BE] Tạo Task Face Swap và xếp vào hàng đợi', () 
     assert.equal(res.status, 429);
     assert.equal((await res.json()).code, ApiErrorCode.TASK_LIMIT);
     assert.equal((await wal(u)).held, 0n);
-    await pool.query(`UPDATE tasks SET status='succeeded' WHERE id=$1`, [r1]);
+    await pool.query(`UPDATE tasks SET status='succeeded', result_key='out/'||user_id::text||'/'||id::text WHERE id=$1`, [r1]);
     await pool.query(`UPDATE tasks SET status='failed', reason_code='RH_ERROR' WHERE id=$1`, [r2]);
     res = await post(u, await validBody(u));
     assert.equal(res.status, 201);

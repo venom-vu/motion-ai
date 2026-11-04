@@ -3,8 +3,8 @@ const SNAPSHOT = JSON.stringify({ tier: 'free', priority: 10, maxVideoSeconds: 5
 
 /** INSERT một dòng tasks (SQL thô, chỉ dùng trong test) để thỏa FK ledger_entries.task_id; status succeeded để không làm nhiễu hàng đợi/giới hạn Task của test khác chạy song song. */
 export async function insertTaskRow(db, userId, taskId, holdAmount = 100) {
-  await db.$executeRaw`INSERT INTO tasks (id, user_id, pipeline, status, tier_snapshot, consent, tos_version, input_keys, params, hold_amount, updated_at)
-    VALUES (${taskId}::uuid, ${userId}::uuid, 'face_swap', 'succeeded', ${SNAPSHOT}::jsonb, true, 'test', '{}'::jsonb, '{}'::jsonb, ${holdAmount}, now())
+  await db.$executeRaw`INSERT INTO tasks (id, user_id, pipeline, status, tier_snapshot, consent, tos_version, input_keys, params, hold_amount, result_key, updated_at)
+    VALUES (${taskId}::uuid, ${userId}::uuid, 'face_swap', 'succeeded', ${SNAPSHOT}::jsonb, true, 'test', '{}'::jsonb, '{}'::jsonb, ${holdAmount}, ${'out/' + userId + '/' + taskId}, now())
     ON CONFLICT (id) DO NOTHING`;
 }
 
