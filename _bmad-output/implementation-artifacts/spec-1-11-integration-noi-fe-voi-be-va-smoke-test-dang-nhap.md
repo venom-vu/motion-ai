@@ -21,7 +21,7 @@ context:
 ## Decisions
 
 - FE chỉ có một chế độ `live`, không khôi phục chế độ mock. "Mock" là các hằng `MOCK_*` trong `packages/contracts`; test hợp đồng kiểm tra chúng khớp schema và khớp hình dạng phản hồi BE thật. README ghi rõ điều này và hướng dẫn chạy FE với `NUXT_PUBLIC_API_BASE_URL` trỏ BE cục bộ hoặc BE đã triển khai.
-- Giả Google bằng `GOOGLE_TOKEN_URL` và `GOOGLE_USERINFO_URL`, chỉ được nhận khi `NODE_ENV !== 'production'`, trỏ về máy chủ giả do tiến trình test dựng ngoài compose.
+- Giả Google bằng `GOOGLE_TOKEN_URL` và `GOOGLE_USERINFO_URL`, chỉ được nhận khi `NODE_ENV === 'test'`, trỏ về máy chủ giả do tiến trình test dựng ngoài compose.
 - Smoke test chỉ gọi HTTP API thật, không dùng trình duyệt.
 
 ## Boundaries & Constraints
@@ -52,7 +52,7 @@ context:
 
 - `deploy/compose.yml` -- stack bốn container; không sửa số container.
 - `deploy/compose.smoke.yml` (mới) -- override chỉ cho smoke: biến môi trường api (`NODE_ENV=test`, `COOKIE_SECURE=false`, `JWT_SECRET`, `ANTI_ABUSE_SECRET`, `GOOGLE_TOKEN_URL`, `GOOGLE_USERINFO_URL`, `FRONTEND_URL`) và `extra_hosts: host.docker.internal:host-gateway` để container tới máy chủ giả trên host.
-- `apps/api/src/modules/auth/google-oauth.service.ts` -- hiện cứng `oauth2.googleapis.com` và `www.googleapis.com`; đọc URL từ env khi không phải production.
+- `apps/api/src/modules/auth/google-oauth.service.ts` -- hiện cứng `oauth2.googleapis.com` và `www.googleapis.com`; đọc URL từ env chỉ khi `NODE_ENV === 'test'`.
 - `apps/api/src/modules/auth/auth.controller.ts`, `anti-abuse.ts` -- `/auth/google` cấp cookie `motion_device`; callback JSON khi không gửi `Accept: text/html`. Hai tài khoản dùng chung cookie thì cùng thiết bị.
 - `apps/api/src/modules/ops/reconcile.service.ts` -- `reconcile()` trả danh sách lệch; tái sử dụng, không sửa.
 - `apps/api/src/scripts/reconcile.ts` (mới) -- khởi tạo ngữ cảnh Nest không HTTP, gọi `reconcile()`, thoát 0 nếu rỗng, khác 0 nếu có lệch; biên dịch ra `dist/scripts/reconcile.js`.
@@ -65,7 +65,7 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [x] `apps/api/src/modules/auth/google-oauth.service.ts` -- đọc `GOOGLE_TOKEN_URL`/`GOOGLE_USERINFO_URL` từ env, bỏ qua (dùng URL Google thật) khi `NODE_ENV === 'production'` -- cho phép giả Google không đụng logic đăng nhập
+- [x] `apps/api/src/modules/auth/google-oauth.service.ts` -- đọc `GOOGLE_TOKEN_URL`/`GOOGLE_USERINFO_URL` từ env, bỏ qua (dùng URL Google thật) khi `NODE_ENV !== 'test'` -- cho phép giả Google không đụng logic đăng nhập
 - [x] `apps/api/src/scripts/reconcile.ts` -- thêm script đối soát chạy một lần với mã thoát -- để chạy đối soát trong container worker sau smoke
 - [x] `deploy/compose.smoke.yml` -- thêm override smoke -- giữ stack bốn container mà vẫn trỏ Google về máy chủ giả
 - [x] `apps/api/test/smoke-login.test.mjs` -- dựng stack (compose + override), máy chủ Google giả, chạy các kịch bản trong I/O Matrix, kiểm tra hợp đồng, chạy script đối soát, luôn `down -v` -- bằng chứng Epic 1 chạy trọn vẹn
@@ -77,18 +77,20 @@ context:
 - Given tài khoản thứ hai dùng cùng thiết bị, when đăng nhập, then `/me` balance 0 và ledger không có dòng `GRANT`.
 - Given test hợp đồng, when chạy, then `MOCK_*` và phản hồi BE thật đều parse thành công qua schema trong `packages/contracts`.
 - Given script đối soát, when chạy sau smoke, then thoát mã 0 và không báo lệch.
-- Given `NODE_ENV=production`, when đặt `GOOGLE_TOKEN_URL` hay `GOOGLE_USERINFO_URL`, then service vẫn dùng URL Google thật.
+- Given `NODE_ENV` khác `test` (gồm `production` và thiếu `NODE_ENV`), when đặt `GOOGLE_TOKEN_URL` hay `GOOGLE_USERINFO_URL`, then service vẫn dùng URL Google thật.
 - Given README, when người mới đọc, then làm theo được các bước chạy stack, chạy FE, chạy test; đăng nhập Google thật được mô tả là bước thủ công.
 
 ## Implementation Notes
 
 - Smoke test chạy thật trên stack Docker (project `motion-ai-smoke`, api 3102, Postgres 15433, Redis 16380, Google giả 3199): 2 pass, 0 fail; `pnpm test` 15 pass, 0 fail khi không bật `RUN_COMPOSE_E2E`; smoke bị bỏ qua kèm lý do khi không có cờ.
 - Sửa ngoài danh sách file của spec: `deploy/Dockerfile` thiếu `COPY packages/contracts/node_modules`, khiến container api lỗi `Cannot find package 'zod'`. Thuộc `deploy/**`, hợp lệ với nhánh `shared/*`.
-- Thêm `apps/api/test/google-endpoint-override.test.mjs` để phủ AC production (env ghi đè bị bỏ qua khi `NODE_ENV=production`; không đặt env thì dùng URL Google thật).
+- Thêm `apps/api/test/google-endpoint-override.test.mjs` để phủ AC production (env ghi đè bị bỏ qua khi `NODE_ENV` khác `test`; không đặt env thì dùng URL Google thật).
 - Sau review: thêm assert `isNewUser`/`grantedCredits` vào smoke và `apps/api/test/reconcile-script.test.mjs` (nhánh lệch, mã thoát 1). Xác minh lại: lint, typecheck, check:boundaries, `pnpm test` mã 0; smoke Docker và test đối soát 3/3 pass.
 - Chưa kiểm chứng: job `smoke` trên GitHub CI; lệnh `docker compose ... --env-file deploy/.env up` trong README.
 
 ## Spec Change Log
+
+- 2026-11-04 (commit c325172): đổi điều kiện ghi đè endpoint Google từ denylist `NODE_ENV !== 'production'` sang allowlist `NODE_ENV === 'test'`, vì thiếu hoặc sai `NODE_ENV` có thể làm lộ `client_secret` khi env bị đầu độc (phát hiện #6 của review Story 1.11). Sửa theo yêu cầu của người dùng, gồm cả khối frozen ở mục Intent. KEEP: smoke compose vẫn đặt `NODE_ENV: test` nên luồng smoke không đổi.
 
 ## Review Triage Log
 
