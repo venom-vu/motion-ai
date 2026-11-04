@@ -2,8 +2,63 @@ export const RUNNING_HUB_PORT = Symbol('RUNNING_HUB_PORT');
 export const STORAGE_PORT = Symbol('STORAGE_PORT');
 export const NOTIFIER_PORT = Symbol('NOTIFIER_PORT');
 
+export const RESULT_INGESTOR = Symbol('RESULT_INGESTOR');
+
+/** Lỗi mạng khi gọi RunningHub; `requestSent` cho biết request có thể đã tới RunningHub hay chưa. */
+export class RunningHubNetworkError extends Error {
+  constructor(
+    message: string,
+    readonly requestSent: boolean,
+  ) {
+    super(message);
+    this.name = 'RunningHubNetworkError';
+  }
+}
+
+/** RunningHub từ chối rõ ràng (hoặc adapter chưa cấu hình): luôn là RH_ERROR. */
+export class RunningHubError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RunningHubError';
+  }
+}
+
+export interface RunningHubNodeInfo {
+  readonly nodeId: string;
+  readonly fieldName: string;
+  readonly fieldValue: string;
+}
+
+export interface RunningHubOutputs {
+  readonly status: 'RUNNING' | 'SUCCESS' | 'FAILED';
+  readonly fileUrl?: string;
+  readonly errorMessage?: string;
+  readonly consumeMoney?: number;
+}
+
 export interface RunningHubPort {
   readonly portName?: 'RunningHubPort';
+  /** Trả tên file đã upload lên RunningHub. */
+  uploadFile(bytes: Buffer, name: string, signal: AbortSignal): Promise<string>;
+  /** Trả runninghubTaskId. */
+  submit(workflowId: string, nodeInfoList: RunningHubNodeInfo[], signal: AbortSignal): Promise<string>;
+  outputs(runninghubTaskId: string, signal: AbortSignal): Promise<RunningHubOutputs>;
+}
+
+export interface IngestTask {
+  readonly id: string;
+  readonly userId: string;
+  readonly pipeline: string;
+}
+
+/** Cổng nhập kết quả (Story 2.6 thay bản thật). Phải tự chuyển trạng thái Task. */
+export interface ResultIngestor {
+  ingest(
+    task: IngestTask,
+    fileUrl: string | undefined,
+    consumeMoney: number | undefined,
+    signal: AbortSignal,
+  ): Promise<void>;
 }
 
 export class StoragePreconditionFailedError extends Error {

@@ -104,3 +104,16 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-4-be-may-trang-thai-task-bang-compare-and-set.md`
   summary: Job BullMQ của Task đã `cancelled` có thể còn trong hàng đợi khi `job.remove()` lỗi; worker (Story 2.5) phải bỏ job khi CAS `queued→running` trả 0 dòng.
   evidence: `cancel` xóa job nỗ lực tốt nhất và chỉ log lỗi; worker chưa tồn tại nên chưa kiểm chứng được.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-5-be-worker-xu-ly-task-qua-runninghub.md`
+  summary: `PREP_TIMEOUT` và `deadline_at` chỉ được kiểm khi nhận job, không trong lúc chạy (đọc input, `prepare`, chờ cổng tới 15 phút).
+  evidence: Bộ quét Story 2.7 cưỡng chế hạn chót bất kể job; cần quyết định có thêm kiểm trong job hay không và đo chi phí.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-5-be-worker-xu-ly-task-qua-runninghub.md`
+  summary: Task `running` có thể không còn job sau khi worker tắt giữa chừng (`processTask` thoát khi abort).
+  evidence: Bộ quét Story 2.7 phải enqueue job khôi phục cho Task `running` không còn job sống; cần thử shutdown giữa chừng để xác nhận.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-5-be-worker-xu-ly-task-qua-runninghub.md`
+  summary: Từ khóa `balance`/`insufficient` ở `mapRunningHubFailure` quá rộng và danh sách `CONTENT_BLOCKED` còn trống.
+  evidence: Cần chuỗi lỗi thật của RunningHub (benchmark Epic 6) để thu hẹp và điền; hiện chỉ có test với câu "Insufficient balance".
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-5-be-worker-xu-ly-task-qua-runninghub.md`
+  summary: Mặc định chưa cấu hình RunningHub khiến Task bị HOLD rồi `RH_ERROR`; chưa có fail-fast hay từ chối tạo Task khi pipeline chưa cấu hình.
+  evidence: Adapter mặc định ném `RH_ERROR`; cần quyết định cờ cấu hình ở `ops` hoặc kiểm tra khi tạo Task, nên làm cùng adapter thật (Story 2.14).

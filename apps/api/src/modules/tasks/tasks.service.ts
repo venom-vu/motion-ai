@@ -59,10 +59,18 @@ export class TasksService {
     from: TaskStatus,
     to: TaskStatus,
     reasonCode?: ReasonCode | null,
-    opts: { resultKey?: string } = {},
+    opts: { resultKey?: string; gpuCoins?: number; orphanForMs?: number } = {},
   ): Promise<{ applied: boolean }> {
     assertValidTransition(from, to, reasonCode);
     const resultKey = opts.resultKey ?? null;
+    const gpuCoins = opts.gpuCoins ?? null;
+    const orphanMs = opts.orphanForMs ?? null;
+    if (gpuCoins !== null && !Number.isInteger(gpuCoins)) throw new Error('gpuCoins phải là số nguyên');
+    if (orphanMs !== null && !(Number.isInteger(orphanMs) && orphanMs >= 0)) {
+      throw new Error('orphanForMs phải là số nguyên không âm');
+    }
+    const terminal = isTerminal(to);
+    const toRunning = to === 'running';
     if (to === 'succeeded') {
       if (!resultKey || !/^out\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resultKey)) {
         throw new Error('Chuyển sang succeeded cần resultKey dạng out/<userId>/<uuid>');
@@ -74,7 +82,14 @@ export class TasksService {
     const result = await this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<Array<{ id: string; user_id: string }>>`
         UPDATE tasks
-        SET status = ${to}, reason_code = ${reasonCode ?? null}, result_key = ${resultKey}, updated_at = now()
+        SET status = ${to}, reason_code = ${reasonCode ?? null}, result_key = ${resultKey}, updated_at = now(),
+          finished_at = CASE WHEN ${terminal}::boolean THEN now() ELSE finished_at END,
+          running_at = CASE WHEN ${toRunning}::boolean THEN now() ELSE running_at END,
+          prep_deadline_at = CASE WHEN ${toRunning}::boolean THEN now() + interval '120 seconds' ELSE prep_deadline_at END,
+          gate_deadline = CASE WHEN ${toRunning}::boolean THEN now() + interval '15 minutes' ELSE gate_deadline END,
+          gpu_coins = COALESCE(${gpuCoins}::int, gpu_coins),
+          rh_orphan_until = CASE WHEN ${orphanMs}::int IS NOT NULL
+            THEN now() + (${orphanMs}::int * interval '1 millisecond') ELSE rh_orphan_until END
         WHERE id = ${taskId}::uuid AND status = ${from}
         RETURNING id, user_id`;
       if (rows.length === 0) return { applied: false };
@@ -95,6 +110,44 @@ export class TasksService {
       }
     }
     return result;
+  }
+
+  /** Đọc Task cho worker (chỉ đọc). */
+  async getWorkerRow(taskId: string) {
+    return this.prisma.task.findUnique({ where: { id: taskId } });
+  }
+
+  /** Số slot RunningHub đang bị chiếm: Task running đã qua cổng + Task kết thúc còn orphan. */
+  async countGateOccupied(): Promise<number> {
+    const rows = await this.prisma.$queryRaw<Array<{ n: bigint }>>`
+      SELECT COUNT(*)::bigint AS n FROM tasks
+      WHERE (status = 'running' AND deadline_at IS NOT NULL)
+         OR (status IN ('succeeded','failed','timed_out','cancelled') AND rh_orphan_until > now())`;
+    return Number(rows[0]?.n ?? 0n);
+  }
+
+  /** Đặt deadline_at = COALESCE(deadline_at, now()+ms) khi Task còn running. Trả true nếu Task còn running. */
+  async setDeadlineIfNull(taskId: string, ms: number): Promise<boolean> {
+    const n = await this.prisma.$executeRaw`
+      UPDATE tasks SET deadline_at = COALESCE(deadline_at, now() + (${ms}::int * interval '1 millisecond')),
+        updated_at = now()
+      WHERE id = ${taskId}::uuid AND status = 'running'`;
+    return n > 0;
+  }
+
+  /** Đặt submit_started_at một lần duy nhất; false nếu đã đặt hoặc Task không còn running. */
+  async markSubmitStarted(taskId: string): Promise<boolean> {
+    const n = await this.prisma.$executeRaw`
+      UPDATE tasks SET submit_started_at = now(), updated_at = now()
+      WHERE id = ${taskId}::uuid AND status = 'running' AND submit_started_at IS NULL`;
+    return n > 0;
+  }
+
+  async setRunninghubTaskId(taskId: string, rhId: string): Promise<boolean> {
+    const n = await this.prisma.$executeRaw`
+      UPDATE tasks SET runninghub_task_id = ${rhId}, updated_at = now()
+      WHERE id = ${taskId}::uuid AND status = 'running' AND runninghub_task_id IS NULL`;
+    return n > 0;
   }
 
   async cancel(userId: string, taskId: string): Promise<Task> {
