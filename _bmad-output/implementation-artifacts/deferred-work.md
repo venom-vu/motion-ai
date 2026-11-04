@@ -78,3 +78,15 @@
 
 - Kiểm thử reactive watcher `accessToken` trên Nuxt client runtime (`apps/web/pages/history.vue:52-59`): cần bổ sung test harness component mount chuyên dụng (@nuxt/test-utils hoặc @vue/test-utils) hiện chưa cấu hình trong repo.
 
+
+## Deferred from: code review of spec-2-2-be-tai-anh-len-r2-an-toan (2026-11-04)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-2-be-tai-anh-len-r2-an-toan.md`
+  summary: Giới hạn tần suất `POST /uploads` và `confirm` theo người dùng/IP (AD-17), tính cả upload bị từ chối vào hạn mức.
+  evidence: `rejectInvalid` chuyển bản ghi sang `expired` nên vòng tạo, PUT rác, confirm lặp vô hạn và tốn CPU sharp (mức độ chưa kiểm chứng).
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-2-be-tai-anh-len-r2-an-toan.md`
+  summary: Kiểm `ScheduleModule.forRoot()` không bị đăng ký hai lần (StorageModule và OpsModule).
+  evidence: Nếu lặp, `scheduledExpire` chạy hai lần mỗi giờ; cần test đếm số lần gọi để chắc.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-2-be-tai-anh-len-r2-an-toan.md`
+  summary: Script `configure-bucket` thay toàn bộ lifecycle, chưa có rule `out/` 30 ngày, chưa kiểm bucket riêng tư, `FRONTEND_URL` rỗng rơi về localhost.
+  evidence: `PutBucketLifecycleConfiguration` ghi đè; thêm rule `out/` ở Story 2.6.

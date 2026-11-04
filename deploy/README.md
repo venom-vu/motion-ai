@@ -21,3 +21,14 @@ Postgres và Redis chỉ bind `127.0.0.1` trên host.
 ```bash
 RUN_COMPOSE_E2E=1 pnpm --filter @motion-ai/api test
 ```
+
+## Bucket R2 (Story 2.2)
+
+Ảnh tải lên đi thẳng lên R2 bằng presigned PUT. Bucket phải **riêng tư** (không bật public access hay custom domain công khai). Đặt `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` (xem `apps/api/.env.example`) rồi chạy thủ công, idempotent:
+
+```bash
+pnpm --filter @motion-ai/api run build
+node --env-file=apps/api/.env apps/api/dist/scripts/configure-bucket.js
+```
+
+Script đặt CORS chỉ cho `FRONTEND_URL` (PUT/GET/HEAD) và lifecycle: `in-raw/` xóa sau 1 ngày, `in/` xóa sau 7 ngày. Job worker mỗi giờ chuyển bản ghi `uploads` pending quá 24 giờ sang `expired`.

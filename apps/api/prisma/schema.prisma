@@ -31,6 +31,7 @@ model User {
   refreshTokens RefreshToken[]
   ledgerEntries LedgerEntry[]
   signupGrant   SignupGrant?
+  uploads       Upload[]
 
   @@map("users")
 }
@@ -73,4 +74,26 @@ model SignupGrant {
 
   @@index([ipHash, createdAt])
   @@map("signup_grants")
+}
+
+model Upload {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  key             String    @unique @map("key")
+  confirmedKey    String?   @map("confirmed_key")
+  kind            String    @map("kind")
+  status          String    @default("pending") @map("status")
+  mimeType        String    @map("mime_type")
+  declaredBytes   Int       @map("declared_bytes")
+  sizeBytes       Int?      @map("size_bytes")
+  etag            String?   @map("etag")
+  width           Int?      @map("width")
+  height          Int?      @map("height")
+  durationSeconds Int?      @map("duration_seconds")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  confirmedAt     DateTime? @map("confirmed_at") @db.Timestamptz(6)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt])
+  @@map("uploads")
 }
