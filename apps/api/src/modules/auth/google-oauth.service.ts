@@ -39,10 +39,10 @@ export class GoogleOAuthService {
 
   /**
    * Cho phép ghi đè endpoint Google bằng env (chỉ để giả Google trong smoke test);
-   * ở production luôn dùng URL Google thật.
+   * chỉ nhận khi NODE_ENV === 'test', mọi trường hợp khác (kể cả thiếu NODE_ENV) dùng URL Google thật.
    */
   private resolveEndpoint(envName: string, defaultUrl: string): string {
-    if (process.env.NODE_ENV === 'production') return defaultUrl;
+    if (process.env.NODE_ENV !== 'test') return defaultUrl;
     return process.env[envName]?.trim() || defaultUrl;
   }
 

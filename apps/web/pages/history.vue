@@ -59,7 +59,8 @@ let tokenRefreshQueued = false;
 
 // Dọn dẹp khi đăng xuất và tự động làm mới khi token thay đổi
 watch(accessToken, (newToken, oldToken) => {
-  if (newToken !== oldToken) {
+  // Chỉ làm mới khi trạng thái đăng nhập đổi; xoay vòng token không được xóa các trang đã cuộn.
+  if (Boolean(newToken) !== Boolean(oldToken)) {
     if (!newToken) {
       clearNuxtData('motion-ai-wallet-ledger');
       pagination.reset();

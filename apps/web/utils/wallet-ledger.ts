@@ -115,6 +115,8 @@ export function createWalletLedgerPagination(
 
   function clearAdditionalItems(): void {
     operationSeq++;
+    // Yêu cầu loadMore đang bay đã lỗi thời nên không còn nhả cờ; nhả ở đây để không kẹt loadingMore.
+    loadingMore.value = false;
     additionalItems.value = [];
     cursorOverride.value = undefined;
     hasMoreOverride.value = undefined;

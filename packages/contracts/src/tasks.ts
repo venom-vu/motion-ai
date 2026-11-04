@@ -43,6 +43,13 @@ export const REASON_CODES = [
   'USER_CANCEL',
 ] as const;
 export type ReasonCode = (typeof REASON_CODES)[number];
+/** Mã lý do hợp lệ cho Task `timed_out` (các mã còn lại thuộc `failed`). */
+const TIMED_OUT_REASON_CODES: readonly ReasonCode[] = [
+  'RH_TIMEOUT',
+  'RH_GATE_TIMEOUT',
+  'PREP_TIMEOUT',
+  'FREE_WAIT_EXPIRED',
+];
 export const ReasonCodeSchema = z.enum(REASON_CODES);
 
 const GENERIC_FAILURE_VI =
@@ -143,6 +150,15 @@ export const TaskSchema = z
     }
     if (t.reasonCode === 'FREE_WAIT_EXPIRED' && t.status !== 'timed_out') {
       issue('reasonCode', 'FREE_WAIT_EXPIRED chỉ dùng cho Task timed_out');
+    }
+    if (
+      (t.reasonCode === 'RH_TIMEOUT' || t.reasonCode === 'RH_GATE_TIMEOUT') &&
+      t.status !== 'timed_out'
+    ) {
+      issue('reasonCode', `${t.reasonCode} chỉ dùng cho Task timed_out`);
+    }
+    if (t.status === 'timed_out' && hasReason && !TIMED_OUT_REASON_CODES.includes(t.reasonCode!)) {
+      issue('reasonCode', 'Task timed_out chỉ được có reasonCode hết hạn (RH_TIMEOUT, RH_GATE_TIMEOUT, PREP_TIMEOUT, FREE_WAIT_EXPIRED)');
     }
     if (t.status === 'queued' && t.queuePosition == null) {
       issue('queuePosition', 'Task queued bắt buộc có queuePosition');
