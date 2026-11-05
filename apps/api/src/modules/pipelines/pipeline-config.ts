@@ -12,6 +12,8 @@ export interface PipelineConfig {
   /** Tên biến môi trường chứa workflow ID RunningHub. */
   readonly workflowEnvVar: string;
   readonly inputs: readonly PipelineInputMapping[];
+  /** Khóa trong tasks.input_keys của ảnh tham chiếu: ảnh kết quả phải cùng kích thước (sau xoay EXIF) với ảnh này. */
+  readonly referenceInputKey?: string;
   /** Bước chuẩn bị tùy chọn (vd. cắt video); nhận bytes theo inputKey. */
   readonly prepare?: (inputs: Record<string, Buffer>) => Promise<Record<string, Buffer>>;
 }
@@ -25,6 +27,7 @@ export const PIPELINE_CONFIGS: Readonly<Record<string, PipelineConfig>> = {
       { inputKey: 'sourceKey', nodeId: '10', fieldName: 'image' },
       { inputKey: 'targetKey', nodeId: '11', fieldName: 'image' },
     ],
+    referenceInputKey: 'targetKey',
   },
 };
 

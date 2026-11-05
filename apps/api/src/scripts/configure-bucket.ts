@@ -9,7 +9,7 @@ import {
 
 /**
  * Cấu hình bucket R2 (idempotent, chạy thủ công): CORS chỉ cho FRONTEND_URL,
- * lifecycle in-raw/ 1 ngày và in/ 7 ngày. Bucket giữ riêng tư (không bật public access/domain).
+ * lifecycle in-raw/ 1 ngày, in/ 7 ngày và out/ 30 ngày. Bucket giữ riêng tư (không bật public access/domain).
  */
 async function main(): Promise<void> {
   const bucket = getBucketName();
@@ -52,6 +52,12 @@ async function main(): Promise<void> {
             Status: 'Enabled',
             Filter: { Prefix: 'in/' },
             Expiration: { Days: 7 },
+          },
+          {
+            ID: 'expire-out-30d',
+            Status: 'Enabled',
+            Filter: { Prefix: 'out/' },
+            Expiration: { Days: 30 },
           },
         ],
       },

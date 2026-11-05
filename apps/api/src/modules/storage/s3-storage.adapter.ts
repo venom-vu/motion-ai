@@ -101,6 +101,14 @@ export class S3StorageAdapter implements StoragePort {
     return Buffer.from(await res.Body.transformToByteArray());
   }
 
+  async presignGet(key: string, expiresInSeconds: number): Promise<string> {
+    return getSignedUrl(
+      this.s3,
+      new GetObjectCommand({ Bucket: getBucketName(), Key: key }),
+      { expiresIn: expiresInSeconds },
+    );
+  }
+
   async putObject(key: string, body: Buffer, contentType: string): Promise<string> {
     const res = await this.s3.send(
       new PutObjectCommand({

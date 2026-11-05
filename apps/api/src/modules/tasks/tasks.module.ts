@@ -5,7 +5,7 @@ import { PipelinesModule } from '../pipelines/index.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { StorageModule } from '../storage/storage.module.js';
 import { WalletModule } from '../wallet/wallet.module.js';
-import { DefaultResultIngestor } from './default-result-ingestor.js';
+import { ResultIngestorService } from './result-ingestor.js';
 import { UnconfiguredRunningHubAdapter } from './runninghub-unconfigured.adapter.js';
 import { TaskWorkerService } from './task-worker.service.js';
 import { TasksController } from './tasks.controller.js';
@@ -23,9 +23,9 @@ import { TASKS_QUEUE, TasksService } from './tasks.service.js';
   providers: [
     TasksService,
     UnconfiguredRunningHubAdapter,
-    DefaultResultIngestor,
+    ResultIngestorService,
     { provide: RUNNING_HUB_PORT, useExisting: UnconfiguredRunningHubAdapter },
-    { provide: RESULT_INGESTOR, useExisting: DefaultResultIngestor },
+    { provide: RESULT_INGESTOR, useExisting: ResultIngestorService },
     TaskWorkerService,
   ],
   exports: [TasksService],

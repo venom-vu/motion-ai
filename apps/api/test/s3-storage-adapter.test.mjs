@@ -62,4 +62,20 @@ describe('S3StorageAdapter (client giả)', () => {
     assert.equal(u.searchParams.get('X-Amz-Expires'), '600');
     assert.equal(r.headers['Content-Type'], 'image/jpeg');
   });
+
+  it('presignGet ký URL GET tới đúng khóa với hạn yêu cầu', async () => {
+    Object.assign(process.env, {
+      R2_ENDPOINT: 'https://r2.example.test',
+      R2_ACCESS_KEY_ID: 'AKIATEST',
+      R2_SECRET_ACCESS_KEY: 'secret',
+      R2_BUCKET: 'bkt',
+    });
+    const url = await new S3StorageAdapter().presignGet('out/u/x', 600);
+    const u = new URL(url);
+    assert.equal(u.hostname.includes('r2.example.test'), true);
+    assert.ok(u.pathname.endsWith('/out/u/x'), u.pathname);
+    assert.equal(u.searchParams.get('X-Amz-Expires'), '600');
+    assert.ok(u.searchParams.get('X-Amz-Signature'));
+    assert.equal(u.searchParams.get('x-id'), 'GetObject');
+  });
 });

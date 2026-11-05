@@ -117,3 +117,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-5-be-worker-xu-ly-task-qua-runninghub.md`
   summary: Mặc định chưa cấu hình RunningHub khiến Task bị HOLD rồi `RH_ERROR`; chưa có fail-fast hay từ chối tạo Task khi pipeline chưa cấu hình.
   evidence: Adapter mặc định ném `RH_ERROR`; cần quyết định cờ cấu hình ở `ops` hoặc kiểm tra khi tạo Task, nên làm cùng adapter thật (Story 2.14).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-6-be-nhap-ket-qua-r2-va-chot-tien.md`
+  summary: Chặn SSRF và vô hiệu hóa redirect tự động khi tải fileUrl từ RunningHub
+  evidence: URL trả về từ RunningHub cần được kiểm tra để chặn truy cập dải IP riêng tư / metadata service và hạn chế redirect tùy tiện.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-6-be-nhap-ket-qua-r2-va-chot-tien.md`
+  summary: Bổ sung CORS headers (Range, If-None-Match) trong configure-bucket.ts
+  evidence: Hỗ trợ resumable download và streaming tốt hơn từ trình duyệt đối với các URL ký R2.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-6-be-nhap-ket-qua-r2-va-chot-tien.md`
+  summary: Kiểm thử thực thi hoặc mock SDK cho cấu hình lifecycle R2 trong configure-bucket.ts
+  evidence: Hiện script cấu hình bucket chỉ được kiểm tra bằng regex trên file nguồn; cần kiểm thử chạy thực tế hoặc kiểm tra đối tượng PutBucketLifecycleConfigurationCommandInput.

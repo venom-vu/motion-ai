@@ -292,9 +292,13 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
       try {
         const out = await this.rh.outputs(rhId, this.timeoutSignal(signal));
         if (out.status === 'SUCCESS') {
+          const gpuCoins =
+            typeof out.consumeMoney === 'number' && Number.isFinite(out.consumeMoney)
+              ? Math.min(2147483647, Math.max(0, Math.round(out.consumeMoney)))
+              : undefined;
           if (!out.fileUrl) {
             this.logger.warn(`RunningHub SUCCESS nhưng thiếu fileUrl cho Task ${taskId}`);
-            await this.finish(taskId, 'failed', 'OUTPUT_UPLOAD_ERROR');
+            await this.finish(taskId, 'failed', 'OUTPUT_UPLOAD_ERROR', { gpuCoins });
             return;
           }
           try {
@@ -307,12 +311,12 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
             const after = await this.tasks.getWorkerRow(taskId);
             if (after && after.status === 'running') {
               this.logger.warn(`Ingestor không chuyển trạng thái Task ${taskId}`);
-              await this.finish(taskId, 'failed', 'OUTPUT_UPLOAD_ERROR');
+              await this.finish(taskId, 'failed', 'OUTPUT_UPLOAD_ERROR', { gpuCoins });
             }
           } catch (err) {
             if (signal.aborted) return;
             this.logger.warn(`Nhập kết quả Task ${taskId} lỗi: ${String(err)}`);
-            await this.finish(taskId, 'failed', 'OUTPUT_UPLOAD_ERROR');
+            await this.finish(taskId, 'failed', 'OUTPUT_UPLOAD_ERROR', { gpuCoins });
           }
           return;
         }

@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
+  Inject,
   NotFoundException,
   HttpException,
   HttpStatus,
@@ -15,6 +17,7 @@ import {
   type FaceSwapCreateRequest,
   type ReasonCode,
   type Task,
+  type TaskResultResponse,
   type TaskStatus,
   type TierSnapshot,
 } from '@motion-ai/contracts';
@@ -23,12 +26,15 @@ import { PrismaService } from '../../infra/prisma.service.js';
 import { RedisService } from '../../infra/redis.service.js';
 import { assertValidTransition, isTerminal } from './task-transitions.js';
 import { AccountLockedException } from '../auth/guards/account-locked.guard.js';
+import { STORAGE_PORT, type StoragePort } from '../../ports/index.js';
+import { PipelinesService } from '../pipelines/pipelines.service.js';
 import { UploadsService } from '../storage/uploads.service.js';
 import { PRICING_CONFIG } from '../wallet/tier.js';
 import { WalletService } from '../wallet/wallet.service.js';
 
 export const TASKS_QUEUE = 'tasks';
 export const MAX_ACTIVE_TASKS_PER_USER = 3;
+export const RESULT_URL_TTL_SECONDS = 600;
 
 export class TaskLimitException extends HttpException {
   constructor() {
@@ -49,6 +55,8 @@ export class TasksService {
     private readonly uploads: UploadsService,
     @InjectQueue(TASKS_QUEUE) private readonly queue: Queue,
     private readonly redis: RedisService,
+    private readonly pipelines: PipelinesService,
+    @Inject(STORAGE_PORT) private readonly storage: StoragePort,
   ) {}
 
   /**
@@ -180,6 +188,33 @@ export class TasksService {
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
+  }
+
+  /** URL ký ngắn hạn tới kết quả và (nếu còn) ảnh gốc. Không bao giờ trả link RunningHub. */
+  async getResult(userId: string, taskId: string): Promise<TaskResultResponse> {
+    const row = await this.prisma.task.findUnique({ where: { id: taskId } });
+    if (!row) throw this.apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
+    if (row.userId !== userId) throw this.apiError(ForbiddenException, ApiErrorCode.FORBIDDEN);
+    if (row.status !== 'succeeded' || !row.resultKey) {
+      throw this.apiError(ConflictException, ApiErrorCode.CONFLICT);
+    }
+    const resultUrl = await this.storage.presignGet(row.resultKey, RESULT_URL_TTL_SECONDS);
+
+    let sourceUrl: string | null = null;
+    const refKey = this.pipelines.getConfig(row.pipeline)?.referenceInputKey;
+    const sourceKey = refKey
+      ? ((row.inputKeys ?? {}) as Record<string, string | undefined>)[refKey]
+      : undefined;
+    if (sourceKey) {
+      try {
+        if (await this.storage.head(sourceKey)) {
+          sourceUrl = await this.storage.presignGet(sourceKey, RESULT_URL_TTL_SECONDS);
+        }
+      } catch (err) {
+        this.logger.warn(`Không kiểm tra được ảnh gốc của Task ${taskId}: ${String(err)}`);
+      }
+    }
+    return { resultUrl, sourceUrl };
   }
 
   private apiError(

@@ -13,6 +13,7 @@ import { PrismaClient } from '../dist/generated/prisma/client.js';
 import { bootstrapApi } from '../dist/main.js';
 import { WalletService } from '../dist/modules/wallet/index.js';
 import { TasksService, TaskWorkerService, WORKER_CONCURRENCY } from '../dist/modules/tasks/index.js';
+import { ResultIngestorService } from '../dist/modules/tasks/result-ingestor.js';
 import { RunningHubNetworkError } from '../dist/ports/index.js';
 import { RedisService } from '../dist/infra/redis.service.js';
 
@@ -162,7 +163,7 @@ describe('Story 2.5: [BE] Worker xử lý Task qua RunningHub', () => {
     assert.ok(f.rh_orphan_until > new Date());
   });
 
-  it('thành công: id/deadline/submit_started đặt, ingest một lần, ingestor mặc định => OUTPUT_UPLOAD_ERROR RELEASED', async () => {
+  it('thành công: id/deadline/submit_started đặt, ingest một lần, ingestor giả => OUTPUT_UPLOAD_ERROR RELEASED', async () => {
     reset(); await clearGate();
     outputsQueue = [{ status: 'RUNNING' }, { status: 'SUCCESS', fileUrl: 'http://x/y.png', consumeMoney: 3 }];
     const u = await newUser();
@@ -181,12 +182,16 @@ describe('Story 2.5: [BE] Worker xử lý Task qua RunningHub', () => {
     assert.equal((await ledger(id, 'CAPTURED')).length, 0);
   });
 
-  it('ingestor mặc định thật: SUCCESS => failed/OUTPUT_UPLOAD_ERROR', async () => {
+  it('ingestor thật: SUCCESS mà tải lỗi => failed/OUTPUT_UPLOAD_ERROR, gpu_coins lưu', async () => {
     reset(); await clearGate();
     const real = app.get(TaskWorkerService);
-    const { DefaultResultIngestor } = await import('../dist/modules/tasks/default-result-ingestor.js');
-    const saved = real.ingestor;
-    real.ingestor = app.get(DefaultResultIngestor);
+    const ingestor = app.get(ResultIngestorService);
+    const savedIngestor = real.ingestor;
+    const savedFetch = ingestor.fetchFn;
+    const savedRetry = process.env.RH_OUTPUT_RETRY_MS;
+    real.ingestor = ingestor;
+    ingestor.fetchFn = async () => { throw new Error('mạng lỗi'); };
+    process.env.RH_OUTPUT_RETRY_MS = '1';
     try {
       const u = await newUser();
       const id = await createTask(u);
@@ -194,9 +199,14 @@ describe('Story 2.5: [BE] Worker xử lý Task qua RunningHub', () => {
       const r = await row(id);
       assert.equal(r.status, 'failed');
       assert.equal(r.reason_code, 'OUTPUT_UPLOAD_ERROR');
+      assert.equal(r.gpu_coins, 3);
       assert.equal((await ledger(id, 'CAPTURED')).length, 0);
       assert.equal((await ledger(id, 'RELEASED')).length, 1);
-    } finally { real.ingestor = saved; }
+    } finally {
+      real.ingestor = savedIngestor;
+      ingestor.fetchFn = savedFetch;
+      if (savedRetry === undefined) delete process.env.RH_OUTPUT_RETRY_MS; else process.env.RH_OUTPUT_RETRY_MS = savedRetry;
+    }
   });
 
   it('giao lại có id: không upload, không submit, poll tiếp', async () => {

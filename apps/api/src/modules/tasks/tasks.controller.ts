@@ -6,6 +6,7 @@ import {
   type Task,
   getApiErrorMessageVi,
   type FaceSwapCreateResponse,
+  type TaskResultResponse,
 } from '@motion-ai/contracts';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { AccountLockedGuard } from '../auth/guards/account-locked.guard.js';
@@ -52,6 +53,14 @@ export class TasksController {
   @HttpCode(200)
   async cancel(@CurrentUser() user: JwtUserPayload, @Param('id') id: string): Promise<Task> {
     return this.tasks.cancel(user.sub, this.parseId(id));
+  }
+
+  @Get(':id/result')
+  async result(
+    @CurrentUser() user: JwtUserPayload,
+    @Param('id') id: string,
+  ): Promise<TaskResultResponse> {
+    return this.tasks.getResult(user.sub, this.parseId(id));
   }
 
   @Get(':id')
