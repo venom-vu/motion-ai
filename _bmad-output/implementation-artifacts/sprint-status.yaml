@@ -59,7 +59,7 @@ development_status:
   2-5-be-worker-xử-lý-task-qua-runninghub: done
   2-6-be-nhập-kết-quả-về-r2-và-chốt-tiền: done
   2-7-be-bộ-quét-task-treo-và-hạn-chót: done
-  2-8-be-ưu-tiên-theo-tier-và-hết-hạn-hàng-đợi-free: backlog
+  2-8-be-ưu-tiên-theo-tier-và-hết-hạn-hàng-đợi-free: review
   2-9-be-chia-sẻ-kết-quả-bằng-token: backlog
   2-10-fe-thành-phần-tải-ảnh-có-cam-kết-tos: backlog
   2-11-fe-trang-face-swap-và-tiến-trình-xử-lý: backlog

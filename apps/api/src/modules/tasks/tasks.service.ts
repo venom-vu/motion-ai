@@ -40,6 +40,7 @@ export const RESULT_URL_TTL_SECONDS = 600;
 
 export interface SweepRow {
   id: string;
+  user_id?: string;
   enqueue_attempts: number;
   priority: number;
   deadline_at: Date | null;
@@ -135,6 +136,18 @@ export class TasksService {
         deadline_at, prep_deadline_at, gate_deadline
       FROM tasks
       WHERE status = 'queued' AND queued_at < now() - (${olderThanMs}::int * interval '1 millisecond')
+      ORDER BY queued_at LIMIT ${limit}`;
+  }
+
+  /** Bộ quét: Task FREE (Priority của Tier Snapshot) queued quá `waitMs` kể từ queued_at. */
+  async sweepFreeExpired(waitMs: number, limit = 100) {
+    const freePriority = PRICING_CONFIG.tiers.find((t) => t.tier === 'FREE')!.priority;
+    return this.prisma.$queryRaw<SweepRow[]>`
+      SELECT id, user_id, enqueue_attempts, (tier_snapshot->>'priority')::int AS priority,
+        deadline_at, prep_deadline_at, gate_deadline
+      FROM tasks
+      WHERE status = 'queued' AND (tier_snapshot->>'priority')::int = ${freePriority}::int
+        AND queued_at < now() - (${waitMs}::int * interval '1 millisecond')
       ORDER BY queued_at LIMIT ${limit}`;
   }
 

@@ -1,14 +1,16 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Interval } from '@nestjs/schedule';
 import type { ReasonCode } from '@motion-ai/contracts';
 import type { Job, Queue } from 'bullmq';
+import { NOTIFIER_PORT, type NotifierPort } from '../../ports/index.js';
 import { ORPHAN_MS, TaskWorkerService } from './task-worker.service.js';
 import { TASKS_QUEUE, TasksService, type SweepRow } from './tasks.service.js';
 
 export const SWEEP_INTERVAL_MS = 30_000;
 export const QUEUED_GRACE_MS = 30_000;
 export const MAX_ENQUEUE_ATTEMPTS = 5;
+export const FREE_WAIT_MS = 15 * 60_000;
 const BATCH = 100;
 
 /** Bộ quét Task treo và hạn chót (AD-6). Chỉ chạy ở tiến trình worker. */
@@ -21,6 +23,7 @@ export class TaskSweeperService {
     private readonly tasks: TasksService,
     private readonly worker: TaskWorkerService,
     @InjectQueue(TASKS_QUEUE) private readonly queue: Queue,
+    @Inject(NOTIFIER_PORT) private readonly notifier: NotifierPort,
   ) {}
 
   @Interval(SWEEP_INTERVAL_MS)
@@ -34,6 +37,7 @@ export class TaskSweeperService {
     if (this.running) return;
     this.running = true;
     try {
+      await this.safe('free-expired', () => this.sweepFreeExpired());
       await this.safe('queued', () => this.sweepQueued());
       await this.safe('running-expired', () => this.sweepRunningExpired());
       await this.safe('running-live', () => this.sweepRunningLive());
@@ -70,6 +74,27 @@ export class TaskSweeperService {
       { taskId: row.id },
       { jobId: row.id, priority: row.priority, removeOnComplete: true, removeOnFail: true },
     );
+  }
+
+  /** Task FREE chờ quá 15 phút: queued→timed_out/FREE_WAIT_EXPIRED (RELEASED trong transition). */
+  private async sweepFreeExpired(): Promise<void> {
+    for (const row of await this.tasks.sweepFreeExpired(FREE_WAIT_MS, BATCH)) {
+      try {
+        const { applied } = await this.tasks.transition(row.id, 'queued', 'timed_out', 'FREE_WAIT_EXPIRED');
+        if (!applied) continue;
+        await this.cleanup(row.id);
+        await this.notifier
+          .notify({
+            kind: 'task.free_wait_expired',
+            severity: 'info',
+            message: 'Task FREE chờ quá 15 phút, đã hoàn credit; người dùng có thể thử lại hoặc nạp credit.',
+            data: { taskId: row.id, userId: row.user_id },
+          })
+          .catch((err) => this.logger.warn(`Không gửi được thông báo Task ${row.id}: ${String(err)}`));
+      } catch (err) {
+        this.logger.warn(`Bộ quét Task FREE hết hạn ${row.id} lỗi: ${String(err)}`);
+      }
+    }
   }
 
   private async sweepQueued(): Promise<void> {
