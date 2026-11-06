@@ -89,9 +89,9 @@ export function getImageDimensions(
   }
 
   return new Promise((resolve, reject) => {
-    // 1. Thử createImageBitmap nếu môi trường hỗ trợ
+    // 1. Thử createImageBitmap nếu môi trường hỗ trợ (kèm tự động xoay theo EXIF mobile)
     if (typeof createImageBitmap === 'function') {
-      createImageBitmap(file)
+      createImageBitmap(file, { imageOrientation: 'from-image' })
         .then((bitmap) => {
           const width = bitmap.width;
           const height = bitmap.height;

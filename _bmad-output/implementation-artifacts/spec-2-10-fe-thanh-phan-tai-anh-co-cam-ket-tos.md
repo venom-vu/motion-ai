@@ -42,3 +42,18 @@ route: 'oneshot'
 - finding 14 (`FeatureWorkspaceDialog.vue` chưa chặn bấm nhiều lần khi `submitting`): verdict `false` — Story 2.10 tập trung vào thành phần tải ảnh; luồng submitting tác vụ sẽ hoàn thiện ở Story 2.11.
 - finding 15 (`FeatureWorkspaceDialog.vue` tồn tại mã thừa `mockUploadState`): verdict `low` -> `patch` — đã dọn sạch `mockUploadState` và chuyển `canSubmit` sang kiểm tra trực tiếp `uploadedKey` và `acceptedConsent`.
 - finding 16 (`smoke.test.mjs` thiếu kiểm tra ARIA và MIME normalization): verdict `low` -> `patch` — đã bổ sung test case cho ARIA progress bar, error state buttons và `normalizeImageMimeType`.
+
+### Review Findings
+
+- [x] [Review][Patch] Sửa `MotionApiClientError` không ghi đè `serverMessage` tùy biến khi `code` là null [apps/web/utils/api-client.ts:133]
+- [x] [Review][Patch] Checkbox cam kết ToS chỉ được phép tích khi tải ảnh thành công (`status === 'ready'`) và reset khi retry [apps/web/components/ImageUploader.vue:825]
+- [x] [Review][Patch] Đồng bộ watcher `props.modelValue` và hủy in-flight upload khi `modelValue` bị xóa [apps/web/components/ImageUploader.vue:326]
+- [x] [Review][Patch] Dọn dẹp `mockTimer` bằng `clearInterval` và xử lý Promise abort leak trong `simulateMockUpload` [apps/web/components/ImageUploader.vue:475]
+- [x] [Review][Patch] Fallback an toàn cho `crypto.randomUUID()` khi chạy qua HTTP trên mạng LAN [apps/web/components/ImageUploader.vue:480]
+- [x] [Review][Patch] Bổ sung `{ imageOrientation: 'from-image' }` khi gọi `createImageBitmap` [apps/web/utils/image-upload.ts:98]
+- [x] [Review][Patch] Bổ sung test kiểm tra `canSubmit` của Dialog và mock XHR cho `uploadPresignedFile` [apps/web/test/smoke.test.mjs:1]
+- [x] [Review][Patch] Thêm hiệu ứng kéo thả `isDragging` cho dropzone và dọn dẹp điều kiện kiểm tra `canSubmit` [apps/web/components/FeatureWorkspaceDialog.vue:395]
+
+#### Rejected
+- [x] [Review][Rejected] AA-5: Spec status `done` trước khi review — Trạng thái spec và sprint-status được đồng bộ tự động ở bước hoàn tất review.
+- [x] [Review][Rejected] BH-7: Xử lý kéo thả tệp khi không ở idle — Giao diện dropzone chỉ hiển thị khi ở trạng thái idle, các trạng thái khác đã có nút đổi/hủy tương ứng.

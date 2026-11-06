@@ -71,7 +71,8 @@ const uploadProgress = ref<number>(0);
 const errorMessageVi = ref<string | null>(null);
 
 let activeAbortController: AbortController | null = null;
-let mockTimer: ReturnType<typeof setTimeout> | null = null;
+let mockTimer: ReturnType<typeof setInterval> | null = null;
+const isDragging = ref(false);
 
 // Quản lý ô tích cam kết ToS theo FR19
 const localConsent = ref<boolean>(props.consent);
@@ -87,10 +88,11 @@ watch(
   () => props.modelValue,
   (nextKey) => {
     if (!nextKey) {
-      if (confirmedKey.value || status.value === 'ready') {
+      if (status.value !== 'idle') {
         handleCancel();
       }
     } else if (nextKey !== confirmedKey.value) {
+      cancelOngoingUpload();
       confirmedKey.value = nextKey;
       status.value = 'ready';
     }
@@ -129,9 +131,10 @@ function cancelOngoingUpload(): void {
     activeAbortController = null;
   }
   if (mockTimer) {
-    clearTimeout(mockTimer);
+    clearInterval(mockTimer);
     mockTimer = null;
   }
+  isDragging.value = false;
 }
 
 function openLibrary(): void {
@@ -259,20 +262,43 @@ function simulateMockUpload(
 ): Promise<void> {
   return new Promise((resolve) => {
     let progress = 0;
+
+    const cleanup = () => {
+      if (mockTimer) {
+        clearInterval(mockTimer);
+        mockTimer = null;
+      }
+      signal.removeEventListener('abort', onAbort);
+    };
+
+    const onAbort = () => {
+      cleanup();
+      status.value = 'idle';
+      resolve();
+    };
+
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+
+    signal.addEventListener('abort', onAbort, { once: true });
+
     const interval = setInterval(() => {
       if (signal.aborted) {
-        clearInterval(interval);
-        mockTimer = null;
-        status.value = 'idle';
-        resolve();
+        onAbort();
         return;
       }
       progress += 25;
       uploadProgress.value = Math.min(100, progress);
       if (progress >= 100) {
-        clearInterval(interval);
-        mockTimer = null;
-        const mockKey = `in/00000000-0000-4000-8000-000000000001/${crypto.randomUUID()}`;
+        cleanup();
+        const uuid =
+          typeof crypto !== 'undefined' &&
+          typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        const mockKey = `in/00000000-0000-4000-8000-000000000001/${uuid}`;
         confirmedKey.value = mockKey;
         status.value = 'ready';
         const mockResponse: UploadConfirmResponse = {
@@ -313,6 +339,7 @@ function handleCancel(): void {
 }
 
 function handleRetry(): void {
+  resetConsent();
   if (currentFile.value && currentMeta.value) {
     startUpload(currentFile.value, currentMeta.value);
   } else if (currentFile.value) {
@@ -334,6 +361,7 @@ function onFileInputChange(event: Event): void {
 }
 
 function onDrop(event: DragEvent): void {
+  isDragging.value = false;
   if (props.disabled || status.value === 'uploading') return;
   const files = event.dataTransfer?.files;
   if (files && files.length > 0 && files[0]) {
@@ -381,8 +409,15 @@ const isUploading = computed(
     <!-- Khung tải ảnh chính (Dropzone / Trạng thái chờ) -->
     <div
       v-if="status === 'idle' || status === 'validating'"
-      class="touch-target group relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-cyber-border bg-cyber-bg/60 p-5 text-center transition hover:border-cyber-violet/70 hover:bg-cyber-bg/90"
-      @dragover.prevent
+      class="touch-target group relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-5 text-center transition"
+      :class="[
+        isDragging
+          ? 'border-cyber-cyan bg-cyber-cyan/10 scale-[1.01]'
+          : 'border-cyber-border bg-cyber-bg/60 hover:border-cyber-violet/70 hover:bg-cyber-bg/90',
+      ]"
+      @dragenter.prevent="isDragging = true"
+      @dragover.prevent="isDragging = true"
+      @dragleave.prevent="isDragging = false"
       @drop.prevent="onDrop"
     >
       <div
@@ -601,16 +636,19 @@ const isUploading = computed(
     <div v-if="showTosConsent" class="pt-1">
       <label
         :for="`${idPrefix}-tos-checkbox`"
-        class="touch-target flex min-h-[48px] cursor-pointer items-start gap-3 rounded-xl border border-cyber-border bg-cyber-bg/70 p-3.5 text-sm transition hover:border-cyber-violet/60"
-        :class="{ 'opacity-60 cursor-not-allowed': disabled || isUploading }"
+        class="touch-target flex min-h-[48px] items-start gap-3 rounded-xl border border-cyber-border bg-cyber-bg/70 p-3.5 text-sm transition hover:border-cyber-violet/60"
+        :class="{
+          'cursor-pointer': !disabled && status === 'ready',
+          'opacity-60 cursor-not-allowed': disabled || status !== 'ready',
+        }"
       >
         <input
           :id="`${idPrefix}-tos-checkbox`"
           :checked="localConsent"
-          :disabled="disabled || isUploading"
+          :disabled="disabled || status !== 'ready'"
           type="checkbox"
           data-testid="image-uploader-tos-checkbox"
-          class="mt-1 h-5 w-5 shrink-0 cursor-pointer accent-cyber-violet disabled:cursor-not-allowed"
+          class="mt-1 h-5 w-5 shrink-0 accent-cyber-violet disabled:cursor-not-allowed"
           @change="updateConsent(($event.target as HTMLInputElement).checked)"
         />
         <span class="text-xs leading-relaxed text-cyber-muted">

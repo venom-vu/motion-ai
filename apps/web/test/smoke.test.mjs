@@ -1745,6 +1745,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
             disabled: false,
             showTosConsent: true,
             isUploading: false,
+            isDragging: false,
             localConsent: false,
             TOS_VERSION,
             openLibrary: () => {},
@@ -1908,5 +1909,273 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
     assert.match(dialogRaw, /v-model="uploadedKey"/);
     assert.match(dialogRaw, /v-model:consent="acceptedConsent"/);
     assert.match(dialogRaw, /canSubmit/);
+  });
+
+  it('MotionApiClientError bảo toàn serverMessage tùy biến khi code là null và chuẩn hóa mã ApiErrorCode', () => {
+    // 1. Trường hợp code là null nhưng có serverMessage tiếng Việt tùy biến
+    const customErr = new MotionApiClientError({
+      status: 400,
+      code: null,
+      serverMessage: 'Không thể kết nối tới máy chủ tải ảnh',
+    });
+    assert.equal(customErr.status, 400);
+    assert.equal(customErr.code, null);
+    assert.equal(customErr.userMessageVi, 'Không thể kết nối tới máy chủ tải ảnh');
+    assert.equal(customErr.message, 'Không thể kết nối tới máy chủ tải ảnh');
+    assert.equal(resolveApiErrorMessageVi(customErr), 'Không thể kết nối tới máy chủ tải ảnh');
+
+    // 2. Trường hợp có mã ApiErrorCode hợp lệ
+    const codeErr = new MotionApiClientError({
+      status: 403,
+      code: ApiErrorCode.INSUFFICIENT_CREDIT,
+    });
+    assert.equal(codeErr.code, ApiErrorCode.INSUFFICIENT_CREDIT);
+    assert.equal(
+      codeErr.userMessageVi,
+      API_ERROR_MESSAGES_VI[ApiErrorCode.INSUFFICIENT_CREDIT],
+    );
+
+    // 3. Trường hợp cả code và serverMessage đều null -> fallback mặc định
+    const fallbackErr = new MotionApiClientError({
+      status: 500,
+      code: null,
+    });
+    assert.match(fallbackErr.userMessageVi, /Đã xảy ra lỗi không xác định/);
+  });
+
+  it('uploadPresignedFile hoạt động chính xác với XMLHttpRequest (tiến trình, hoàn tất, lỗi HTTP, lỗi mạng, hủy AbortSignal)', async () => {
+    const originalXHR = globalThis.XMLHttpRequest;
+
+    try {
+      // 1. Kiểm tra thành công và gọi onProgress
+      const progressValues = [];
+      let xhrHeaders = {};
+      globalThis.XMLHttpRequest = class MockXHR {
+        constructor() {
+          this.upload = {};
+          this.headers = {};
+          xhrHeaders = this.headers;
+        }
+        open(method, url) {
+          this.method = method;
+          this.url = url;
+        }
+        setRequestHeader(k, v) {
+          this.headers[k] = v;
+        }
+        send() {
+          this.upload.onprogress?.({
+            lengthComputable: true,
+            loaded: 50,
+            total: 100,
+          });
+          this.status = 200;
+          this.onload?.();
+        }
+        abort() {}
+      };
+
+      const mockFile = new Blob(['sample-content'], { type: 'image/jpeg' });
+      await uploadPresignedFile({
+        uploadUrl: 'https://r2.example.com/upload-test',
+        headers: { 'Content-Type': 'image/jpeg' },
+        file: mockFile,
+        onProgress: (p) => progressValues.push(p),
+      });
+
+      assert.equal(progressValues.includes(50), true);
+      assert.equal(progressValues[progressValues.length - 1], 100);
+      assert.equal(xhrHeaders['Content-Type'], 'image/jpeg');
+
+      // 2. Kiểm tra lỗi HTTP (status 403) ném MotionApiClientError
+      globalThis.XMLHttpRequest = class FailingXHR {
+        open() {}
+        setRequestHeader() {}
+        send() {
+          this.status = 403;
+          this.onload?.();
+        }
+        abort() {}
+      };
+
+      await assert.rejects(
+        uploadPresignedFile({
+          uploadUrl: 'https://r2.example.com/upload-fail',
+          file: mockFile,
+        }),
+        (err) => {
+          assert.ok(err instanceof MotionApiClientError);
+          assert.equal(err.status, 403);
+          assert.match(err.message, /HTTP 403/);
+          return true;
+        },
+      );
+
+      // 3. Kiểm tra lỗi kết nối mạng (onerror)
+      globalThis.XMLHttpRequest = class NetworkErrXHR {
+        open() {}
+        setRequestHeader() {}
+        send() {
+          this.status = 0;
+          this.onerror?.();
+        }
+        abort() {}
+      };
+
+      await assert.rejects(
+        uploadPresignedFile({
+          uploadUrl: 'https://r2.example.com/network-err',
+          file: mockFile,
+        }),
+        (err) => {
+          assert.ok(err instanceof MotionApiClientError);
+          assert.equal(err.status, 0);
+          assert.match(err.message, /Lỗi kết nối mạng/);
+          return true;
+        },
+      );
+
+      // 4. Kiểm tra AbortSignal hủy tải lên
+      let abortedCalled = false;
+      globalThis.XMLHttpRequest = class AbortableXHR {
+        open() {}
+        setRequestHeader() {}
+        send() {}
+        abort() {
+          abortedCalled = true;
+        }
+      };
+
+      const ac = new AbortController();
+      const abortPromise = uploadPresignedFile({
+        uploadUrl: 'https://r2.example.com/abort-test',
+        file: mockFile,
+        signal: ac.signal,
+      });
+      ac.abort();
+
+      await assert.rejects(abortPromise, (err) => {
+        assert.equal(err.name, 'AbortError');
+        return true;
+      });
+      assert.equal(abortedCalled, true);
+    } finally {
+      globalThis.XMLHttpRequest = originalXHR;
+    }
+  });
+
+  it('getImageDimensions truyền { imageOrientation: "from-image" } cho createImageBitmap', async () => {
+    const originalCreateImageBitmap = globalThis.createImageBitmap;
+    let passedOptions = null;
+    try {
+      globalThis.createImageBitmap = async (_file, options) => {
+        passedOptions = options;
+        return {
+          width: 800,
+          height: 1000,
+          close: () => {},
+        };
+      };
+
+      const dummyFile = new Blob([''], { type: 'image/jpeg' });
+      const dims = await getImageDimensions(dummyFile);
+      assert.equal(dims.width, 800);
+      assert.equal(dims.height, 1000);
+      assert.deepEqual(passedOptions, { imageOrientation: 'from-image' });
+    } finally {
+      globalThis.createImageBitmap = originalCreateImageBitmap;
+    }
+  });
+
+  it('FeatureWorkspaceDialog SSR kiểm tra trạng thái disabled của submit-task-button theo canSubmit', async () => {
+    const dialogRaw = fs.readFileSync(
+      path.join(webRoot, 'components/FeatureWorkspaceDialog.vue'),
+      'utf8',
+    );
+    const { descriptor } = parse(dialogRaw);
+    const compiled = compileTemplate({
+      id: 'test-fwd-submit-button',
+      filename: 'FeatureWorkspaceDialog.vue',
+      source: descriptor.template.content,
+      ssr: true,
+      ssrCssVars: [],
+    });
+    assert.equal(compiled.errors.length, 0);
+
+    const tmpFile = path.join(webRoot, 'test', `.tmp-fwd-test-${Date.now()}.mjs`);
+    fs.writeFileSync(tmpFile, compiled.code, 'utf8');
+
+    try {
+      const { ssrRender } = await import(pathToFileURL(tmpFile).href);
+
+      const makeDialogApp = (canSubmitValue) => {
+        const app = createSSRApp({
+          ssrRender,
+          setup() {
+            return {
+              open: true,
+              feature: {
+                id: 'face-swap',
+                titleVi: 'Thay Đổi Khuôn Mặt',
+                icon: 'lucide:sparkles',
+                category: 'face',
+                pricingMode: 'per_image',
+                credits: 100,
+                priceNoteVi: '100 credit / lượt',
+                descriptionVi: 'Mô tả test',
+                inputRequirementVi: 'Tải ảnh chân dung rõ mặt',
+              },
+              userTier: 'FREE',
+              userBalance: 500,
+              hasEnoughBalance: true,
+              canSubmit: canSubmitValue,
+              uploadedKey: canSubmitValue ? 'in/mock/sample.jpg' : null,
+              acceptedConsent: canSubmitValue,
+              estimatedCredits: 100,
+              formatNumberVi: (n) => String(n),
+              emit: () => {},
+              handleSubmit: () => {},
+            };
+          },
+        });
+        app.component('Icon', {
+          props: ['name'],
+          ssrRender(_ctx, push) {
+            push('<span class="icon-mock"></span>');
+          },
+        });
+        app.component('NuxtLink', {
+          props: ['to'],
+          ssrRender(_ctx, push) {
+            push('<a href="#">MockLink</a>');
+          },
+        });
+        app.component('ImageUploader', {
+          props: ['modelValue', 'consent'],
+          ssrRender(_ctx, push) {
+            push('<div data-testid="mock-image-uploader"></div>');
+          },
+        });
+        return app;
+      };
+
+      // canSubmit = false -> nút submit phải có thuộc tính disabled
+      const disabledHtml = await renderToString(makeDialogApp(false));
+      assert.match(
+        disabledHtml,
+        /<button[^>]*data-testid="submit-task-button"[^>]*\sdisabled(=|"|\s|>)/,
+      );
+
+      // canSubmit = true -> nút submit không có thuộc tính disabled (không nhầm với class disabled:...)
+      const enabledHtml = await renderToString(makeDialogApp(true));
+      assert.doesNotMatch(
+        enabledHtml,
+        /<button[^>]*data-testid="submit-task-button"[^>]*\sdisabled(=|"|\s|>)/,
+      );
+    } finally {
+      if (fs.existsSync(tmpFile)) {
+        fs.unlinkSync(tmpFile);
+      }
+    }
   });
 });

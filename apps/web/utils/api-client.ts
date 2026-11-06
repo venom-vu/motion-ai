@@ -63,7 +63,9 @@ export class MotionApiClientError extends Error {
       typeof params.code === 'string' && params.code.trim().length > 0
         ? params.code.trim()
         : null;
-    const userMessageVi = getApiErrorMessageVi(normalizedCode);
+    const userMessageVi = normalizedCode
+      ? getApiErrorMessageVi(normalizedCode)
+      : (params.serverMessage ?? getApiErrorMessageVi(null));
     super(userMessageVi);
     this.name = 'MotionApiClientError';
     this.status = params.status;

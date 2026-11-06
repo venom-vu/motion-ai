@@ -391,11 +391,8 @@ onBeforeUnmount(() => {
 
           <button
             type="button"
-            :disabled="
-              typeof canSubmit !== 'undefined'
-                ? !canSubmit
-                : !hasEnoughBalance
-            "
+            data-testid="submit-task-button"
+            :disabled="!canSubmit"
             class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl bg-cyber-violet px-6 py-3 text-sm font-semibold text-cyber-text transition hover:bg-cyber-violet/90 disabled:cursor-not-allowed disabled:opacity-50"
             @click="handleSubmit"
           >
