@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { AccountTier } from '@motion-ai/contracts';
+import ImageUploader from '~/components/ImageUploader.vue';
 import {
   calculateFeatureEstimatedCredits,
   formatNumberVi,
@@ -22,12 +23,20 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   close: [];
-  submit: [{ featureId: string; seconds: number; estimatedCredits: number }];
+  submit: [
+    {
+      featureId: string;
+      seconds: number;
+      estimatedCredits: number;
+      uploadedKey?: string | null;
+    },
+  ];
 }>();
 
 const compareSplitPercent = ref<number>(50);
 const selectedSeconds = ref<number>(1);
-const mockUploadState = ref<'idle' | 'ready'>('idle');
+const uploadedKey = ref<string | null>(null);
+const acceptedConsent = ref<boolean>(false);
 
 const maxSeconds = computed<number>(() => {
   return props.feature?.tierCapSeconds ?? 1;
@@ -37,7 +46,8 @@ watch(
   () => props.feature,
   (nextFeature) => {
     compareSplitPercent.value = 50;
-    mockUploadState.value = 'idle';
+    uploadedKey.value = null;
+    acceptedConsent.value = false;
     if (nextFeature?.tierCapSeconds) {
       selectedSeconds.value = Math.min(3, nextFeature.tierCapSeconds);
     } else {
@@ -52,6 +62,10 @@ watch(
   (isOpen) => {
     if (typeof document !== 'undefined') {
       document.body.style.overflow = isOpen ? 'hidden' : '';
+    }
+    if (!isOpen) {
+      uploadedKey.value = null;
+      acceptedConsent.value = false;
     }
   },
   { immediate: true },
@@ -74,14 +88,22 @@ const hasEnoughBalance = computed<boolean>(() => {
   return props.userBalance >= estimatedCredits.value;
 });
 
+const canSubmit = computed<boolean>(() => {
+  if (!hasEnoughBalance.value) {
+    return false;
+  }
+  return Boolean(uploadedKey.value && acceptedConsent.value);
+});
+
 function handleSubmit(): void {
-  if (!props.feature || !hasEnoughBalance.value) {
+  if (!props.feature || !canSubmit.value) {
     return;
   }
   emit('submit', {
     featureId: props.feature.id,
     seconds: selectedSeconds.value,
     estimatedCredits: estimatedCredits.value,
+    uploadedKey: uploadedKey.value,
   });
 }
 
@@ -162,8 +184,9 @@ onBeforeUnmount(() => {
       <div class="grid grid-cols-1 gap-6 p-4 sm:p-6 lg:grid-cols-12">
         <!-- Cột trái: Tải tệp & Điều chỉnh thông số (Trimmer bước 1 giây cho video) -->
         <div class="space-y-5 lg:col-span-6">
-          <div class="rounded-xl border border-dashed border-cyber-border bg-cyber-bg/60 p-4">
-            <div class="flex items-start gap-3">
+          <!-- Thành phần tải ảnh có cam kết ToS dùng chung (Story 2.10) -->
+          <div class="rounded-xl border border-cyber-border bg-cyber-bg/60 p-4">
+            <div class="mb-4 flex items-start gap-3">
               <Icon
                 name="lucide:upload-cloud"
                 class="mt-0.5 h-6 w-6 shrink-0 text-cyber-violet"
@@ -178,25 +201,17 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div class="mt-4 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-violet/50 bg-cyber-violet/15 px-4 py-2.5 text-xs font-semibold text-cyber-text transition hover:bg-cyber-violet/25"
-                @click="
-                  mockUploadState =
-                    mockUploadState === 'idle' ? 'ready' : 'idle'
-                "
-              >
-                <Icon name="lucide:file-up" class="h-4 w-4" />
-                <span>
-                  {{
-                    mockUploadState === 'ready'
-                      ? 'Đã nạp tệp mẫu thử nghiệm'
-                      : 'Chọn tệp mẫu thử nghiệm'
-                  }}
-                </span>
-              </button>
-            </div>
+            <ImageUploader
+              v-model="uploadedKey"
+              v-model:consent="acceptedConsent"
+              id-prefix="workspace-input"
+              :label-vi="
+                feature.titleVi
+                  ? `Tải ảnh cho ${feature.titleVi}`
+                  : 'Tải ảnh lên'
+              "
+              :description-vi="feature.inputRequirementVi"
+            />
           </div>
 
           <!-- Bộ cắt video bước 1 giây (chỉ hiện với công cụ tính phí theo giây) -->
@@ -376,7 +391,11 @@ onBeforeUnmount(() => {
 
           <button
             type="button"
-            :disabled="!hasEnoughBalance"
+            :disabled="
+              typeof canSubmit !== 'undefined'
+                ? !canSubmit
+                : !hasEnoughBalance
+            "
             class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl bg-cyber-violet px-6 py-3 text-sm font-semibold text-cyber-text transition hover:bg-cyber-violet/90 disabled:cursor-not-allowed disabled:opacity-50"
             @click="handleSubmit"
           >

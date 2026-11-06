@@ -13,14 +13,24 @@ import {
   CONTRACTS_PACKAGE_VERSION,
   MOCK_ME_PRO_RESPONSE,
   MOCK_PRICING_CONFIG_RESPONSE,
+  MOCK_UPLOAD_CONFIRM_RESPONSE,
+  MOCK_UPLOAD_CREATE_RESPONSE,
   MOCK_WALLET_LEDGER_ITEMS,
+  TOS_VERSION,
 } from '@motion-ai/contracts';
 import { SLATE_CYBER_COLORS } from '../tailwind.config.ts';
 import {
   MotionApiClientError,
   createMotionApiClient,
   resolveApiErrorMessageVi,
+  uploadPresignedFile,
 } from '../utils/api-client.ts';
+import {
+  formatFileSizeVi,
+  getImageDimensions,
+  normalizeImageMimeType,
+  validateImageFile,
+} from '../utils/image-upload.ts';
 import {
   createRefreshCoordinator,
   createSessionLostHandler,
@@ -1538,5 +1548,365 @@ describe('@motion-ai/web — Header cố định, popover tài khoản và đăn
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+});
+
+describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết ToS', () => {
+  it('kiểm tra tính hợp lệ phía client: từ chối MIME không hỗ trợ, file > 10MB, cạnh ngắn < 512px, tỷ lệ sai', async () => {
+    // 1. MIME không hỗ trợ (ví dụ image/gif)
+    const gifFile = {
+      name: 'animation.gif',
+      type: 'image/gif',
+      size: 1024 * 100,
+      width: 600,
+      height: 600,
+    };
+    const resMime = await validateImageFile(gifFile);
+    assert.equal(resMime.valid, false);
+    assert.match(resMime.errorVi, /Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP/);
+
+    // 2. Dung lượng quá 10 MB
+    const largeFile = {
+      name: 'large.jpg',
+      type: 'image/jpeg',
+      size: 11 * 1024 * 1024,
+      width: 1000,
+      height: 1000,
+    };
+    const resSize = await validateImageFile(largeFile);
+    assert.equal(resSize.valid, false);
+    assert.match(resSize.errorVi, /10 MB/);
+
+    // 3. Cạnh ngắn < 512px
+    const smallFile = {
+      name: 'small.png',
+      type: 'image/png',
+      size: 1024 * 50,
+      width: 480,
+      height: 800,
+    };
+    const resSmall = await validateImageFile(smallFile);
+    assert.equal(resSmall.valid, false);
+    assert.match(resSmall.errorVi, /512px/);
+
+    // 4. Tỷ lệ vượt quá 2:1 (ví dụ 1400x600 = 2.33:1, cạnh ngắn 600 >= 512px)
+    const wideFile = {
+      name: 'wide.webp',
+      type: 'image/webp',
+      size: 1024 * 100,
+      width: 1400,
+      height: 600,
+    };
+    const resWide = await validateImageFile(wideFile);
+    assert.equal(resWide.valid, false);
+    assert.match(resWide.errorVi, /1:2 đến 2:1/);
+
+    // 5. Ảnh hợp lệ (JPG 800x1000, tỷ lệ 1.25, 2 MB)
+    const validFile = {
+      name: 'portrait.jpg',
+      type: 'image/jpeg',
+      size: 2 * 1024 * 1024,
+      width: 800,
+      height: 1000,
+    };
+    const resValid = await validateImageFile(validFile);
+    assert.equal(resValid.valid, true);
+    assert.equal(resValid.meta.width, 800);
+    assert.equal(resValid.meta.height, 1000);
+
+    const dims = await getImageDimensions(validFile);
+    assert.equal(dims.width, 800);
+    assert.equal(dims.height, 1000);
+  });
+
+  it('createMotionApiClient hỗ trợ createUpload và confirmUpload đúng schema', async () => {
+    let requestedPath = '';
+    let requestedMethod = '';
+
+    const mockFetch = async (url, init) => {
+      const u = new URL(String(url));
+      requestedPath = u.pathname;
+      requestedMethod = init.method;
+
+      if (u.pathname === '/uploads' && init.method === 'POST') {
+        return Response.json(MOCK_UPLOAD_CREATE_RESPONSE);
+      }
+      if (u.pathname.includes('/confirm') && init.method === 'POST') {
+        return Response.json(MOCK_UPLOAD_CONFIRM_RESPONSE);
+      }
+      return Response.json({ code: 'NOT_FOUND' }, { status: 404 });
+    };
+
+    const client = createMotionApiClient({
+      baseUrl: 'http://localhost:8080',
+      fetchImpl: mockFetch,
+    });
+
+    // 1. createUpload
+    const created = await client.createUpload({
+      mimeType: 'image/jpeg',
+      sizeBytes: 2 * 1024 * 1024,
+    });
+    assert.equal(requestedPath, '/uploads');
+    assert.equal(requestedMethod, 'POST');
+    assert.equal(created.key, MOCK_UPLOAD_CREATE_RESPONSE.key);
+    assert.equal(created.method, 'PUT');
+
+    // 2. confirmUpload
+    const confirmed = await client.confirmUpload(created.key);
+    assert.match(requestedPath, /\/confirm$/);
+    assert.equal(requestedMethod, 'POST');
+    assert.equal(confirmed.key, MOCK_UPLOAD_CONFIRM_RESPONSE.key);
+    assert.equal(confirmed.image.width, 1024);
+  });
+
+  it('uploadPresignedFile tải file qua PUT, đo tiến trình và hỗ trợ hủy bằng AbortSignal', async () => {
+    let headersReceived = {};
+
+    const mockFetch = async (url, init) => {
+      headersReceived = init.headers;
+      if (init.signal?.aborted) {
+        throw new DOMException('Aborted', 'AbortError');
+      }
+      return new Response('', { status: 200 });
+    };
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = mockFetch;
+    try {
+      const dummyFile = new Blob(['sample-image-content'], {
+        type: 'image/jpeg',
+      });
+      let progressReported = 0;
+
+      await uploadPresignedFile({
+        uploadUrl: 'https://r2.storage.example/presigned',
+        file: dummyFile,
+        headers: { 'Content-Type': 'image/jpeg' },
+        onProgress: (p) => {
+          progressReported = p;
+        },
+      });
+
+      assert.equal(headersReceived['Content-Type'], 'image/jpeg');
+      assert.equal(progressReported, 100);
+
+      // Thử hủy bằng controller đã abort
+      const controller = new AbortController();
+      controller.abort();
+      await assert.rejects(
+        () =>
+          uploadPresignedFile({
+            uploadUrl: 'https://r2.storage.example/presigned',
+            file: dummyFile,
+            signal: controller.signal,
+          }),
+        (err) => err.name === 'AbortError',
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('SSR render ImageUploader: đầy đủ các thành phần, input file accept, ToS checkbox phiên bản 2026-11-01 và touch target >= 48px', async () => {
+    const uploaderSfcRaw = fs.readFileSync(
+      path.join(webRoot, 'components/ImageUploader.vue'),
+      'utf8',
+    );
+    const { descriptor } = parse(uploaderSfcRaw);
+    const compiled = compileTemplate({
+      id: 'test-image-uploader',
+      filename: 'ImageUploader.vue',
+      source: descriptor.template.content,
+      ssr: true,
+      ssrCssVars: [],
+    });
+    assert.equal(compiled.errors.length, 0);
+
+    const tmpUploaderFile = path.join(
+      webRoot,
+      'test',
+      `.tmp-uploader-${Date.now()}.mjs`,
+    );
+    fs.writeFileSync(tmpUploaderFile, compiled.code, 'utf8');
+
+    try {
+      const { ssrRender } = await import(pathToFileURL(tmpUploaderFile).href);
+
+      // 1. Trạng thái idle
+      const idleApp = createSSRApp({
+        ssrRender,
+        setup() {
+          return {
+            status: 'idle',
+            labelVi: 'Tải ảnh khuôn mặt',
+            descriptionVi: 'JPG, PNG, WebP ≤ 10 MB',
+            idPrefix: 'test-uploader',
+            disabled: false,
+            showTosConsent: true,
+            isUploading: false,
+            localConsent: false,
+            TOS_VERSION,
+            openLibrary: () => {},
+            openCamera: () => {},
+            onFileInputChange: () => {},
+            onDrop: () => {},
+            updateConsent: () => {},
+          };
+        },
+      });
+      idleApp.component('Icon', {
+        props: ['name'],
+        ssrRender(_ctx, push) {
+          push('<span class="icon-mock"></span>');
+        },
+      });
+      idleApp.component('ApiErrorBanner', {
+        props: ['messageVi'],
+        ssrRender() {},
+      });
+
+      const idleHtml = await renderToString(idleApp);
+      assert.match(idleHtml, /data-testid="image-uploader"/);
+      assert.match(idleHtml, /data-testid="open-library-button"/);
+      assert.match(idleHtml, /data-testid="open-camera-button"/);
+      assert.match(idleHtml, /data-testid="image-uploader-tos-checkbox"/);
+      assert.match(idleHtml, /2026-11-01/);
+      assert.match(idleHtml, /accept="image\/jpeg,image\/png,image\/webp"/);
+      assert.match(idleHtml, /capture="environment"/);
+      assert.match(idleHtml, /touch-target/);
+
+      // 2. Trạng thái ready (đã tải xong)
+      const readyApp = createSSRApp({
+        ssrRender,
+        setup() {
+          return {
+            status: 'ready',
+            idPrefix: 'test-ready',
+            previewUrl: '/preview-sample.jpg',
+            currentFile: { name: 'portrait.jpg', size: 1024 * 1024 },
+            currentMeta: {
+              width: 1024,
+              height: 1280,
+              mimeType: 'image/jpeg',
+              sizeBytes: 1024 * 1024,
+            },
+            disabled: false,
+            isUploading: false,
+            showTosConsent: true,
+            localConsent: true,
+            TOS_VERSION,
+            formatFileSizeVi,
+            handleChangeImage: () => {},
+            handleCancel: () => {},
+            updateConsent: () => {},
+          };
+        },
+      });
+      readyApp.component('Icon', {
+        props: ['name'],
+        ssrRender(_ctx, push) {
+          push('<span class="icon-mock"></span>');
+        },
+      });
+      readyApp.component('ApiErrorBanner', {
+        props: ['messageVi'],
+        ssrRender() {},
+      });
+
+      const readyHtml = await renderToString(readyApp);
+      assert.match(readyHtml, /data-testid="upload-ready-state"/);
+      assert.match(readyHtml, /data-testid="image-preview"/);
+      assert.match(readyHtml, /data-testid="change-image-button"/);
+      assert.match(readyHtml, /data-testid="remove-image-button"/);
+      assert.match(readyHtml, /1024 × 1280 px/);
+
+      // 3. Trạng thái uploading: thanh tiến trình với ARIA role progressbar và nút hủy
+      const uploadingApp = createSSRApp({
+        ssrRender,
+        setup() {
+          return {
+            status: 'uploading',
+            idPrefix: 'test-uploading',
+            uploadProgress: 65,
+            currentFile: { name: 'sample.jpg', size: 1024 * 512 },
+            showTosConsent: false,
+            localConsent: false,
+            TOS_VERSION,
+            formatFileSizeVi,
+            handleCancel: () => {},
+          };
+        },
+      });
+      uploadingApp.component('Icon', {
+        props: ['name'],
+        ssrRender(_ctx, push) {
+          push('<span class="icon-mock"></span>');
+        },
+      });
+      const uploadingHtml = await renderToString(uploadingApp);
+      assert.match(uploadingHtml, /data-testid="uploading-state"/);
+      assert.match(uploadingHtml, /role="progressbar"/);
+      assert.match(uploadingHtml, /aria-valuenow="65"/);
+      assert.match(uploadingHtml, /data-testid="cancel-upload-button"/);
+
+      // 4. Trạng thái error: banner tiếng Việt kèm hai nút chọn lại (thư viện + camera)
+      const errorApp = createSSRApp({
+        ssrRender,
+        setup() {
+          return {
+            status: 'error',
+            idPrefix: 'test-error',
+            errorMessageVi: 'Tệp không hợp lệ',
+            showTosConsent: false,
+            localConsent: false,
+            TOS_VERSION,
+            handleRetry: () => {},
+            handleCancel: () => {},
+            openLibrary: () => {},
+            openCamera: () => {},
+          };
+        },
+      });
+      errorApp.component('Icon', {
+        props: ['name'],
+        ssrRender(_ctx, push) {
+          push('<span class="icon-mock"></span>');
+        },
+      });
+      errorApp.component('ApiErrorBanner', {
+        props: ['messageVi'],
+        ssrRender(ctx, push) {
+          push(`<div data-testid="api-error-banner">${ctx.messageVi}</div>`);
+        },
+      });
+      const errorHtml = await renderToString(errorApp);
+      assert.match(errorHtml, /data-testid="upload-error-state"/);
+      assert.match(errorHtml, /data-testid="reselect-image-button"/);
+      assert.match(errorHtml, /data-testid="reselect-camera-button"/);
+    } finally {
+      if (fs.existsSync(tmpUploaderFile)) {
+        fs.unlinkSync(tmpUploaderFile);
+      }
+    }
+  });
+
+  it('normalizeImageMimeType chuẩn hóa đúng MIME và đuôi tệp cho thiết bị di động', () => {
+    assert.equal(normalizeImageMimeType('', 'photo.jpg'), 'image/jpeg');
+    assert.equal(normalizeImageMimeType('image/jpg', 'photo.jpg'), 'image/jpeg');
+    assert.equal(normalizeImageMimeType('IMAGE/PNG', 'photo.png'), 'image/png');
+    assert.equal(normalizeImageMimeType('', 'avatar.webp'), 'image/webp');
+    assert.equal(normalizeImageMimeType('application/pdf', 'file.pdf'), 'application/pdf');
+  });
+
+  it('FeatureWorkspaceDialog tích hợp ImageUploader và vô hiệu hóa nút Submit khi chưa tải ảnh hoặc chưa tích ToS (FR19)', async () => {
+    const dialogRaw = fs.readFileSync(
+      path.join(webRoot, 'components/FeatureWorkspaceDialog.vue'),
+      'utf8',
+    );
+    assert.match(dialogRaw, /ImageUploader/);
+    assert.match(dialogRaw, /v-model="uploadedKey"/);
+    assert.match(dialogRaw, /v-model:consent="acceptedConsent"/);
+    assert.match(dialogRaw, /canSubmit/);
   });
 });
