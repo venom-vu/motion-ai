@@ -256,8 +256,17 @@ export class TasksService {
     const cursor = query.cursor;
 
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (cursor && !UUID_REGEX.test(cursor)) {
-      throw this.apiError(BadRequestException, ApiErrorCode.VALIDATION_FAILED);
+    if (cursor) {
+      if (!UUID_REGEX.test(cursor)) {
+        throw this.apiError(BadRequestException, ApiErrorCode.VALIDATION_FAILED);
+      }
+      const cursorOwner = await this.prisma.task.findFirst({
+        where: { id: cursor, userId },
+        select: { id: true },
+      });
+      if (!cursorOwner) {
+        throw this.apiError(BadRequestException, ApiErrorCode.VALIDATION_FAILED);
+      }
     }
 
     let rows;

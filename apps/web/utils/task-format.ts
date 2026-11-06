@@ -13,13 +13,16 @@ export function formatTaskTimestampVi(isoString?: string | null): string {
   return VI_DATE_FORMAT.format(d);
 }
 
-export const PIPELINE_LABELS_VI: Readonly<Record<TaskPipeline, string>> = {
+export const PIPELINE_LABELS_VI: Readonly<Record<string, string>> = {
   face_swap: 'Hoán đổi khuôn mặt',
+  body_retouch: 'Chỉnh sửa vóc dáng',
+  motion_control: 'Điều khiển chuyển động',
 };
 
 export function getPipelineLabelVi(pipeline: TaskPipeline | string): string {
-  if (pipeline in PIPELINE_LABELS_VI) {
-    return PIPELINE_LABELS_VI[pipeline as TaskPipeline];
+  const label = PIPELINE_LABELS_VI[pipeline];
+  if (label) {
+    return label;
   }
   return pipeline;
 }

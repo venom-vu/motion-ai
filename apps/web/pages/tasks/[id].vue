@@ -121,7 +121,11 @@ const isExpired = computed<boolean>(() => {
 const resultAsync = useAsyncData<TaskResultResponse | null>(
   `motion-ai-task-result-${taskId.value}`,
   async () => {
-    const task = currentTask.value || taskAsync.data.value;
+    let task = currentTask.value || taskAsync.data.value;
+    if (!task && taskAsync.pending.value) {
+      const res = await taskAsync;
+      task = res.data.value;
+    }
     if (!task || task.status !== 'succeeded') {
       return null;
     }
@@ -177,7 +181,9 @@ const resultErrorVi = computed<string | null>(() => {
 
 // Làm mới URL kết quả khi có lỗi tải ảnh hoặc URL hết hạn
 const imageRefreshAttempts = ref<number>(0);
+const imageLoadFailed = ref<boolean>(false);
 async function handleRefreshResult(): Promise<void> {
+  imageLoadFailed.value = false;
   await resultAsync.refresh();
 }
 
@@ -186,20 +192,29 @@ function handleImageError(_payload: { type: 'source' | 'result'; error: Event })
   if (imageRefreshAttempts.value < 1) {
     imageRefreshAttempts.value += 1;
     void handleRefreshResult();
+  } else {
+    imageLoadFailed.value = true;
   }
 }
 
 // Xử lý tải ảnh về máy (ưu tiên fetch blob để tải trực tiếp)
 const isDownloading = ref<boolean>(false);
 async function handleDownloadImage(): Promise<void> {
-  const url = resultAsync.data.value?.resultUrl;
+  let url = resultAsync.data.value?.resultUrl;
   if (!url || isDownloading.value) return;
   isDownloading.value = true;
   const fileName = `motion-ai-${currentTask.value?.pipeline || 'result'}-${taskId.value.slice(0, 8)}.png`;
 
   try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('Không thể fetch ảnh');
+    let response = await fetch(url);
+    if (!response.ok) {
+      // URL ký có thể đã hết hạn, thử refresh lấy lại link mới
+      await handleRefreshResult();
+      url = resultAsync.data.value?.resultUrl;
+      if (!url) throw new Error('Không thể làm mới đường dẫn tải ảnh');
+      response = await fetch(url);
+      if (!response.ok) throw new Error('Không thể tải ảnh kết quả');
+    }
     const blob = await response.blob();
     const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -209,16 +224,8 @@ async function handleDownloadImage(): Promise<void> {
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
-  } catch {
-    // Dự phòng mở/tải qua thẻ anchor nếu fetch blob bị lỗi hoặc CORS chặn
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  } catch (err) {
+    shareErrorVi.value = resolveApiErrorMessageVi(err);
   } finally {
     isDownloading.value = false;
   }
@@ -297,11 +304,15 @@ async function handleRevokeShare(): Promise<void> {
   }
 }
 
-function handleCopyShareLink(): void {
+async function handleCopyShareLink(): Promise<void> {
   if (!shareData.value?.shareUrl) return;
   if (typeof navigator !== 'undefined' && navigator.clipboard) {
-    void navigator.clipboard.writeText(shareData.value.shareUrl);
-    shareToastMessage.value = 'Đã sao chép liên kết chia sẻ!';
+    try {
+      await navigator.clipboard.writeText(shareData.value.shareUrl);
+      shareToastMessage.value = 'Đã sao chép liên kết chia sẻ!';
+    } catch {
+      shareToastMessage.value = `Đường dẫn chia sẻ: ${shareData.value.shareUrl}`;
+    }
   }
 }
 
@@ -520,14 +531,14 @@ function handleGoBack(): void {
     >
       <!-- Khung lỗi tải kết quả (nếu có) kèm nút tải lại -->
       <div
-        v-if="resultErrorVi"
+        v-if="resultErrorVi || imageLoadFailed"
         data-testid="result-fetch-error"
         class="flex flex-col items-center justify-between gap-3 rounded-2xl border border-cyber-danger/40 bg-cyber-danger/10 p-5 text-center sm:flex-row sm:text-left"
       >
         <div class="flex items-center gap-3">
           <Icon name="lucide:alert-circle" class="h-6 w-6 text-cyber-danger shrink-0" />
           <p class="text-xs text-cyber-danger">
-            {{ resultErrorVi }} — Đường dẫn ảnh có thể đã hết hạn.
+            {{ resultErrorVi || 'Không thể tải ảnh kết quả' }} — Đường dẫn ảnh có thể đã hết hạn.
           </p>
         </div>
         <button

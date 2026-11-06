@@ -158,7 +158,7 @@ const isUnauthenticated = computed<boolean>(() => {
     return false;
   }
   if (!isAuthenticated.value && !tasksAsync.pending.value) {
-    if (!sessionChecked.value && tasksAsync.data.value?.items?.length) {
+    if (!sessionChecked.value && Boolean(tasksAsync.data.value?.items)) {
       return false;
     }
     return true;
@@ -237,8 +237,12 @@ async function handleCancelTask(taskId: string): Promise<void> {
 const sentinelRef = ref<HTMLElement | null>(null);
 let observer: IntersectionObserver | null = null;
 
-onMounted(() => {
-  if (typeof IntersectionObserver !== 'undefined' && sentinelRef.value) {
+function setupObserver(el: HTMLElement | null): void {
+  if (observer) {
+    observer.disconnect();
+    observer = null;
+  }
+  if (typeof IntersectionObserver !== 'undefined' && el) {
     observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting && hasMore.value && !loadingMore.value) {
@@ -247,14 +251,48 @@ onMounted(() => {
       },
       { rootMargin: '200px' },
     );
-    observer.observe(sentinelRef.value);
+    observer.observe(el);
+  }
+}
+
+watch(sentinelRef, (newEl) => {
+  setupObserver(newEl);
+});
+
+onMounted(() => {
+  if (sentinelRef.value) {
+    setupObserver(sentinelRef.value);
   }
 });
+
+// Tự động cập nhật danh sách khi có tác vụ đang chờ/xử lý
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+watch(
+  items,
+  (newItems) => {
+    const hasActive = newItems.some(
+      (t) => t.status === 'queued' || t.status === 'running',
+    );
+    if (hasActive && !pollTimer) {
+      pollTimer = setInterval(() => {
+        void tasksAsync.refresh();
+      }, 5000);
+    } else if (!hasActive && pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  },
+  { immediate: true },
+);
 
 onBeforeUnmount(() => {
   if (observer) {
     observer.disconnect();
     observer = null;
+  }
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
   }
 });
 </script>

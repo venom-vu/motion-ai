@@ -116,3 +116,10 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-9-be-chia-se-ket-qua-bang-token.md`
   summary: Tài khoản bị khóa không thu hồi được link chia sẻ vì `AccountLockedGuard` chặn cả `DELETE /tasks/{id}/share`, và link cũ vẫn mở được.
   evidence: AD-18 giao Admin thu hồi token và xóa file khi khóa tài khoản (Epic 6); cân nhắc cho `DELETE` bỏ qua guard khóa nếu cần sớm hơn.
+
+## Deferred from: code review of spec-2-12-fe-trang-ket-qua-va-lich-su-task (2026-11-06)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-12-fe-trang-ket-qua-va-lich-su-task.md`
+  summary: Điều hướng mobile bottom nav tab "Lịch sử" (`AppBottomNav.vue`) trỏ về `/history` thay vì `/tasks`.
+  evidence: Cần quyết định thiết kế UX/Product xem tab "Lịch sử" trên mobile nên mở `/tasks` (Lịch sử tác vụ kèm lối vào Biến động credit) hay giữ nguyên `/history` (sổ cái ví credit).
+

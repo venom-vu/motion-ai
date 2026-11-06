@@ -27,6 +27,7 @@ const sliderPosition = ref<number>(
   Math.max(0, Math.min(100, props.initialPosition)),
 );
 const isDragging = ref<boolean>(false);
+const sourceLoadFailed = ref<boolean>(false);
 
 watch(
   () => props.initialPosition,
@@ -36,7 +37,11 @@ watch(
 );
 
 const hasSource = computed<boolean>(() => {
-  return typeof props.sourceUrl === 'string' && props.sourceUrl.trim().length > 0;
+  return (
+    typeof props.sourceUrl === 'string' &&
+    props.sourceUrl.trim().length > 0 &&
+    !sourceLoadFailed.value
+  );
 });
 
 function clampPosition(val: number): number {
@@ -54,7 +59,7 @@ function updatePositionFromClientX(clientX: number): void {
 }
 
 function handlePointerDown(event: PointerEvent): void {
-  if (props.disabled || !hasSource.value) return;
+  if (event.button !== 0 || props.disabled || !hasSource.value) return;
   isDragging.value = true;
   updatePositionFromClientX(event.clientX);
   const target = event.currentTarget as HTMLElement | null;
@@ -68,7 +73,10 @@ function handlePointerDown(event: PointerEvent): void {
 }
 
 function handlePointerMove(event: PointerEvent): void {
-  if (!isDragging.value) return;
+  if (!isDragging.value || (event.pointerType === 'mouse' && event.buttons === 0)) {
+    isDragging.value = false;
+    return;
+  }
   updatePositionFromClientX(event.clientX);
 }
 
@@ -112,6 +120,7 @@ function handleKeydown(event: KeyboardEvent): void {
 }
 
 function onSourceError(event: Event): void {
+  sourceLoadFailed.value = true;
   emit('imageError', { type: 'source', error: event });
 }
 
@@ -134,7 +143,7 @@ onBeforeUnmount(() => {
       ref="containerRef"
       data-testid="split-slider-canvas"
       class="relative h-[320px] w-full overflow-hidden rounded-xl bg-cyber-bg sm:h-[400px] md:h-[440px]"
-      :style="{ touchAction: hasSource ? 'none' : 'auto' }"
+      :style="{ touchAction: hasSource ? 'pan-y' : 'auto' }"
       @pointerdown="handlePointerDown"
       @pointermove="handlePointerMove"
       @pointerup="handlePointerUp"
@@ -150,12 +159,20 @@ onBeforeUnmount(() => {
             class="h-full w-full object-contain"
             @error="onResultError"
           />
-          <span
-            data-testid="single-result-tag"
-            class="absolute right-3 top-3 rounded-md border border-cyber-cyan/40 bg-cyber-bg/80 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-cyber-cyan backdrop-blur"
-          >
-            Kết Quả AI
-          </span>
+          <div class="absolute right-3 top-3 flex flex-col items-end gap-1">
+            <span
+              data-testid="single-result-tag"
+              class="rounded-md border border-cyber-cyan/40 bg-cyber-bg/85 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-cyber-cyan backdrop-blur"
+            >
+              Kết Quả AI
+            </span>
+            <span
+              data-testid="source-expired-note"
+              class="rounded border border-cyber-border bg-cyber-bg/85 px-2 py-0.5 text-[10px] text-cyber-muted backdrop-blur"
+            >
+              Ảnh gốc đã hết hạn lưu (7 ngày)
+            </span>
+          </div>
         </div>
       </template>
 
@@ -225,14 +242,18 @@ onBeforeUnmount(() => {
             aria-label="Thanh trượt so sánh trước sau"
             :disabled="disabled"
             tabindex="0"
-            class="touch-target absolute top-1/2 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full border border-cyber-cyan bg-cyber-cyan text-black shadow-[0_0_16px_rgba(6,182,212,0.8),0_4px_8px_rgba(0,0,0,0.5)] transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cyber-cyan disabled:cursor-not-allowed disabled:opacity-50"
+            class="touch-target absolute top-1/2 flex -translate-x-1/2 -translate-y-1/2 cursor-ew-resize items-center justify-center focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
             @keydown="handleKeydown"
           >
-            <Icon
-              name="lucide:arrow-left-right"
-              class="h-4.5 w-4.5 shrink-0"
-              aria-hidden="true"
-            />
+            <span
+              class="flex h-9 w-9 items-center justify-center rounded-full border border-cyber-cyan bg-cyber-cyan text-black shadow-[0_0_16px_rgba(6,182,212,0.8),0_4px_8px_rgba(0,0,0,0.5)] transition hover:scale-105 focus:ring-2 focus:ring-cyber-cyan"
+            >
+              <Icon
+                name="lucide:arrow-left-right"
+                class="h-4.5 w-4.5 shrink-0"
+                aria-hidden="true"
+              />
+            </span>
           </button>
         </div>
       </template>

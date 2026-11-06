@@ -2358,6 +2358,8 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
         assert.match(succeededHtml, /data-testid="task-succeeded-state"/);
         assert.match(succeededHtml, /data-testid="succeeded-status-badge"/);
         assert.match(succeededHtml, /data-testid="view-result-button"/);
+        assert.match(succeededHtml, /href="\/tasks\/70000000-0000-4000-8000-000000000003"/);
+        assert.match(cardRaw, /Xem Kết Quả/);
         assert.match(succeededHtml, /data-testid="create-new-button"/);
 
         // 4. Failed với NO_FACE: Thông báo lý do + Hoàn 100% credit + Nút thử lại
@@ -2968,6 +2970,129 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
       } finally {
         if (fs.existsSync(tmpCardFile)) {
           fs.unlinkSync(tmpCardFile);
+        }
+      }
+
+      // 2. pages/tasks/index.vue SSR rendering & states
+      const indexSfc = fs.readFileSync(
+        path.join(webRoot, 'pages/tasks/index.vue'),
+        'utf8',
+      );
+      const { descriptor: indexDesc } = parse(indexSfc, {
+        filename: 'pages/tasks/index.vue',
+      });
+      const indexCompiled = compileTemplate({
+        id: 'test-page-tasks-index',
+        filename: 'pages/tasks/index.vue',
+        source: indexDesc.template.content,
+        ssr: true,
+        ssrCssVars: [],
+      });
+      assert.equal(indexCompiled.errors.length, 0);
+
+      const tmpIndexFile = path.join(
+        webRoot,
+        'test',
+        `.tmp-page-index-${Date.now()}.mjs`,
+      );
+      fs.writeFileSync(tmpIndexFile, indexCompiled.code, 'utf8');
+
+      try {
+        const { ssrRender: ssrRenderIndex } = await import(
+          pathToFileURL(tmpIndexFile).href
+        );
+
+        const makeIndexApp = ({
+          unauthenticated = false,
+          pending = false,
+          error = null,
+          items = [],
+          hasMore = false,
+        }) => {
+          const app = createSSRApp({
+            ssrRender: ssrRenderIndex,
+            setup() {
+              return {
+                isUnauthenticated: unauthenticated,
+                initialErrorVi: error,
+                tasksAsync: { pending: { value: pending }, refresh: () => {} },
+                items,
+                hasMore,
+                loadingMore: false,
+                loadMoreErrorVi: null,
+                actionMessageVi: null,
+                actionErrorVi: null,
+                cancellingTaskId: null,
+                handleCancelTask: () => {},
+                loadMore: () => {},
+                openAuthDialog: () => {},
+                sentinelRef: null,
+              };
+            },
+          });
+          app.component('Icon', {
+            props: ['name'],
+            ssrRender(_ctx, push) {
+              push('<span class="icon-mock"></span>');
+            },
+          });
+          app.component('NuxtLink', {
+            props: ['to'],
+            ssrRender(ctx, push, _parent, attrs) {
+              const testIdAttr = attrs?.['data-testid']
+                ? ` data-testid="${attrs['data-testid']}"`
+                : '';
+              push(`<a href="${ctx.to || '#'}"${testIdAttr}>MockLink</a>`);
+            },
+          });
+          app.component('TaskHistoryCard', {
+            props: ['task', 'cancelling'],
+            ssrRender(ctx, push) {
+              push(`<div data-testid="task-card-${ctx.task.id}">MockTaskCard</div>`);
+            },
+          });
+          return app;
+        };
+
+        // Trạng thái chưa đăng nhập
+        const unauthHtml = await renderToString(makeIndexApp({ unauthenticated: true }));
+        assert.match(unauthHtml, /data-testid="tasks-unauthenticated"/);
+        assert.match(unauthHtml, /Yêu Cầu Đăng Nhập/);
+
+        // Trạng thái đang tải lần đầu
+        const pendingHtml = await renderToString(makeIndexApp({ pending: true }));
+        assert.match(pendingHtml, /data-testid="tasks-skeleton"/);
+
+        // Trạng thái lỗi tải
+        const errorHtml = await renderToString(
+          makeIndexApp({ error: 'Không thể kết nối máy chủ' }),
+        );
+        assert.match(errorHtml, /data-testid="tasks-error"/);
+        assert.match(errorHtml, /Không thể kết nối máy chủ/);
+
+        // Trạng thái danh sách rỗng
+        const emptyHtml = await renderToString(makeIndexApp({ items: [] }));
+        assert.match(emptyHtml, /data-testid="tasks-empty"/);
+        assert.match(emptyHtml, /Chưa Có Tác Vụ Nào/);
+
+        // Trạng thái có danh sách tác vụ + nút phân trang
+        const populatedHtml = await renderToString(
+          makeIndexApp({
+            items: [
+              { id: 'task-1', pipeline: 'face_swap', status: 'succeeded' },
+              { id: 'task-2', pipeline: 'face_swap', status: 'queued' },
+            ],
+            hasMore: true,
+          }),
+        );
+        assert.match(populatedHtml, /data-testid="tasks-list"/);
+        assert.match(populatedHtml, /data-testid="task-card-task-1"/);
+        assert.match(populatedHtml, /data-testid="task-card-task-2"/);
+        assert.match(populatedHtml, /data-testid="load-more-button"/);
+        assert.match(populatedHtml, /data-testid="refresh-tasks-button"/);
+      } finally {
+        if (fs.existsSync(tmpIndexFile)) {
+          fs.unlinkSync(tmpIndexFile);
         }
       }
     });

@@ -540,6 +540,20 @@ describe('Story 2.3: [BE] Tạo Task Face Swap và xếp vào hàng đợi', () 
       assert.equal(resNonExistent.status, 400);
       const err2 = await resNonExistent.json();
       assert.equal(err2.code, 'VALIDATION_FAILED');
+
+      // Valid UUID format belonging to another user -> 400 VALIDATION_FAILED
+      const u2 = await newUser();
+      const b2 = await validBody(u2);
+      const resTaskU2 = await post(u2, b2);
+      assert.equal(resTaskU2.status, 201);
+      const taskU2 = await resTaskU2.json();
+
+      const resOtherUserCursor = await fetch(`${baseUrl}/tasks?cursor=${taskU2.id}`, {
+        headers: { Authorization: `Bearer ${u.token}` },
+      });
+      assert.equal(resOtherUserCursor.status, 400);
+      const err3 = await resOtherUserCursor.json();
+      assert.equal(err3.code, 'VALIDATION_FAILED');
     });
   });
 });
