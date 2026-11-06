@@ -24,6 +24,8 @@ export function createR2Client(): S3Client {
   return new S3Client({
     region: 'auto',
     endpoint,
+    // path-style chỉ bật khi test (S3 giả); R2 thật dùng virtual-host.
+    forcePathStyle: process.env.NODE_ENV === 'test' && Boolean(process.env.R2_ENDPOINT),
     credentials: {
       accessKeyId: process.env.R2_ACCESS_KEY_ID ?? '',
       secretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? '',

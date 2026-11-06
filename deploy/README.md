@@ -22,6 +22,16 @@ Postgres và Redis chỉ bind `127.0.0.1` trên host.
 RUN_COMPOSE_E2E=1 pnpm --filter @motion-ai/api test
 ```
 
+## Smoke test Face Swap (Story 2.14)
+
+`apps/api/test/smoke-face-swap.test.mjs` dựng stack bốn container (project `motion-ai-smoke-fs`, api `3103`, Postgres `15434`, Redis `16381`). RunningHub giả (cổng `3197`), S3/R2 giả (`3198`) và Google giả (`3199`) chạy trong tiến trình test; container tới qua `host.docker.internal`. Ba kịch bản: thành công (500 -> 400, `queued -> running -> succeeded`, CAPTURED, ảnh tải được), `NO_FACE` (failed, RELEASED, số dư về 500), quá hạn (hạn chót ép 10 giây qua `RH_DEADLINE_MS`, `timed_out`, kết quả muộn bị bỏ qua). Thêm chia sẻ (`GET /s/<token>` 302, sau `DELETE` 404), kiểm tra hợp đồng `MOCK_*` và đối soát `reconcile.js`.
+
+Các biến ghi đè `RUNNINGHUB_BASE_URL`, `RH_DEADLINE_MS`, `RESULT_URL_ALLOW_HOSTS` và chế độ path-style của `R2_ENDPOINT` chỉ có tác dụng khi `NODE_ENV=test` (bản thân `R2_ENDPOINT` vẫn là ghi đè tùy chọn ở production) (`test-overrides.test.mjs` chứng minh bị bỏ qua ở production). SLA 60 giây không đo ở đây; thuộc benchmark Epic 6.
+
+```bash
+RUN_COMPOSE_E2E=1 pnpm --filter @motion-ai/api test
+```
+
 ## Bucket R2 (Story 2.2)
 
 Ảnh tải lên đi thẳng lên R2 bằng presigned PUT. Bucket phải **riêng tư** (không bật public access hay custom domain công khai). Đặt `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` (xem `apps/api/.env.example`) rồi chạy thủ công, idempotent:

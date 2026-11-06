@@ -55,6 +55,17 @@ export function clampCoins(consumeMoney: number | undefined): number | undefined
 
 const MAX_REDIRECTS = 3;
 
+/** Host kiểm thử được phép (RESULT_URL_ALLOW_HOSTS, phân tách bằng dấu phẩy); chỉ có tác dụng khi NODE_ENV === 'test'. */
+function testAllowedHosts(): Set<string> {
+  if (process.env.NODE_ENV !== 'test') return new Set();
+  return new Set(
+    (process.env.RESULT_URL_ALLOW_HOSTS ?? '')
+      .split(',')
+      .map((x) => x.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
 /** Chặn host literal nội bộ (loopback, link-local, dải private, localhost). Không thay thế allowlist DNS. */
 export function isPublicHttpUrl(raw: string): boolean {
   let u: URL;
@@ -65,6 +76,7 @@ export function isPublicHttpUrl(raw: string): boolean {
   }
   if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
   const h = u.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (testAllowedHosts().has(h)) return true;
   if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.internal') || h.endsWith('.local')) return false;
   if (h.includes(':')) return !(h === '::1' || h === '::' || /^(fc|fd|fe80)/.test(h) || h.startsWith('::ffff:'));
   const m = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(h);

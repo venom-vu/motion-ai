@@ -8,6 +8,7 @@ import { OpsModule } from '../ops/ops.module.js';
 import { StorageModule } from '../storage/storage.module.js';
 import { WalletModule } from '../wallet/wallet.module.js';
 import { ResultIngestorService } from './result-ingestor.js';
+import { createRunningHubPort } from './runninghub-http.adapter.js';
 import { UnconfiguredRunningHubAdapter } from './runninghub-unconfigured.adapter.js';
 import { TaskSweeperService } from './task-sweeper.service.js';
 import { TaskWorkerService } from './task-worker.service.js';
@@ -29,7 +30,7 @@ import { TASKS_QUEUE, TasksService } from './tasks.service.js';
     TasksService,
     UnconfiguredRunningHubAdapter,
     ResultIngestorService,
-    { provide: RUNNING_HUB_PORT, useExisting: UnconfiguredRunningHubAdapter },
+    { provide: RUNNING_HUB_PORT, useFactory: createRunningHubPort },
     { provide: RESULT_INGESTOR, useExisting: ResultIngestorService },
     TaskWorkerService,
     TaskSweeperService,

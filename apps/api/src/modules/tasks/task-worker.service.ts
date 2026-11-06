@@ -22,7 +22,14 @@ import { TASKS_QUEUE, TasksService } from './tasks.service.js';
 
 export const WORKER_CONCURRENCY = 2;
 const RH_CALL_TIMEOUT_MS = 10_000;
-const DEADLINE_MS = 180_000;
+const DEFAULT_DEADLINE_MS = 180_000;
+
+/** Hạn chót RunningHub; chỉ cho phép ghi đè (RH_DEADLINE_MS) khi NODE_ENV === 'test'. */
+export function deadlineMs(): number {
+  if (process.env.NODE_ENV !== 'test') return DEFAULT_DEADLINE_MS;
+  const n = Number.parseInt(process.env.RH_DEADLINE_MS ?? '', 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DEADLINE_MS;
+}
 export const ORPHAN_MS = 10 * 60_000;
 export const FREE_WAIT_MS = 15 * 60_000;
 const FREE_PRIORITY = PRICING_CONFIG.tiers.find((t) => t.tier === 'FREE')!.priority;
@@ -262,7 +269,7 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
       if (signal.aborted) return false;
       const result = await this.gateMutex.run(async () => {
         if ((await this.tasks.countGateOccupied()) >= max) return 'full' as const;
-        return (await this.tasks.setDeadlineIfNull(taskId, DEADLINE_MS)) ? ('passed' as const) : ('gone' as const);
+        return (await this.tasks.setDeadlineIfNull(taskId, deadlineMs())) ? ('passed' as const) : ('gone' as const);
       });
       if (result === 'passed') return true;
       if (result === 'gone') return false;

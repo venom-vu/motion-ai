@@ -1,15 +1,35 @@
 # Override chỉ dành cho smoke test; không thêm container mới (vẫn bốn container).
 # Dùng: docker compose -f compose.yml -f compose.smoke.yml up -d --build --wait
-# Google được giả bằng máy chủ chạy trên host (tiến trình test), nên chỉ hợp lệ khi NODE_ENV != production.
+# Google, RunningHub và R2 (S3) được giả bằng máy chủ chạy trên host (tiến trình test), nên chỉ hợp lệ khi NODE_ENV=test:
+# các biến ghi đè GOOGLE_*, RUNNINGHUB_BASE_URL, RH_DEADLINE_MS, RESULT_URL_ALLOW_HOSTS và forcePathStyle của R2 bị bỏ qua ở production (R2_ENDPOINT vẫn là ghi đè tùy chọn hợp lệ ở production).
+x-smoke-env: &smoke-env
+  NODE_ENV: test
+  COOKIE_SECURE: "false"
+  JWT_SECRET: smoke-jwt-secret-for-compose-tests-only-0123456789
+  ANTI_ABUSE_SECRET: smoke-anti-abuse-secret-for-compose-tests-0123456789
+  FRONTEND_URL: http://localhost:3000
+  GOOGLE_TOKEN_URL: ${GOOGLE_TOKEN_URL:-http://host.docker.internal:3199/token}
+  GOOGLE_USERINFO_URL: ${GOOGLE_USERINFO_URL:-http://host.docker.internal:3199/userinfo}
+  RUNNINGHUB_BASE_URL: ${RUNNINGHUB_BASE_URL:-http://host.docker.internal:3197}
+  RUNNINGHUB_WORKFLOW_FACESWAP: smoke-workflow-faceswap
+  RH_POLL_INTERVAL_MS: "300"
+  RH_DEADLINE_MS: ${RH_DEADLINE_MS:-10000}
+  RESULT_URL_ALLOW_HOSTS: host.docker.internal
+  R2_ENDPOINT: ${R2_ENDPOINT:-http://host.docker.internal:3198}
+  R2_ACCOUNT_ID: smoke-account
+  R2_ACCESS_KEY_ID: smoke-access-key
+  R2_SECRET_ACCESS_KEY: smoke-secret-key
+  R2_BUCKET: smoke-bucket
+  MOTION_SMOKE: "1"
+
 services:
   nestjs-api:
     environment:
-      NODE_ENV: test
-      COOKIE_SECURE: "false"
-      JWT_SECRET: smoke-jwt-secret-for-compose-tests-only-0123456789
-      ANTI_ABUSE_SECRET: smoke-anti-abuse-secret-for-compose-tests-0123456789
-      FRONTEND_URL: http://localhost:3000
-      GOOGLE_TOKEN_URL: ${GOOGLE_TOKEN_URL:-http://host.docker.internal:3199/token}
-      GOOGLE_USERINFO_URL: ${GOOGLE_USERINFO_URL:-http://host.docker.internal:3199/userinfo}
+      <<: *smoke-env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  nestjs-worker:
+    environment:
+      <<: *smoke-env
     extra_hosts:
       - "host.docker.internal:host-gateway"
