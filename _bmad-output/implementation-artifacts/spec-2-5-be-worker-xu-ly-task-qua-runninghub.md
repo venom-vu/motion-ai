@@ -130,3 +130,24 @@ Chờ cổng nằm trong job chứ không trì hoãn job BullMQ: giao lại job 
 - `pnpm run lint && pnpm run typecheck && pnpm run build` -- expected: pass
 - `pnpm --filter @motion-ai/api test` -- expected: pass (cần PostgreSQL/Redis qua compose)
 - `pnpm run check:boundaries` -- expected: pass
+
+### Review Findings
+
+- [x] [Review][Decision] (đã chọn phương án 1: đặt `orphanForMs`) Poll gặp `RunningHubError` từ `outputs()` thì `failed`/`RH_ERROR` và RELEASED ngay, không đặt `rh_orphan_until`, trong khi RunningHub có thể vẫn đang chạy (và tính phí) job đó; cổng đồng thời có thể nhận thêm Task vào cùng slot. Hai lối thoát bất thường khác (`RH_TIMEOUT`, `RH_SUBMIT_UNKNOWN`) đều đặt cửa sổ mồ côi, spec không nói rõ nhánh này [apps/api/src/modules/tasks/task-worker.service.ts:726-731]. Phương án: (a) đặt `orphanForMs` như hai nhánh kia; (b) giữ nguyên vì `RunningHubError` nghĩa là RunningHub đã trả lỗi nghiệp vụ nên job không chạy.
+- [x] [Review][Patch] Test "wiring thật" chỉ khẳng định hằng `WORKER_CONCURRENCY === 2`, còn test 5 job tự dựng `Worker` riêng; đổi `concurrency` trong `onModuleInit` thành 10 thì mọi test vẫn xanh. Thêm `assert.equal(worker.worker.opts.concurrency, 2)` [apps/api/test/task-worker.test.mjs:455-481]
+- [x] [Review][Patch] Các nhánh lỗi của worker chưa có test: upload ném lỗi (`failed`/`RH_ERROR` + RELEASED); submit ném `Error` thường hoặc timeout (`RH_SUBMIT_UNKNOWN` + `rh_orphan_until`); submit ném `RunningHubError` (`RH_ERROR`); `outputs()` ném lỗi mạng rồi trả `SUCCESS` (vẫn đến `ingest`); `ingest` ném lỗi (`OUTPUT_UPLOAD_ERROR` + RELEASED); `prepare` được áp dụng trước upload. Xóa `catch` quanh `ingest` hay đổi ánh xạ timeout submit thì cả 22 test vẫn xanh [apps/api/test/task-worker.test.mjs]
+- [x] [Review][Defer] Task `running` có thể mất job (worker tắt giữa chừng khiến `processTask` trả về bình thường, hoặc lỗi bị ném lại mà không đặt `attempts`/`backoff`), credit giữ HOLD cho tới khi có bộ quét [apps/api/src/modules/tasks/task-worker.service.ts:481-492] — deferred: Story 2.7 đã quy định bộ quét enqueue lại Task `running` không còn job sống; kiểm tra khi làm 2.7
+- [x] [Review][Defer] Cổng đồng thời (mutex + đếm) chỉ có hiệu lực trong một tiến trình worker; hai tiến trình (rolling deploy) có thể vượt 2 job RunningHub [apps/api/src/modules/tasks/task-worker.service.ts:634-654] — deferred: MVP chạy một worker; nếu cần chạy nhiều bản thì dùng `pg_advisory_xact_lock` quanh đếm + ghi `deadline_at`
+
+#### Rejected
+
+- `gpu_coins` chỉ lưu ở nhánh `FAILED`, `consumeMoney` không kẹp ở nhánh `SUCCESS` (false): Story 2.6 đã có `clampCoins` trong `result-ingestor.ts` cho nhánh thành công; chỉ mất số liệu khi chạy thành công rồi lỗi ingest (low, không ảnh hưởng tiền).
+- `gate_deadline` NULL với Task trước migration (false): cột được thêm trong chính migration này; không có Task `running` nào có trước.
+- Danh sách trạng thái cuối trong `countGateOccupied` bị hard-code (false): 4 giá trị đó là toàn bộ trạng thái cuối của enum.
+- `markSubmitStarted`/`setRunninghubTaskId` trả `false` khi Task còn `running` (low): `processTask` đã đưa Task có `runninghub_task_id` sang `poll`; không có lối vào thực tế.
+- Tắt worker lúc submit khiến giao lại thành `RH_SUBMIT_UNKNOWN` (low): đúng thiết kế an toàn, request có thể đã tới RunningHub nên không được submit lại.
+- Bước tải input/`prepare` không nhận `AbortSignal`, không timeout (low): `StoragePort` không có tham số signal; sửa đổi cổng; bộ quét 2.7 cưỡng chế hạn `PREP_TIMEOUT`.
+- Không retry upload, tên file không có đuôi, giữ cả hai ảnh trong bộ nhớ khi chờ cổng (false/low): spec không yêu cầu retry upload; ảnh tối đa vài MB.
+- Trạng thái lạ từ `outputs()`, lỗi không phải `RunningHubError` lặp lại (low): kiểu cổng giới hạn `RUNNING|SUCCESS|FAILED`; lỗi lạ dừng ở `deadline_at`.
+- `finish()` không kiểm `applied`, thiếu chỉ mục cho `countGateOccupied`, thiếu CHECK cho cột mới, `envInt` đọc ad hoc, `fail()` không đồng nhất, cast `as never`, vá `Queue.prototype` toàn cục, test ghi đè trường private, từ khóa `balance` quá rộng (low): thẩm mỹ hoặc tối ưu sớm; chưa có tác hại cụ thể ở quy mô MVP.
+- Phục hồi nạp lại input từ R2 trước khi kiểm cổng; frontmatter spec `done` lệch `sprint-status`; chưa thấy `RH_SUBMIT_UNKNOWN`... trong contract (low/false): cần bytes để upload; enum đã có ở Story 2.1; sửa spec không thuộc phạm vi.

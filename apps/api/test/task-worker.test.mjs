@@ -14,7 +14,7 @@ import { bootstrapApi } from '../dist/main.js';
 import { WalletService } from '../dist/modules/wallet/index.js';
 import { TasksService, TaskWorkerService, WORKER_CONCURRENCY } from '../dist/modules/tasks/index.js';
 import { ResultIngestorService } from '../dist/modules/tasks/result-ingestor.js';
-import { RunningHubNetworkError } from '../dist/ports/index.js';
+import { RunningHubError, RunningHubNetworkError } from '../dist/ports/index.js';
 import { RedisService } from '../dist/infra/redis.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -356,6 +356,104 @@ describe('Story 2.5: [BE] Worker xử lý Task qua RunningHub', () => {
     assert.ok(r.rh_orphan_until);
   });
 
+  it('poll gặp RunningHubError => RH_ERROR + RELEASED + orphan giữ slot cổng', async () => {
+    reset(); await clearGate();
+    outputsQueue = [new RunningHubError('api lỗi')];
+    const u = await newUser();
+    const id = await createTask(u);
+    await worker.processTask(id);
+    const r = await row(id);
+    assert.equal(r.status, 'failed');
+    assert.equal(r.reason_code, 'RH_ERROR');
+    const m = (r.rh_orphan_until - Date.now()) / 60000;
+    assert.ok(m > 9 && m < 10.1);
+    assert.equal((await ledger(id, 'RELEASED')).length, 1);
+  });
+
+  it('upload RunningHub lỗi => failed/RH_ERROR + RELEASED, không submit', async () => {
+    reset(); await clearGate();
+    const orig = worker.rh.uploadFile;
+    worker.rh.uploadFile = async () => { throw new RunningHubError('upload hỏng'); };
+    try {
+      const u = await newUser();
+      const id = await createTask(u);
+      await worker.processTask(id);
+      const r = await row(id);
+      assert.equal(r.status, 'failed');
+      assert.equal(r.reason_code, 'RH_ERROR');
+      assert.equal(calls.submit, 0);
+      assert.equal((await ledger(id, 'RELEASED')).length, 1);
+    } finally {
+      worker.rh.uploadFile = orig;
+    }
+  });
+
+  it('submit: RunningHubError => RH_ERROR; Error lạ => RH_SUBMIT_UNKNOWN + orphan', async () => {
+    reset(); await clearGate();
+    const u = await newUser();
+    submitImpl = async () => { throw new RunningHubError('từ chối'); };
+    let id = await createTask(u);
+    await worker.processTask(id);
+    let r = await row(id);
+    assert.equal(r.reason_code, 'RH_ERROR');
+    assert.equal(r.rh_orphan_until, null);
+    assert.equal((await ledger(id, 'RELEASED')).length, 1);
+
+    submitImpl = async () => { throw new Error('timeout lạ'); };
+    id = await createTask(u);
+    await worker.processTask(id);
+    r = await row(id);
+    assert.equal(r.reason_code, 'RH_SUBMIT_UNKNOWN');
+    assert.ok(r.rh_orphan_until);
+    assert.equal((await ledger(id, 'RELEASED')).length, 1);
+  });
+
+  it('poll: lỗi mạng tạm thời rồi SUCCESS => vẫn tới ingest', async () => {
+    reset(); await clearGate();
+    outputsQueue = [new RunningHubNetworkError('mạng', false), { status: 'SUCCESS', fileUrl: 'http://x/y.png', consumeMoney: 3 }];
+    const u = await newUser();
+    const id = await createTask(u);
+    await worker.processTask(id);
+    assert.equal(ingestCalls.length, 1);
+    assert.ok(calls.outputs >= 2);
+  });
+
+  it('ingest ném lỗi => OUTPUT_UPLOAD_ERROR + RELEASED', async () => {
+    reset(); await clearGate();
+    outputsQueue = [{ status: 'SUCCESS', fileUrl: 'http://x/y.png', consumeMoney: 3.4 }];
+    ingestImpl = async () => { throw new Error('ingest hỏng'); };
+    const u = await newUser();
+    const id = await createTask(u);
+    await worker.processTask(id);
+    const r = await row(id);
+    assert.equal(r.status, 'failed');
+    assert.equal(r.reason_code, 'OUTPUT_UPLOAD_ERROR');
+    assert.equal(r.gpu_coins, 3);
+    assert.equal((await ledger(id, 'RELEASED')).length, 1);
+  });
+
+  it('prepare được áp dụng trước upload', async () => {
+    reset(); await clearGate();
+    const { PIPELINE_CONFIGS } = await import('../dist/modules/pipelines/index.js');
+    const cfg = PIPELINE_CONFIGS.face_swap;
+    const seen = [];
+    const origUpload = worker.rh.uploadFile;
+    worker.rh.uploadFile = async (bytes) => { seen.push(bytes.toString()); calls.upload++; return `f${calls.upload}`; };
+    Object.defineProperty(cfg, 'prepare', {
+      configurable: true,
+      value: async (inputs) => Object.fromEntries(Object.entries(inputs).map(([k, v]) => [k, Buffer.from(`P-${v}`)])),
+    });
+    try {
+      const u = await newUser();
+      const id = await createTask(u);
+      await worker.processTask(id);
+      assert.deepEqual(seen, ['P-img', 'P-img']);
+    } finally {
+      delete cfg.prepare;
+      worker.rh.uploadFile = origUpload;
+    }
+  });
+
   it('Task bị đổi khi poll: dừng im lặng, sổ cái không đổi', async () => {
     reset(); await clearGate();
     outputsQueue = [{ status: 'RUNNING' }];
@@ -413,6 +511,7 @@ describe('Story 2.5: [BE] Worker xử lý Task qua RunningHub', () => {
 
   it('ingestor trả về mà Task còn running => OUTPUT_UPLOAD_ERROR + RELEASED', async () => {
     reset(); await clearGate();
+    outputsQueue = [{ status: 'SUCCESS', fileUrl: 'http://x/y.png', consumeMoney: 3.4 }];
     const u = await newUser();
     const id = await createTask(u);
     await worker.processTask(id);
@@ -420,18 +519,20 @@ describe('Story 2.5: [BE] Worker xử lý Task qua RunningHub', () => {
     assert.equal(ingestCalls.length, 1);
     assert.equal(r.status, 'failed');
     assert.equal(r.reason_code, 'OUTPUT_UPLOAD_ERROR');
+    assert.equal(r.gpu_coins, 3);
     assert.equal((await ledger(id, 'RELEASED')).length, 1);
   });
 
   it('SUCCESS thiếu fileUrl => không gọi ingestor, OUTPUT_UPLOAD_ERROR + RELEASED', async () => {
     reset(); await clearGate();
-    outputsQueue = [{ status: 'SUCCESS', fileUrl: '' }];
+    outputsQueue = [{ status: 'SUCCESS', fileUrl: '', consumeMoney: 3.4 }];
     const u = await newUser();
     const id = await createTask(u);
     await worker.processTask(id);
     const r = await row(id);
     assert.equal(ingestCalls.length, 0);
     assert.equal(r.reason_code, 'OUTPUT_UPLOAD_ERROR');
+    assert.equal(r.gpu_coins, 3);
     assert.equal((await ledger(id, 'RELEASED')).length, 1);
   });
 
@@ -473,6 +574,7 @@ describe('Story 2.5: [BE] Worker xử lý Task qua RunningHub', () => {
       assert.equal(worker.worker, null);
       worker.onModuleInit();
       assert.ok(worker.worker);
+      assert.equal(worker.worker.opts.concurrency, 2);
       const u = await newUser();
       const id = await createTask(u);
       await realAdd.call(queue, 'process', {}, { removeOnComplete: true, removeOnFail: true });

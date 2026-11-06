@@ -15,6 +15,7 @@ import {
 } from '../../ports/index.js';
 import { mapRunningHubFailure, type PipelineConfig } from '../pipelines/pipeline-config.js';
 import { PipelinesService } from '../pipelines/pipelines.service.js';
+import { clampCoins } from './result-ingestor.js';
 import { isTerminal } from './task-transitions.js';
 import { TASKS_QUEUE, TasksService } from './tasks.service.js';
 
@@ -292,10 +293,7 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
       try {
         const out = await this.rh.outputs(rhId, this.timeoutSignal(signal));
         if (out.status === 'SUCCESS') {
-          const gpuCoins =
-            typeof out.consumeMoney === 'number' && Number.isFinite(out.consumeMoney)
-              ? Math.min(2147483647, Math.max(0, Math.round(out.consumeMoney)))
-              : undefined;
+          const gpuCoins = clampCoins(out.consumeMoney);
           if (!out.fileUrl) {
             this.logger.warn(`RunningHub SUCCESS nhưng thiếu fileUrl cho Task ${taskId}`);
             await this.finish(taskId, 'failed', 'OUTPUT_UPLOAD_ERROR', { gpuCoins });
@@ -321,17 +319,15 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
           return;
         }
         if (out.status === 'FAILED') {
-          const gpuCoins =
-            typeof out.consumeMoney === 'number' && Number.isFinite(out.consumeMoney)
-              ? Math.min(2147483647, Math.max(0, Math.round(out.consumeMoney)))
-              : undefined;
+          const gpuCoins = clampCoins(out.consumeMoney);
           await this.finish(taskId, 'failed', mapRunningHubFailure(out.errorMessage), { gpuCoins });
           return;
         }
       } catch (err) {
         if (signal.aborted) return;
         if (err instanceof RunningHubError) {
-          await this.finish(taskId, 'failed', 'RH_ERROR');
+          // Không biết job còn chạy hay không: giữ slot cổng như RH_TIMEOUT / RH_SUBMIT_UNKNOWN.
+          await this.finish(taskId, 'failed', 'RH_ERROR', { orphanForMs: ORPHAN_MS });
           return;
         }
         // Lỗi mạng/timeout khi poll là tạm thời; thử lại tới deadline_at.

@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-01-2026 14:32
-last_updated: 11-05-2026 16:21
+last_updated: 11-06-2026 09:00
 project: motion-ai
 project_key: NOKEY
 tracking_system: file-system
@@ -54,10 +54,10 @@ development_status:
   epic-2: in-progress
   2-1-contract-hợp-đồng-cho-tải-lên-task-và-kết-quả: done
   2-2-be-tải-ảnh-lên-r2-an-toàn: done
-  2-3-be-tạo-task-face-swap-và-xếp-vào-hàng-đợi: review
-  2-4-be-máy-trạng-thái-task-bằng-compare-and-set: review
-  2-5-be-worker-xử-lý-task-qua-runninghub: review
-  2-6-be-nhập-kết-quả-về-r2-và-chốt-tiền: review
+  2-3-be-tạo-task-face-swap-và-xếp-vào-hàng-đợi: done
+  2-4-be-máy-trạng-thái-task-bằng-compare-and-set: done
+  2-5-be-worker-xử-lý-task-qua-runninghub: done
+  2-6-be-nhập-kết-quả-về-r2-và-chốt-tiền: done
   2-7-be-bộ-quét-task-treo-và-hạn-chót: backlog
   2-8-be-ưu-tiên-theo-tier-và-hết-hạn-hàng-đợi-free: backlog
   2-9-be-chia-sẻ-kết-quả-bằng-token: backlog

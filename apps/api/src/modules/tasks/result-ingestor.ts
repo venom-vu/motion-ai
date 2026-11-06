@@ -51,7 +51,8 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
-function clampCoins(consumeMoney: number | undefined): number | undefined {
+/** Làm tròn và kẹp consumeMoney vào 0..2147483647 (cột `gpu_coins` kiểu int4). */
+export function clampCoins(consumeMoney: number | undefined): number | undefined {
   if (typeof consumeMoney !== 'number' || !Number.isFinite(consumeMoney)) return undefined;
   return Math.min(MAX_GPU_COINS, Math.max(0, Math.round(consumeMoney)));
 }

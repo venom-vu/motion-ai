@@ -55,7 +55,9 @@ async function ensureInfra() {
 // Queue giả: không chạm Redis thật.
 const queueCalls = [];
 let queueFail = false;
+let queueHang = false;
 Queue.prototype.add = async function (name, data, opts) {
+  if (queueHang) return new Promise(() => {});
   if (queueFail) throw new Error('redis down');
   queueCalls.push({ name, data, opts });
   return { id: opts?.jobId };
@@ -274,10 +276,20 @@ describe('Story 2.3: [BE] Tạo Task Face Swap và xếp vào hàng đợi', () 
     const mine = await confirmedKeys(u, 1);
     const theirs = await confirmedKeys(other, 1);
     const pending = await confirmedKeys(u, 1, false);
+    // Upload chưa confirmed nhưng confirmedKey đã đặt: chỉ điều kiện status chặn được.
+    const stalePendingUuid = crypto.randomUUID();
+    const stalePendingKey = `in/${u.id}/${stalePendingUuid}`;
+    await prisma.upload.create({
+      data: {
+        userId: u.id, key: `in-raw/${u.id}/${stalePendingUuid}`, kind: 'image',
+        mimeType: 'image/jpeg', declaredBytes: 10, status: 'pending', confirmedKey: stalePendingKey,
+      },
+    });
     const ghost = `in/${u.id}/${crypto.randomUUID()}`;
     const inputs = [
       { sourceKey: mine[0], targetKey: theirs[0] },
       { sourceKey: mine[0], targetKey: `in/${u.id}/${pending[0].split('/')[2]}` },
+      { sourceKey: mine[0], targetKey: stalePendingKey },
       { sourceKey: mine[0], targetKey: ghost },
     ];
     for (const i of inputs) {
@@ -401,5 +413,50 @@ describe('Story 2.3: [BE] Tạo Task Face Swap và xếp vào hàng đợi', () 
     } finally {
       queueFail = false;
     }
+  });
+
+  it('enqueue treo (Redis không phản hồi): vẫn 201 dưới 2 giây, Task và HOLD còn trong DB', async () => {
+    const u = await newUser();
+    const body = await validBody(u);
+    queueHang = true;
+    try {
+      const t0 = Date.now();
+      const res = await post(u, body);
+      assert.equal(res.status, 201);
+      assert.ok(Date.now() - t0 < 2000, `phản hồi mất ${Date.now() - t0}ms`);
+      const task = await res.json();
+      const row = await prisma.task.findUnique({ where: { id: task.id } });
+      assert.equal(row.status, 'queued');
+      assert.equal((await wal(u)).held, 100n);
+    } finally {
+      queueHang = false;
+    }
+  });
+
+  it('INSERT Task lỗi: HOLD rollback, không Task, số dư và sổ cái nguyên vẹn', async () => {
+    const u = await newUser();
+    const body = await validBody(u);
+    const ledgerCount = async () =>
+      Number((await pool.query('SELECT COUNT(*) AS n FROM ledger_entries WHERE user_id = $1::uuid', [u.id])).rows[0].n);
+    const before = await ledgerCount();
+    const fn = `tasks_fail_${runId}_${u.id.slice(0, 8)}`.replace(/-/g, '_');
+    await pool.query(
+      `CREATE FUNCTION ${fn}() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'insert task bị chặn trong test'; END; $$ LANGUAGE plpgsql`,
+    );
+    await pool.query(
+      `CREATE TRIGGER ${fn} BEFORE INSERT ON tasks FOR EACH ROW WHEN (NEW.user_id = '${u.id}'::uuid) EXECUTE FUNCTION ${fn}()`,
+    );
+    try {
+      const res = await post(u, body);
+      assert.equal(res.status, 500);
+    } finally {
+      await pool.query(`DROP TRIGGER ${fn} ON tasks`);
+      await pool.query(`DROP FUNCTION ${fn}()`);
+    }
+    assert.equal(await taskCount(u), 0);
+    assert.equal(await ledgerCount(), before);
+    const after = await wal(u);
+    assert.equal(after.held, 0n);
+    assert.equal(after.balance, 500n);
   });
 });

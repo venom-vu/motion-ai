@@ -129,3 +129,20 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-6-be-nhap-ket-qua-r2-va-chot-tien.md`
   summary: Kiểm thử thực thi hoặc mock SDK cho cấu hình lifecycle R2 trong configure-bucket.ts
   evidence: Hiện script cấu hình bucket chỉ được kiểm tra bằng regex trên file nguồn; cần kiểm thử chạy thực tế hoặc kiểm tra đối tượng PutBucketLifecycleConfigurationCommandInput.
+
+## Deferred from: code review of spec-2-3-be-tao-task-face-swap-va-xep-vao-hang-doi (2026-11-05)
+
+- FK `ledger_entries_task_id_fkey` còn `NOT VALID`, cần migration `VALIDATE CONSTRAINT` khi dữ liệu dev sạch.
+- `areConfirmedKeysOwnedBy` chưa lọc `kind: 'image'`; thêm bộ lọc khi Story 5.2 đưa upload video vào.
+- Chưa có Idempotency-Key; FE khóa nút khi đang gửi (Story 2.11), hoàn credit qua hủy Task.
+- Enqueue lỗi chưa ghi dấu vết (`enqueue_attempts` giữ 0); bộ quét Story 2.7 xử lý.
+- Test throttle `signup-grant` chập chờn.
+
+## Deferred from: code review of spec-2-5-be-worker-xu-ly-task-qua-runninghub (2026-11-05)
+
+- Task `running` mất job (tắt worker, lỗi bị ném lại không có `attempts`/`backoff`) giữ HOLD tới khi có bộ quét; kiểm tra khi làm Story 2.7.
+- Cổng đồng thời chỉ đúng trong một tiến trình worker; nếu chạy nhiều bản thì dùng `pg_advisory_xact_lock`.
+
+## Deferred from: code review of spec-2-6-be-nhap-ket-qua-r2-va-chot-tien (2026-11-06)
+
+- `storage.putObject` không có timeout và `StoragePort` không nhận `AbortSignal`; R2 treo giữ slot BullMQ cho tới khi bộ quét (Story 2.7) kết thúc Task. Cần đổi cổng.

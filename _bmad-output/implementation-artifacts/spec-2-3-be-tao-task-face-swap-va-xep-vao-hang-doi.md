@@ -117,3 +117,29 @@ FK `ledger_entries.task_id` phải `DEFERRABLE INITIALLY DEFERRED` vì thứ t�
 - `pnpm run lint && pnpm run typecheck && pnpm run build` -- expected: pass
 - `pnpm --filter @motion-ai/api test` -- expected: pass (cần PostgreSQL/Redis qua compose)
 - `pnpm run check:boundaries` -- expected: pass
+
+### Review Findings
+
+- [x] [Review][Patch] Test "khóa chưa confirmed" không ghim điều kiện `status: 'confirmed'`: helper `confirmedKeys(u, 1, false)` tạo upload `pending` với `confirmedKey: null`, nên ca này trùng ca "không tồn tại"; xóa `status: 'confirmed'` khỏi `where` thì test vẫn xanh. Cần tạo upload `pending` có `confirmedKey` đặt sẵn rồi kỳ vọng 400, 0 Task, `held == 0` [apps/api/test/tasks.test.mjs:809-828]
+- [x] [Review][Patch] `queue.add` không có timeout: Redis treo (`maxRetriesPerRequest: null`) làm phản hồi vượt 2 giây (AC2); test thay `Queue.prototype.add` bằng stub nên không bao giờ chạm ca treo. Bọc bằng `Promise.race` có timeout, lỗi thì chỉ log như hiện tại (bộ quét ở 2.7 enqueue lại) [apps/api/src/modules/tasks/tasks.service.ts:459-472]
+- [x] [Review][Patch] Chưa có test rollback khi INSERT Task lỗi: tính nguyên tử HOLD + Task (AD-3) không được test nào khẳng định [apps/api/test/tasks.test.mjs]
+- [x] [Review][Defer] FK `ledger_entries_task_id_fkey` ở trạng thái `NOT VALID`, chưa có migration `VALIDATE CONSTRAINT` [apps/api/prisma/migrations/20261105000000_tasks/migration.sql:206-208] — deferred: spec đã chủ ý chấp nhận; cần migration validate sau khi dữ liệu dev sạch
+- [x] [Review][Defer] `areConfirmedKeysOwnedBy` chưa lọc `kind: 'image'`; khi Story 5.2 thêm upload video, khóa video `in/` sẽ lọt vào Face Swap [apps/api/src/modules/storage/uploads.service.ts:266] — deferred: hiện chỉ có kind `image`; xử lý khi làm Epic 5
+- [x] [Review][Defer] Không có Idempotency-Key/chống bấm đúp: double-click tạo 2 Task, HOLD 200 credit (giới hạn 3 Task chặn mức thiệt hại) [apps/api/src/modules/tasks/tasks.service.ts:411-457] — deferred: xử lý ở FE (khóa nút khi đang gửi, Story 2.11); hoàn credit được qua hủy Task
+- [x] [Review][Defer] Enqueue lỗi chỉ được log, `enqueue_attempts` giữ 0, không dấu vết cho ops [apps/api/src/modules/tasks/tasks.service.ts:459-472] — deferred: bộ quét ở Story 2.7 sẽ tìm Task `queued` chưa có job và ghi nhận số lần thử
+- [x] [Review][Defer] Test `signup-grant` về throttle chập chờn làm bộ test đầy đủ kém tin cậy — deferred: đã có trong deferred-work từ trước, không do Story 2.3
+
+#### Rejected
+
+- `queued_at` là thời điểm bắt đầu transaction (low): lệch cỡ mili giây, FIFO đảo gần như không gặp; sửa thêm logic không đáng.
+- Thiếu index cho `queuePosition` (low): hàng đợi MVP nhỏ; sửa cần cột `priority` thật và migration, vượt mức hợp lý lúc này.
+- `tasks.user_id` CASCADE mâu thuẫn RESTRICT của ledger (low): xóa user đã bị `ledger_entries.user_id RESTRICT` chặn trước, CASCADE không bao giờ chạy trên user có sổ cái.
+- `sourceKey === targetKey` vẫn bị trừ 100 credit (low): do chính người dùng chọn, chặn thêm nhánh không đáng.
+- Khóa upload kiểm tra ngoài transaction (false): upload `confirmed` không bị xóa hay hết hạn (chỉ `pending` mới `expired`), nên không có cửa sổ lỗi.
+- `rows.length === unique.length` sai khi trùng/rỗng (false): schema bắt buộc 2 khóa; `confirmedKey` dẫn xuất từ `key` duy nhất nên không trùng.
+- `priority` bằng 0 hoặc không nguyên (false): `tier.ts` chỉ có 5/10/15/20, luôn nguyên dương.
+- P2028 do tx quá 5 giây thành 500 (low): chỉ khi tranh chấp khóa của chính một user; hiếm, sửa thêm ánh xạ lỗi.
+- `queuePosition` fallback `Math.max(1, …)` (low): chỉ là giá trị hiển thị.
+- Lỗi validation lộ câu Zod, `CONSENT_REQUIRED` ghi đè lỗi khác (low): chỉ thông điệp, không ảnh hưởng nghiệp vụ.
+- Helper test `withTaskRows` vá `wallet.hold`, vá `Queue.prototype.add`, mẹo SQL `consent` (low): chỉ trong test, vẫn kiểm đúng hành vi.
+- Tên `createFaceSwap` thay `tasks.create`; `reconcile-script.test.mjs` không được vá; frontmatter `done` lệch sprint-status: sửa đều là sửa chính spec, mà mã đã khớp hành vi.

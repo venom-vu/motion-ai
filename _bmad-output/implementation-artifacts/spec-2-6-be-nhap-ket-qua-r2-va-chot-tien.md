@@ -105,3 +105,23 @@ context:
 - `pnpm --filter @motion-ai/api test` -- expected: pass (cần PostgreSQL/Redis qua compose)
 - `pnpm run check:boundaries` -- expected: pass
 
+
+### Review Findings
+
+- [x] [Review][Patch] Đoạn kẹp `gpu_coins` (round + clamp 0..2147483647) bị lặp ở `task-worker.service.ts` và `clampCoins` trong `result-ingestor.ts`, kèm hằng `2147483647` viết hai nơi; hai bản có thể lệch nhau. Xuất `clampCoins` dùng chung [apps/api/src/modules/tasks/task-worker.service.ts:295-298]
+- [x] [Review][Patch] Thiếu test cho các nhánh dự phòng của worker và nhánh chốt lỗi: (a) ba nhánh `finish(..., { gpuCoins })` (thiếu `fileUrl`, ingestor trả về mà Task còn `running`, `ingest` ném lỗi) chưa test nào khẳng định `gpu_coins`; xóa `{ gpuCoins }` thì mọi test vẫn xanh; (b) `transition(running→succeeded)` ném lỗi thì phải xóa `out/` và Task kết thúc `failed`/`OUTPUT_UPLOAD_ERROR` + một RELEASED, chưa có test; bỏ `safeDelete` ở `catch` cũng không test nào đỏ [apps/api/test/task-worker.test.mjs, apps/api/test/task-result.test.mjs]
+- [x] [Review][Defer] `fileUrl` từ RunningHub được `fetch` với redirect mặc định, chỉ kiểm giao thức của URL đầu; chưa chặn dải IP riêng, metadata service [apps/api/src/modules/tasks/result-ingestor.ts:411-415] — deferred: đã ghi sẵn trong `deferred-work.md` từ lúc làm story; URL do RunningHub (đối tác tin cậy) trả về nên rủi ro thấp, xử lý khi gắn adapter HTTP thật (Story 2.14)
+- [x] [Review][Defer] `storage.putObject` không có timeout (S3Client mặc định không giới hạn socket), và `StoragePort` không nhận `AbortSignal`; R2 treo làm job giữ slot BullMQ tới khi bộ quét kết thúc Task [apps/api/src/modules/storage/s3-storage.adapter.ts:24] — deferred: cần đổi cổng `StoragePort`; xử lý cùng bộ quét ở Story 2.7
+
+#### Rejected
+
+- Không giới hạn số pixel trước khi giải mã (false): `sharp` mặc định đặt `limitInputPixels` ≈ 268 triệu điểm ảnh và từ chối ảnh vượt mức; thêm vào đó đã giới hạn 20 MB.
+- WebP/PNG động bị làm phẳng thành khung đầu (low): pipeline Face Swap trả ảnh tĩnh; chưa có đường nào sinh ảnh động.
+- Kiểm tra ảnh đen bỏ qua alpha và ảnh 16-bit (low): kết quả Face Swap là ảnh RGB 8-bit; ảnh trong suốt toàn phần không phải đầu ra thực tế.
+- Lỗi đọc ảnh tham chiếu xếp vào `OUTPUT_UPLOAD_ERROR`, không thử lại (low): ảnh `in/` sống 7 ngày còn Task chỉ chạy vài phút; lỗi R2 tạm thời hiếm và đã hoàn credit đầy đủ.
+- `withRetry` thử lại cả lỗi vĩnh viễn như HTTP 403/404 và vượt 20 MB (low): tốn thêm vài giây chờ rồi vẫn `failed` + RELEASED; sửa phải đổi `reasonCode` cho ca vượt kích thước, ngoài phạm vi.
+- `getResult` trả URL cho object đã bị lifecycle xóa sau 30 ngày (false): Story 2.12 hiển thị "kết quả đã hết hạn lưu" theo tuổi Task 30 ngày nên FE không dùng URL chết.
+- Hàm `sourceUrl` ký khóa ảnh tham chiếu (`targetKey`) chứ không phải `sourceKey` (false): đúng spec, "ảnh gốc" của Before/After là ảnh đích có kích thước khớp kết quả.
+- Mất `out/` mồ côi khi tiến trình chết giữa `putObject` và `transition` (low): lifecycle `out/` 30 ngày dọn.
+- Timeout tải 30 giây khác AD-6 (≤10 giây) (false): spec 2.6 quy định 30 giây cho tải kết quả; sửa là sửa spec.
+- Test lifecycle bằng regex (đã ghi trong `deferred-work.md`); tên test "timeout 30 giây" chỉ kiểm signal được truyền; `content-length` không phải số; Task không còn `running` thì `ingest` thoát im lặng; pipeline không có `referenceInputKey` bỏ qua kiểm kích thước; nhật ký "35 kịch bản" và bằng chứng đột biến không kiểm chứng được (low/false): thẩm mỹ, đã có chốt chặn khác hoặc thuộc sửa spec.

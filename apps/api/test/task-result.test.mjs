@@ -476,6 +476,31 @@ describe('Story 2.6: [BE] Nhập kết quả về R2 và chốt tiền', () => {
       assert.equal((await ledger(t.id, 'RELEASED')).length, 1);
     });
 
+    it('transition(succeeded) ném lỗi: xóa out/ vừa ghi, worker chốt failed/OUTPUT_UPLOAD_ERROR + RELEASED', async () => {
+      reset(); await clearGate();
+      const u = await newUser();
+      const t = await createTask(u);
+      const orig = svc.transition.bind(svc);
+      let thrown = false;
+      svc.transition = async (id, from, to, ...rest) => {
+        if (to === 'succeeded' && !thrown) { thrown = true; throw new Error('db lỗi'); }
+        return orig(id, from, to, ...rest);
+      };
+      try {
+        await worker.processTask(t.id);
+      } finally {
+        svc.transition = orig;
+      }
+      assert.ok(thrown);
+      const r = await row(t.id);
+      assert.equal(r.status, 'failed');
+      assert.equal(r.reason_code, 'OUTPUT_UPLOAD_ERROR');
+      assert.equal((await ledger(t.id, 'RELEASED')).length, 1);
+      assert.equal((await ledger(t.id, 'CAPTURED')).length, 0);
+      assert.deepEqual(outKeys(), []);
+      assert.ok(deleteCalls.some((k) => k.startsWith('out/')));
+    });
+
     it('Task không còn running khi bắt đầu: không tải gì', async () => {
       reset(); await clearGate();
       const u = await newUser();

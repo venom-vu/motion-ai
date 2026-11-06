@@ -267,7 +267,27 @@ describe('Story 2.4: [BE] Máy trạng thái Task bằng compare-and-set', () =>
     assert.equal(await redis.client.exists(`task:terminal:${id}`), 0);
     const id2 = await runningTask(u);
     await svc.transition(id2, 'running', 'failed', 'RH_ERROR');
+    // Khóa được ghi nền (không chờ) nên đợi tới khi xuất hiện.
+    for (let i = 0; i < 50 && (await redis.client.exists(`task:terminal:${id2}`)) === 0; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
     assert.equal(await redis.client.exists(`task:terminal:${id2}`), 1);
+  });
+
+  it('Redis treo: chuyển trạng thái không bị trễ', async () => {
+    const u = await newUser();
+    const id = await runningTask(u);
+    const redis = app.get(RedisService);
+    const orig = redis.client.set;
+    redis.client.set = () => new Promise(() => {});
+    try {
+      const t0 = Date.now();
+      assert.equal((await svc.transition(id, 'running', 'failed', 'RH_ERROR')).applied, true);
+      assert.ok(Date.now() - t0 < 1000, `mất ${Date.now() - t0}ms`);
+    } finally {
+      redis.client.set = orig;
+    }
+    assert.equal((await entries(id, 'RELEASED')).length, 1);
   });
 
   it('resultKey với đích không phải succeeded bị từ chối', async () => {

@@ -34,6 +34,8 @@ import { WalletService } from '../wallet/wallet.service.js';
 
 export const TASKS_QUEUE = 'tasks';
 export const MAX_ACTIVE_TASKS_PER_USER = 3;
+/** Giới hạn chờ enqueue để phản hồi tạo Task luôn dưới 2 giây khi Redis treo; bộ quét sẽ enqueue lại. */
+export const ENQUEUE_TIMEOUT_MS = 1500;
 export const RESULT_URL_TTL_SECONDS = 600;
 
 export class TaskLimitException extends HttpException {
@@ -111,11 +113,8 @@ export class TasksService {
       return { applied: true };
     });
     if (result.applied && isTerminal(to)) {
-      try {
-        await this.redis.client.set(`task:terminal:${taskId}`, '1', 'EX', 30, 'NX');
-      } catch {
-        // Chỉ là gợi ý; bỏ qua.
-      }
+      // Chỉ là gợi ý nên không chờ: Redis treo không được làm trễ phản hồi sau khi DB đã commit.
+      void this.redis.client.set(`task:terminal:${taskId}`, '1', 'EX', 30, 'NX').catch(() => {});
     }
     return result;
   }
@@ -272,19 +271,30 @@ export class TasksService {
       return { snapshot, task };
     });
 
+    let timer: NodeJS.Timeout | undefined;
     try {
-      await this.queue.add(
-        'process',
-        { taskId },
-        {
-          jobId: taskId,
-          priority: snapshot.priority,
-          removeOnComplete: true,
-          removeOnFail: true,
-        },
-      );
+      await Promise.race([
+        this.queue.add(
+          'process',
+          { taskId },
+          {
+            jobId: taskId,
+            priority: snapshot.priority,
+            removeOnComplete: true,
+            removeOnFail: true,
+          },
+        ),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error(`enqueue quá ${ENQUEUE_TIMEOUT_MS}ms`)),
+            ENQUEUE_TIMEOUT_MS,
+          );
+        }),
+      ]);
     } catch (err) {
       this.logger.error(`Không enqueue được Task ${taskId}: ${String(err)}`);
+    } finally {
+      clearTimeout(timer);
     }
 
     let queuePosition = 1;

@@ -119,3 +119,23 @@ context:
 - `pnpm run lint && pnpm run typecheck && pnpm run build` -- expected: pass
 - `pnpm --filter @motion-ai/api test` -- expected: pass (cần PostgreSQL/Redis qua compose)
 - `pnpm run check:boundaries` -- expected: pass
+
+### Review Findings
+
+- [x] [Review][Decision] (đã chọn phương án 2: ghi nền, không `await`; thêm test Redis treo) Gợi ý Redis `task:terminal:<id>` chỉ được ghi, không nơi nào đọc, và lệnh `SET` được `await` sau commit — spec gọi nó là "bộ lọc nhanh" nhưng hiện không lọc gì; khi Redis treo, mỗi lần chuyển sang trạng thái cuối (và `cancel`) bị trễ tới `commandTimeout` 1,5 giây dù DB đã commit [apps/api/src/modules/tasks/tasks.service.ts:115-120]. Phương án: (a) bỏ hẳn khóa cho tới khi 2.7 cần; (b) giữ ghi nhưng không `await` (fire-and-forget), chờ bộ quét 2.7 đọc; (c) thêm đường đọc ngay bây giờ để thật sự lọc trước transaction.
+
+#### Rejected
+
+- Migration CHECK hỏng trên DB đã có Task `succeeded` (low): trước migration này không có mã nào ghi `succeeded`, nên chỉ fixture test mới có hàng như vậy (đã sửa fixture).
+- `resultKey` sai chủ ném `Error` trần sau UPDATE (low): lỗi lập trình theo spec; worker 2.6 tự sinh key từ `userId` của Task nên không đi vào nhánh này, và giao dịch rollback nên không để lại trạng thái dở.
+- `resultKey` rỗng với đích không phải `succeeded` (false): `else if (resultKey !== null)` bắt cả chuỗi rỗng và ném lỗi trước khi chạm DB.
+- Hint Redis ghi `reasonCode`/UUID hoa thường lệch (`/i` với tiền tố phân biệt hoa thường) (low): `userId` từ DB luôn chữ thường; key sai chỉ làm giao dịch rollback ồn ào, không lưu dữ liệu sai.
+- Regex UUID bị lặp, nên dùng schema contract (low): chỉ thẩm mỹ, chưa có chỗ nào lệch.
+- `reasonCode` ngoài enum, `taskId` không phải UUID từ caller nội bộ (low): `transition` là API nội bộ có kiểu TypeScript; lỗi lập trình thì lộ ngay.
+- `cancel` đọc hai lần, TOCTOU, getById lỗi sau commit (low): CAS quyết định kết quả; đọc trước chỉ để phân biệt 404/409; lỗi đọc DB hiếm.
+- `settle` khi thiếu HOLD (false): `wallet.settle` ném `WalletConflictException` khi không có HOLD, và giao dịch rollback cả UPDATE.
+- `job.remove()` lỗi làm worker chạy Task đã hủy; deferred-work lỗi thời (false): `processTask` thoát ngay khi Task đã ở trạng thái cuối (`task-worker.service.ts:108`), và khi CAS `queued→running` trả 0 dòng thì đọc lại và chỉ chạy tiếp nếu `running`. Mục deferred của 2.4 đã được 2.5 giải quyết.
+- Guard của `GET /tasks/:id` và `cancel` (false): `@UseGuards(JwtAuthGuard, AccountLockedGuard)` đặt ở mức class `TasksController`.
+- `transition` chỉ là quy ước, không bắt buộc (false): `UPDATE tasks ... status` chỉ còn trong `tasks.service.ts`; các `UPDATE` khác không đổi `status`.
+- P2028, rate limit cho `GET /tasks/:id`, `queuePosition` null (low): chỉ xảy ra khi tranh chấp khóa cùng một user hoặc poll dày; chưa có tác hại cụ thể, sửa thêm nhánh không đáng.
+- Frontmatter spec `done` lệch `sprint-status`, số liệu test (165/163) không kiểm chứng được, `Queue.prototype` vá toàn cục (low): sửa spec không thuộc phạm vi; mỗi file test chạy một tiến trình riêng.
