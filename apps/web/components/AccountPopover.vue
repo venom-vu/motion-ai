@@ -54,6 +54,11 @@ function goToHistory(): void {
   void navigateTo('/history');
 }
 
+function goToTasks(): void {
+  close();
+  void navigateTo('/tasks');
+}
+
 async function handleLogout(): Promise<void> {
   close();
   await logout();
@@ -120,12 +125,23 @@ onBeforeUnmount(() => {
       <button
         type="button"
         role="menuitem"
+        data-testid="menu-tasks"
+        class="touch-target flex min-h-[48px] w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition hover:bg-cyber-bg"
+        @click="goToTasks"
+      >
+        <Icon name="lucide:history" class="h-4 w-4 shrink-0 text-cyber-violet" />
+        <span>Lịch sử tác vụ</span>
+      </button>
+
+      <button
+        type="button"
+        role="menuitem"
         data-testid="menu-history"
         class="touch-target flex min-h-[48px] w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition hover:bg-cyber-bg"
         @click="goToHistory"
       >
         <Icon name="lucide:clock-3" class="h-4 w-4 shrink-0 text-cyber-violet" />
-        <span>Lịch sử</span>
+        <span>Biến động credit</span>
       </button>
 
       <button

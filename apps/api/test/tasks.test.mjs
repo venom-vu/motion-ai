@@ -5,7 +5,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { ApiErrorCode, TaskSchema } from '@motion-ai/contracts';
+import { ApiErrorCode, TaskListResponseSchema, TaskSchema } from '@motion-ai/contracts';
 import { JwtService } from '@nestjs/jwt';
 import pg from 'pg';
 import { Queue } from 'bullmq';
@@ -458,5 +458,88 @@ describe('Story 2.3: [BE] Tạo Task Face Swap và xếp vào hàng đợi', () 
     const after = await wal(u);
     assert.equal(after.held, 0n);
     assert.equal(after.balance, 500n);
+  });
+
+  describe('GET /tasks (danh sách Task phân trang con trỏ)', () => {
+    it('chưa đăng nhập: 401', async () => {
+      const res = await fetch(`${baseUrl}/tasks`);
+      assert.equal(res.status, 401);
+    });
+
+    it('trả danh sách Task mới nhất trước, phân trang cursor và cô lập theo người dùng', async () => {
+      const u1 = await newUser();
+      const u2 = await newUser();
+
+      // u1 tạo 2 task
+      const b1 = await validBody(u1);
+      const res1 = await post(u1, b1);
+      assert.equal(res1.status, 201);
+      const t1 = await res1.json();
+
+      const b2 = await validBody(u1);
+      const res2 = await post(u1, b2);
+      assert.equal(res2.status, 201);
+      const t2 = await res2.json();
+
+      // u2 tạo 1 task
+      const b3 = await validBody(u2);
+      const res3 = await post(u2, b3);
+      assert.equal(res3.status, 201);
+      const t3 = await res3.json();
+
+      // u1 lấy danh sách với pageSize=1
+      const listRes1 = await fetch(`${baseUrl}/tasks?pageSize=1`, {
+        headers: { Authorization: `Bearer ${u1.token}` },
+      });
+      assert.equal(listRes1.status, 200);
+      const data1 = TaskListResponseSchema.parse(await listRes1.json());
+      assert.equal(data1.items.length, 1);
+      assert.equal(data1.items[0].id, t2.id); // mới nhất trước
+      assert.equal(data1.hasMore, true);
+      assert.ok(data1.nextCursor);
+
+      // u1 lấy trang tiếp theo bằng cursor
+      const listRes2 = await fetch(`${baseUrl}/tasks?pageSize=1&cursor=${data1.nextCursor}`, {
+        headers: { Authorization: `Bearer ${u1.token}` },
+      });
+      assert.equal(listRes2.status, 200);
+      const data2 = TaskListResponseSchema.parse(await listRes2.json());
+      assert.equal(data2.items.length, 1);
+      assert.equal(data2.items[0].id, t1.id);
+      assert.equal(data2.hasMore, false);
+      assert.equal(data2.nextCursor, null);
+
+      // u2 chỉ thấy task của mình (t3), không thấy task của u1
+      const listResU2 = await fetch(`${baseUrl}/tasks`, {
+        headers: { Authorization: `Bearer ${u2.token}` },
+      });
+      assert.equal(listResU2.status, 200);
+      const dataU2 = TaskListResponseSchema.parse(await listResU2.json());
+      assert.equal(dataU2.items.length, 1);
+      assert.equal(dataU2.items[0].id, t3.id);
+    });
+
+    it('cursor không hợp lệ hoặc không tồn tại trả 400 VALIDATION_FAILED', async () => {
+      const u = await newUser();
+
+      // Non-UUID format
+      const resInvalid = await fetch(`${baseUrl}/tasks?cursor=not-a-valid-uuid`, {
+        headers: { Authorization: `Bearer ${u.token}` },
+      });
+      assert.equal(resInvalid.status, 400);
+      const err1 = await resInvalid.json();
+      assert.equal(err1.code, 'VALIDATION_FAILED');
+
+      // Valid UUID format but non-existent
+      const resNonExistent = await fetch(
+        `${baseUrl}/tasks?cursor=00000000-0000-0000-0000-000000000000`,
+        {
+          headers: { Authorization: `Bearer ${u.token}` },
+        },
+      );
+      assert.equal(resNonExistent.status, 400);
+      const err2 = await resNonExistent.json();
+      assert.equal(err2.code, 'VALIDATION_FAILED');
+    });
   });
 });

@@ -438,12 +438,12 @@ onBeforeUnmount(() => {
         </button>
 
         <NuxtLink
-          to="/history"
+          :to="localTask?.id ? `/tasks/${localTask.id}` : '/tasks'"
           data-testid="view-result-button"
           class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl bg-cyber-violet px-4 py-2.5 text-xs font-semibold text-cyber-text transition hover:bg-cyber-violet/90"
         >
           <Icon name="lucide:external-link" class="h-4 w-4" />
-          <span>Xem trong Lịch Sử</span>
+          <span>Xem Kết Quả</span>
         </NuxtLink>
       </div>
     </div>

@@ -2677,4 +2677,481 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
       );
     });
   });
+
+  describe('@motion-ai/web — Story 2.12 Trang kết quả và lịch sử Task', () => {
+    it('createMotionApiClient hỗ trợ listTasks, getTaskResult, shareTask và revokeTaskShare đúng schema', async () => {
+      const calls = [];
+      const fakeFetch = async (url, init) => {
+        calls.push({ url: String(url), method: init?.method || 'GET' });
+        if (url.includes('/tasks/12345678-1234-1234-1234-123456789abc/result')) {
+          return new Response(
+            JSON.stringify({
+              resultUrl: 'https://cdn.example.com/res.png',
+              sourceUrl: 'https://cdn.example.com/src.png',
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          );
+        }
+        if (
+          url.includes('/tasks/12345678-1234-1234-1234-123456789abc/share') &&
+          init?.method === 'POST'
+        ) {
+          return new Response(
+            JSON.stringify({
+              token: 'tok-abc',
+              shareUrl: 'https://motion-ai.vn/share/tok-abc',
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          );
+        }
+        if (
+          url.includes('/tasks/12345678-1234-1234-1234-123456789abc/share') &&
+          init?.method === 'DELETE'
+        ) {
+          return new Response(
+            JSON.stringify({ revoked: true }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          );
+        }
+        if (url.includes('/tasks')) {
+          return new Response(
+            JSON.stringify({
+              items: [
+                {
+                  id: 'a0000000-0000-0000-0000-000000000001',
+                  pipeline: 'face_swap',
+                  status: 'queued',
+                  queuePosition: 1,
+                  resultKey: null,
+                  reasonCode: null,
+                  creditCost: 100,
+                  createdAt: '2026-11-06T12:00:00.000Z',
+                  updatedAt: '2026-11-06T12:00:00.000Z',
+                },
+              ],
+              pageSize: 20,
+              hasMore: false,
+              nextCursor: null,
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          );
+        }
+        return new Response('{}', { status: 200 });
+      };
+
+      const { createMotionApiClient } = await import(
+        pathToFileURL(path.join(webRoot, 'utils/api-client.ts')).href
+      );
+      const client = createMotionApiClient({
+        baseUrl: 'http://api.local',
+        fetchImpl: fakeFetch,
+        getAccessToken: () => 'fake-token',
+      });
+
+      // listTasks
+      const list = await client.listTasks({ pageSize: 10 });
+      assert.equal(list.items.length, 1);
+      assert.equal(list.items[0].status, 'queued');
+      assert.equal(list.items[0].queuePosition, 1);
+      assert.ok(calls.some((c) => c.url.includes('/tasks?pageSize=10')));
+
+      // getTaskResult
+      const res = await client.getTaskResult('12345678-1234-1234-1234-123456789abc');
+      assert.equal(res.resultUrl, 'https://cdn.example.com/res.png');
+      assert.equal(res.sourceUrl, 'https://cdn.example.com/src.png');
+
+      // shareTask
+      const share = await client.shareTask('12345678-1234-1234-1234-123456789abc');
+      assert.equal(share.token, 'tok-abc');
+      assert.equal(share.shareUrl, 'https://motion-ai.vn/share/tok-abc');
+
+      // revokeTaskShare
+      const revoke = await client.revokeTaskShare('12345678-1234-1234-1234-123456789abc');
+      assert.equal(revoke.revoked, true);
+    });
+
+    it('BeforeAfterSplitSlider SSR render chính xác cho cả 2 chế độ (so sánh 2 ảnh và 1 ảnh đơn)', async () => {
+      const sfcCode = fs.readFileSync(
+        path.join(webRoot, 'components/BeforeAfterSplitSlider.vue'),
+        'utf8',
+      );
+      const { descriptor } = parse(sfcCode, { filename: 'BeforeAfterSplitSlider.vue' });
+      const compiled = compileTemplate({
+        id: 'test-before-after-slider',
+        filename: 'components/BeforeAfterSplitSlider.vue',
+        source: descriptor.template.content,
+        ssr: true,
+        ssrCssVars: [],
+      });
+      assert.equal(compiled.errors.length, 0);
+
+      const tmpSliderFile = path.join(
+        webRoot,
+        'test',
+        `.tmp-slider-${Date.now()}.mjs`,
+      );
+      fs.writeFileSync(tmpSliderFile, compiled.code, 'utf8');
+
+      try {
+        const { ssrRender } = await import(pathToFileURL(tmpSliderFile).href);
+
+        const makeSliderApp = (props) => {
+          const app = createSSRApp({
+            ssrRender,
+            setup() {
+              const hasSource = Boolean(props.sourceUrl);
+              return {
+                sourceUrl: props.sourceUrl ?? null,
+                resultUrl: props.resultUrl,
+                alt: 'Ảnh kết quả',
+                disabled: false,
+                sliderPosition: 50,
+                hasSource,
+                handlePointerDown: () => {},
+                handlePointerMove: () => {},
+                handlePointerUp: () => {},
+                handleKeydown: () => {},
+                onSourceError: () => {},
+                onResultError: () => {},
+              };
+            },
+          });
+          app.component('Icon', {
+            props: ['name'],
+            ssrRender(_ctx, push) {
+              push('<span class="icon-mock"></span>');
+            },
+          });
+          return app;
+        };
+
+        // 1. Chế độ 2 ảnh (có sourceUrl): có before-layer, after-layer, núm trượt 36px và thanh chỉ dẫn
+        const dualHtml = await renderToString(
+          makeSliderApp({
+            sourceUrl: 'https://cdn.example.com/src.png',
+            resultUrl: 'https://cdn.example.com/res.png',
+          }),
+        );
+        assert.match(dualHtml, /data-testid="before-layer"/);
+        assert.match(dualHtml, /data-testid="after-layer"/);
+        assert.match(dualHtml, /data-testid="tag-before"/);
+        assert.match(dualHtml, /Ảnh Gốc/);
+        assert.match(dualHtml, /data-testid="tag-after"/);
+        assert.match(dualHtml, /Kết Quả AI/);
+        assert.match(dualHtml, /data-testid="slider-divider"/);
+        assert.match(dualHtml, /data-testid="slider-knob"/);
+        assert.match(dualHtml, /role="slider"/);
+        assert.match(dualHtml, /aria-label="Thanh trượt so sánh trước sau"/);
+        assert.match(dualHtml, /aria-valuenow="50"/);
+        assert.match(dualHtml, /h-9 w-9/); // 36px knob
+        assert.match(dualHtml, /data-testid="slider-hint-bar"/);
+
+        // 2. Chế độ 1 ảnh (sourceUrl null): chỉ có single-result-image, không có slider-knob
+        const singleHtml = await renderToString(
+          makeSliderApp({
+            sourceUrl: null,
+            resultUrl: 'https://cdn.example.com/res.png',
+          }),
+        );
+        assert.match(singleHtml, /data-testid="single-result-image"/);
+        assert.match(singleHtml, /data-testid="single-result-tag"/);
+        assert.doesNotMatch(singleHtml, /data-testid="slider-knob"/);
+        assert.doesNotMatch(singleHtml, /data-testid="before-layer"/);
+      } finally {
+        if (fs.existsSync(tmpSliderFile)) {
+          fs.unlinkSync(tmpSliderFile);
+        }
+      }
+    });
+
+    it('pages/tasks/index.vue và TaskHistoryCard SSR render danh sách, trạng thái tiếng Việt và nút hủy', async () => {
+      const cardSfc = fs.readFileSync(
+        path.join(webRoot, 'components/TaskHistoryCard.vue'),
+        'utf8',
+      );
+      const { descriptor } = parse(cardSfc, { filename: 'TaskHistoryCard.vue' });
+      const compiled = compileTemplate({
+        id: 'test-task-history-card',
+        filename: 'components/TaskHistoryCard.vue',
+        source: descriptor.template.content,
+        ssr: true,
+        ssrCssVars: [],
+      });
+      assert.equal(compiled.errors.length, 0);
+
+      const tmpCardFile = path.join(
+        webRoot,
+        'test',
+        `.tmp-card-${Date.now()}.mjs`,
+      );
+      fs.writeFileSync(tmpCardFile, compiled.code, 'utf8');
+
+      try {
+        const { ssrRender } = await import(pathToFileURL(tmpCardFile).href);
+
+        const makeCardApp = (task) => {
+          const app = createSSRApp({
+            ssrRender,
+            setup() {
+              return {
+                task,
+                cancelling: false,
+                isQueued: task.status === 'queued',
+                isRunning: task.status === 'running',
+                isSucceeded: task.status === 'succeeded',
+                isFailed: ['failed', 'timed_out', 'cancelled'].includes(task.status),
+                isExpired: task.id === 'expired-task',
+                statusLabel: task.status === 'queued' ? 'Đang chờ (#1)' : 'Hoàn thành',
+                pipelineLabel: 'Hoán đổi khuôn mặt',
+                formattedTime: '06/11/2026 19:30',
+                reasonMessage: task.reasonCode ? 'Lỗi hệ thống' : null,
+                handleCancel: () => {},
+              };
+            },
+          });
+          app.component('Icon', {
+            props: ['name'],
+            ssrRender(_ctx, push) {
+              push('<span class="icon-mock"></span>');
+            },
+          });
+          app.component('NuxtLink', {
+            props: ['to'],
+            ssrRender(ctx, push, _parent, attrs) {
+              const testIdAttr = attrs?.['data-testid']
+                ? ` data-testid="${attrs['data-testid']}"`
+                : '';
+              push(`<a href="${ctx.to || '#'}"${testIdAttr}>MockLink</a>`);
+            },
+          });
+          return app;
+        };
+
+        // Task queued: có nút Hủy tác vụ
+        const queuedHtml = await renderToString(
+          makeCardApp({
+            id: 'task-queued-1',
+            pipeline: 'face_swap',
+            status: 'queued',
+            creditCost: 100,
+          }),
+        );
+        assert.match(queuedHtml, /data-testid="status-queued"/);
+        assert.match(queuedHtml, /data-testid="cancel-task-button-task-queued-1"/);
+        assert.match(queuedHtml, /Hủy tác vụ/);
+        assert.doesNotMatch(queuedHtml, /data-testid="view-result-link"/);
+
+        // Task succeeded: có link Xem kết quả, không có nút Hủy tác vụ
+        const succHtml = await renderToString(
+          makeCardApp({
+            id: 'task-succ-1',
+            pipeline: 'face_swap',
+            status: 'succeeded',
+            creditCost: 100,
+          }),
+        );
+        assert.match(succHtml, /data-testid="status-succeeded"/);
+        assert.match(succHtml, /href="\/tasks\/task-succ-1"/);
+        assert.doesNotMatch(succHtml, /data-testid="cancel-task-button"/);
+
+        // Task expired: có badge Hết hạn lưu 30 ngày
+        const expHtml = await renderToString(
+          makeCardApp({
+            id: 'expired-task',
+            pipeline: 'face_swap',
+            status: 'succeeded',
+            creditCost: 100,
+          }),
+        );
+        assert.match(expHtml, /data-testid="retention-expired-badge"/);
+        assert.match(expHtml, /Hết hạn lưu 30 ngày/);
+      } finally {
+        if (fs.existsSync(tmpCardFile)) {
+          fs.unlinkSync(tmpCardFile);
+        }
+      }
+    });
+
+    it('pages/tasks/[id].vue SSR render trạng thái thành công (nút tải HD, chia sẻ) và trạng thái hết hạn lưu 30 ngày', async () => {
+      const pageSfc = fs.readFileSync(
+        path.join(webRoot, 'pages/tasks/[id].vue'),
+        'utf8',
+      );
+      const { descriptor } = parse(pageSfc, { filename: 'pages/tasks/[id].vue' });
+      const compiled = compileTemplate({
+        id: 'test-page-task-result',
+        filename: 'pages/tasks/[id].vue',
+        source: descriptor.template.content,
+        ssr: true,
+        ssrCssVars: [],
+      });
+      assert.equal(compiled.errors.length, 0);
+
+      const tmpResultPageFile = path.join(
+        webRoot,
+        'test',
+        `.tmp-page-result-${Date.now()}.mjs`,
+      );
+      fs.writeFileSync(tmpResultPageFile, compiled.code, 'utf8');
+
+      try {
+        const { ssrRender } = await import(pathToFileURL(tmpResultPageFile).href);
+
+        const makeResultApp = ({ isSucceeded = true, isExpiredVal = false }) => {
+          const app = createSSRApp({
+            ssrRender,
+            setup() {
+              const currentTask = {
+                id: '12345678-1234-1234-1234-123456789abc',
+                pipeline: 'face_swap',
+                status: isSucceeded ? 'succeeded' : 'failed',
+                createdAt: '2026-11-06T12:00:00.000Z',
+              };
+              return {
+                currentTask,
+                isExpired: isExpiredVal,
+                isUnauthenticated: false,
+                taskAsync: { pending: { value: false } },
+                resultAsync: {
+                  pending: { value: false },
+                  data: {
+                    value:
+                      isSucceeded && !isExpiredVal
+                        ? {
+                            resultUrl: 'https://cdn.example.com/res.png',
+                            sourceUrl: 'https://cdn.example.com/src.png',
+                          }
+                        : null,
+                  },
+                },
+                taskErrorVi: null,
+                resultErrorVi: null,
+                shareData: null,
+                isSharing: false,
+                isRevokingShare: false,
+                shareToastMessage: null,
+                shareErrorVi: null,
+                getPipelineLabelVi: () => 'Hoán đổi khuôn mặt',
+                formatTaskTimestampVi: () => '06/11/2026 19:30',
+                getTaskStatusLabelVi: () => (isSucceeded ? 'Hoàn thành' : 'Thất bại'),
+                handleGoBack: () => {},
+                handleRefreshResult: () => {},
+                handleImageError: () => {},
+                handleDownloadImage: () => {},
+                handleShare: () => {},
+                handleRevokeShare: () => {},
+                handleCopyShareLink: () => {},
+                openAuthDialog: () => {},
+              };
+            },
+          });
+          app.component('Icon', {
+            props: ['name'],
+            ssrRender(_ctx, push) {
+              push('<span class="icon-mock"></span>');
+            },
+          });
+          app.component('NuxtLink', {
+            props: ['to'],
+            ssrRender(ctx, push, _parent, attrs) {
+              const testIdAttr = attrs?.['data-testid']
+                ? ` data-testid="${attrs['data-testid']}"`
+                : '';
+              push(`<a href="${ctx.to || '#'}"${testIdAttr}>MockLink</a>`);
+            },
+          });
+          app.component('BeforeAfterSplitSlider', {
+            props: ['resultUrl', 'sourceUrl', 'alt'],
+            ssrRender(_ctx, push) {
+              push('<div data-testid="mock-before-after-slider"></div>');
+            },
+          });
+          app.component('TaskProgressCard', {
+            props: ['task'],
+            ssrRender(_ctx, push) {
+              push('<div data-testid="mock-task-progress-card"></div>');
+            },
+          });
+          return app;
+        };
+
+        // 1. Succeeded: có Trước/Sau slider, nút tải HD và nút chia sẻ
+        const succHtml = await renderToString(
+          makeResultApp({ isSucceeded: true, isExpiredVal: false }),
+        );
+        assert.match(succHtml, /data-testid="result-success-view"/);
+        assert.match(succHtml, /data-testid="mock-before-after-slider"/);
+        assert.match(succHtml, /data-testid="download-result-button"/);
+        assert.match(succHtml, /Tải Ảnh HD \(Không Watermark\)/);
+        assert.match(succHtml, /data-testid="share-task-button"/);
+        assert.match(succHtml, /Chia sẻ kết quả/);
+
+        // 2. Expired: có thông báo hết hạn lưu 30 ngày, không có slider
+        const expHtml = await renderToString(
+          makeResultApp({ isSucceeded: true, isExpiredVal: true }),
+        );
+        assert.match(expHtml, /data-testid="retention-expired-view"/);
+        assert.match(expHtml, /Kết Quả Đã Hết Hạn Lưu Trữ/);
+        assert.match(expHtml, /30 ngày/);
+        assert.doesNotMatch(expHtml, /data-testid="mock-before-after-slider"/);
+      } finally {
+        if (fs.existsSync(tmpResultPageFile)) {
+          fs.unlinkSync(tmpResultPageFile);
+        }
+      }
+    });
+
+    it('Tuân thủ Slate Cyber tokens, vùng chạm tối thiểu 48px và không có emoji UTF-8 trong UI chrome', () => {
+      const sliderComponentRaw = fs.readFileSync(
+        path.join(webRoot, 'components/BeforeAfterSplitSlider.vue'),
+        'utf8',
+      );
+      const cardComponentRaw = fs.readFileSync(
+        path.join(webRoot, 'components/TaskHistoryCard.vue'),
+        'utf8',
+      );
+      const tasksIndexPageRaw = fs.readFileSync(
+        path.join(webRoot, 'pages/tasks/index.vue'),
+        'utf8',
+      );
+      const tasksResultPageRaw = fs.readFileSync(
+        path.join(webRoot, 'pages/tasks/[id].vue'),
+        'utf8',
+      );
+
+      // 1. Vùng chạm tối thiểu 48px
+      assert.match(sliderComponentRaw, /touch-target/);
+      assert.match(cardComponentRaw, /touch-target/);
+      assert.match(cardComponentRaw, /min-h-\[48px\]/);
+      assert.match(tasksIndexPageRaw, /touch-target/);
+      assert.match(tasksIndexPageRaw, /min-h-\[48px\]/);
+      assert.match(tasksResultPageRaw, /touch-target/);
+      assert.match(tasksResultPageRaw, /min-h-\[48px\]/);
+      assert.match(tasksResultPageRaw, /min-h-\[50px\]/);
+
+      // 2. Không chứa emoji UTF-8 trong UI chrome
+      const emojiRegex =
+        /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}]/u;
+      assert.equal(
+        emojiRegex.test(sliderComponentRaw),
+        false,
+        'components/BeforeAfterSplitSlider.vue không được chứa emoji UTF-8',
+      );
+      assert.equal(
+        emojiRegex.test(cardComponentRaw),
+        false,
+        'components/TaskHistoryCard.vue không được chứa emoji UTF-8',
+      );
+      assert.equal(
+        emojiRegex.test(tasksIndexPageRaw),
+        false,
+        'pages/tasks/index.vue không được chứa emoji UTF-8',
+      );
+      assert.equal(
+        emojiRegex.test(tasksResultPageRaw),
+        false,
+        'pages/tasks/[id].vue không được chứa emoji UTF-8',
+      );
+    });
+  });
 });

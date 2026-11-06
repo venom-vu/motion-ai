@@ -14,6 +14,11 @@ import {
   TaskIdParamsSchema,
   TaskGetResponseSchema,
   TaskCancelResponseSchema,
+  TaskListQuerySchema,
+  TaskListResponseSchema,
+  TaskResultResponseSchema,
+  TaskShareResponseSchema,
+  TaskShareRevokeResponseSchema,
   UploadConfirmParamsSchema,
   UploadConfirmRequestSchema,
   UploadConfirmResponseSchema,
@@ -37,6 +42,11 @@ import {
   type Task,
   type TaskCancelResponse,
   type TaskGetResponse,
+  type TaskListQuery,
+  type TaskListResponse,
+  type TaskResultResponse,
+  type TaskShareResponse,
+  type TaskShareRevokeResponse,
   type UploadConfirmRequest,
   type UploadConfirmResponse,
   type UploadCreateRequest,
@@ -56,6 +66,11 @@ export {
   type Task,
   type TaskCancelResponse,
   type TaskGetResponse,
+  type TaskListQuery,
+  type TaskListResponse,
+  type TaskResultResponse,
+  type TaskShareResponse,
+  type TaskShareRevokeResponse,
 };
 
 export interface MotionApiClientOptions {
@@ -523,6 +538,74 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
           signal: options?.signal,
         },
         (payload) => TaskCancelResponseSchema.parse(payload),
+      );
+    },
+
+    async listTasks(
+      rawQuery?: TaskListQuery,
+      options?: { signal?: AbortSignal },
+    ): Promise<TaskListResponse> {
+      const query = TaskListQuerySchema.parse(rawQuery ?? {});
+      const params = new URLSearchParams();
+      if (query.pageSize) {
+        params.set('pageSize', String(query.pageSize));
+      }
+      if (query.cursor) {
+        params.set('cursor', query.cursor);
+      }
+      const qs = params.toString();
+      return requestLive(
+        `/tasks${qs ? `?${qs}` : ''}`,
+        {
+          method: 'GET',
+          signal: options?.signal,
+        },
+        (payload) => TaskListResponseSchema.parse(payload),
+      );
+    },
+
+    async getTaskResult(
+      id: string,
+      options?: { signal?: AbortSignal },
+    ): Promise<TaskResultResponse> {
+      TaskIdParamsSchema.parse({ id });
+      return requestLive(
+        `/tasks/${encodeURIComponent(id)}/result`,
+        {
+          method: 'GET',
+          signal: options?.signal,
+        },
+        (payload) => TaskResultResponseSchema.parse(payload),
+      );
+    },
+
+    async shareTask(
+      id: string,
+      options?: { signal?: AbortSignal },
+    ): Promise<TaskShareResponse> {
+      TaskIdParamsSchema.parse({ id });
+      return requestLive(
+        `/tasks/${encodeURIComponent(id)}/share`,
+        {
+          method: 'POST',
+          signal: options?.signal,
+        },
+        (payload) => TaskShareResponseSchema.parse(payload),
+      );
+    },
+
+    async revokeTaskShare(
+      id: string,
+      options?: { signal?: AbortSignal },
+    ): Promise<TaskShareRevokeResponse> {
+      TaskIdParamsSchema.parse({ id });
+      return requestLive(
+        `/tasks/${encodeURIComponent(id)}/share`,
+        {
+          method: 'DELETE',
+          signal: options?.signal,
+        },
+        (payload) => TaskShareRevokeResponseSchema.parse(payload),
       );
     },
   };

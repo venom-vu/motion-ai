@@ -1,11 +1,13 @@
-import { BadRequestException, Body, Controller, Delete, Get, HttpCode, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
 import {
   ApiErrorCode,
   FaceSwapCreateRequestSchema,
   TaskIdParamsSchema,
+  TaskListQuerySchema,
   type Task,
   getApiErrorMessageVi,
   type FaceSwapCreateResponse,
+  type TaskListResponse,
   type TaskResultResponse,
   type TaskShareResponse,
   type TaskShareRevokeResponse,
@@ -42,6 +44,21 @@ export class TasksController {
       });
     }
     return this.tasks.createFaceSwap(user.sub, parsed.data);
+  }
+
+  @Get()
+  async list(
+    @CurrentUser() user: JwtUserPayload,
+    @Query() query: unknown,
+  ): Promise<TaskListResponse> {
+    const parsed = TaskListQuerySchema.safeParse(query);
+    if (!parsed.success) {
+      throw new BadRequestException({
+        code: ApiErrorCode.VALIDATION_FAILED,
+        message: getApiErrorMessageVi(ApiErrorCode.VALIDATION_FAILED),
+      });
+    }
+    return this.tasks.list(user.sub, parsed.data);
   }
 
   private parseId(id: string): string {

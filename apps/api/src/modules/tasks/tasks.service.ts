@@ -16,6 +16,8 @@ import {
   type FaceSwapCreateRequest,
   type ReasonCode,
   type Task,
+  type TaskListQuery,
+  type TaskListResponse,
   type TaskResultResponse,
   type TaskStatus,
   type TierSnapshot,
@@ -246,6 +248,72 @@ export class TasksService {
       creditCost: row.holdAmount,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+
+  async list(userId: string, query: TaskListQuery): Promise<TaskListResponse> {
+    const pageSize = query.pageSize ?? 20;
+    const cursor = query.cursor;
+
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (cursor && !UUID_REGEX.test(cursor)) {
+      throw this.apiError(BadRequestException, ApiErrorCode.VALIDATION_FAILED);
+    }
+
+    let rows;
+    try {
+      rows = await this.prisma.task.findMany({
+        where: { userId },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: pageSize + 1,
+        ...(cursor
+          ? {
+              cursor: { id: cursor },
+              skip: 1,
+            }
+          : {}),
+      });
+    } catch (err) {
+      if ((err as { code?: unknown }).code === 'P2025') {
+        throw this.apiError(BadRequestException, ApiErrorCode.VALIDATION_FAILED);
+      }
+      throw err;
+    }
+
+    const hasMore = rows.length > pageSize;
+    const items = hasMore ? rows.slice(0, pageSize) : rows;
+    const nextCursor = hasMore && items.length > 0 ? items[items.length - 1].id : null;
+
+    const mappedItems: Task[] = await Promise.all(
+      items.map(async (row) => {
+        const queued = row.status === 'queued';
+        let queuePos: number | null = null;
+        if (queued) {
+          try {
+            queuePos = await this.queuePosition(row.id);
+          } catch {
+            queuePos = 1;
+          }
+        }
+        return {
+          id: row.id,
+          pipeline: row.pipeline as Task['pipeline'],
+          status: row.status as TaskStatus,
+          reasonCode: (row.reasonCode as ReasonCode | null) ?? null,
+          queuePosition: queuePos,
+          resultKey: row.resultKey ?? null,
+          creditCost: row.holdAmount,
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+        };
+      }),
+    );
+
+    return {
+      items: mappedItems,
+      pageSize,
+      hasMore,
+      nextCursor,
     };
   }
 
