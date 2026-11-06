@@ -170,6 +170,8 @@ export class ResultIngestorService implements ResultIngestor {
       return;
     }
 
+    this.logger.log(`Task ${task.id}: đã lưu kết quả ${resultKey} (${encoded.data.length} byte), chốt succeeded`);
+
     // 4. Chốt
     try {
       const { applied } = await this.tasks.transition(task.id, 'running', 'succeeded', null, {

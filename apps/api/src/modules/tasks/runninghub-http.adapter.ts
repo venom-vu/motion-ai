@@ -5,6 +5,7 @@ import {
   type RunningHubOutputs,
   type RunningHubPort,
 } from '../../ports/index.js';
+import { RunningHubOpenApiAdapter } from './runninghub-openapi.adapter.js';
 import { UnconfiguredRunningHubAdapter } from './runninghub-unconfigured.adapter.js';
 
 /**
@@ -70,10 +71,19 @@ export class RunningHubHttpAdapter implements RunningHubPort {
   }
 }
 
-/** Adapter HTTP chỉ bật khi NODE_ENV === 'test' và có RUNNINGHUB_BASE_URL; còn lại luôn là adapter chưa cấu hình. */
+/**
+ * Chọn adapter RunningHub:
+ * 1. NODE_ENV === 'test' và có RUNNINGHUB_BASE_URL: máy chủ giả của smoke test.
+ * 2. Có RUNNINGHUB_API_KEY: adapter OpenAPI thật (host mặc định https://www.runninghub.ai, ghi đè bằng RUNNINGHUB_API_HOST).
+ * 3. Còn lại: adapter chưa cấu hình (mọi lời gọi ném RH_ERROR).
+ */
 export function createRunningHubPort(): RunningHubPort {
   if (process.env.NODE_ENV === 'test' && process.env.RUNNINGHUB_BASE_URL) {
     return new RunningHubHttpAdapter(process.env.RUNNINGHUB_BASE_URL);
+  }
+  const apiKey = process.env.RUNNINGHUB_API_KEY?.trim();
+  if (apiKey) {
+    return new RunningHubOpenApiAdapter(apiKey, process.env.RUNNINGHUB_API_HOST?.trim() || undefined);
   }
   return new UnconfiguredRunningHubAdapter();
 }
