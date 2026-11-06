@@ -79,20 +79,21 @@ describe('Story 2.6: [BE] Nhập kết quả về R2 và chốt tiền', () => {
   const saved = {};
 
   // Kho R2 giả
-  let store, putCalls, deleteCalls, putImpl;
+  let store, putCalls, deleteCalls, putImpl, putSignals, getSignals;
   // fetch giả
   let fetchCalls, fetchImpl, outputsQueue;
 
   function reset() {
     store = new Map();
-    putCalls = 0; deleteCalls = [];
+    putCalls = 0; deleteCalls = []; putSignals = []; getSignals = [];
     putImpl = null;
     fetchCalls = 0;
     fetchImpl = async () => asResponse(await solid(40, 60, 'png'));
     outputsQueue = [{ status: 'SUCCESS', fileUrl: RH_URL, consumeMoney: 3.6 }];
   }
   const fakeStorage = {
-    async getObject(key) {
+    async getObject(key, signal) {
+      getSignals.push(signal);
       const o = store.get(key);
       if (!o) throw new Error(`NoSuchKey ${key}`);
       return o.body;
@@ -101,8 +102,9 @@ describe('Story 2.6: [BE] Nhập kết quả về R2 và chốt tiền', () => {
       const o = store.get(key);
       return o ? { sizeBytes: o.body.length, etag: '"e"', contentType: o.contentType } : null;
     },
-    async putObject(key, body, contentType) {
+    async putObject(key, body, contentType, signal) {
       putCalls++;
+      putSignals.push(signal);
       if (putImpl) await putImpl(key, body, contentType);
       store.set(key, { body, contentType });
       return '"etag"';
@@ -388,6 +390,18 @@ describe('Story 2.6: [BE] Nhập kết quả về R2 và chốt tiền', () => {
       await ingest(b);
       assert.equal((await row(b.id)).reason_code, 'OUTPUT_UPLOAD_ERROR');
       assert.equal(putCalls, 0);
+    });
+
+    it('putObject và getObject (ảnh tham chiếu) nhận đúng signal của Task', async () => {
+      reset(); await clearGate();
+      const u = await newUser();
+      const t = await runningTask(u);
+      const ac = new AbortController();
+      await ingest(t, RH_URL, 3, ac.signal);
+      assert.equal(putSignals.length, 1);
+      assert.equal(putSignals[0], ac.signal);
+      assert.ok(getSignals.length >= 1);
+      assert.ok(getSignals.every((s) => s === ac.signal));
     });
 
     it('fetch nhận signal có timeout 30 giây và signal hủy được truyền xuống', async () => {

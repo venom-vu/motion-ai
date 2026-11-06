@@ -38,6 +38,15 @@ export const MAX_ACTIVE_TASKS_PER_USER = 3;
 export const ENQUEUE_TIMEOUT_MS = 1500;
 export const RESULT_URL_TTL_SECONDS = 600;
 
+export interface SweepRow {
+  id: string;
+  enqueue_attempts: number;
+  priority: number;
+  deadline_at: Date | null;
+  prep_deadline_at: Date | null;
+  gate_deadline: Date | null;
+}
+
 export class TaskLimitException extends HttpException {
   constructor() {
     super(
@@ -117,6 +126,45 @@ export class TasksService {
       void this.redis.client.set(`task:terminal:${taskId}`, '1', 'EX', 30, 'NX').catch(() => {});
     }
     return result;
+  }
+
+  /** Bộ quét: Task queued quá `olderThanMs` kể từ queued_at. */
+  async sweepQueued(olderThanMs: number, limit = 100) {
+    return this.prisma.$queryRaw<SweepRow[]>`
+      SELECT id, enqueue_attempts, (tier_snapshot->>'priority')::int AS priority,
+        deadline_at, prep_deadline_at, gate_deadline
+      FROM tasks
+      WHERE status = 'queued' AND queued_at < now() - (${olderThanMs}::int * interval '1 millisecond')
+      ORDER BY queued_at LIMIT ${limit}`;
+  }
+
+  /** Bộ quét: Task running có hạn chót nào đó đã qua (deadline_at, gate_deadline hoặc prep_deadline_at). */
+  async sweepRunningExpired(limit = 100) {
+    return this.prisma.$queryRaw<SweepRow[]>`
+      SELECT id, enqueue_attempts, (tier_snapshot->>'priority')::int AS priority,
+        deadline_at, prep_deadline_at, gate_deadline
+      FROM tasks
+      WHERE status = 'running' AND (deadline_at <= now()
+        OR (deadline_at IS NULL AND (gate_deadline <= now() OR prep_deadline_at <= now()))) IS TRUE
+      ORDER BY running_at LIMIT ${limit}`;
+  }
+
+  /** Bộ quét: Task running chưa quá hạn (để kiểm tra job còn sống). */
+  async sweepRunningLive(limit = 100) {
+    return this.prisma.$queryRaw<SweepRow[]>`
+      SELECT id, enqueue_attempts, (tier_snapshot->>'priority')::int AS priority,
+        deadline_at, prep_deadline_at, gate_deadline
+      FROM tasks
+      WHERE status = 'running' AND (deadline_at <= now()
+        OR (deadline_at IS NULL AND (gate_deadline <= now() OR prep_deadline_at <= now()))) IS NOT TRUE
+      ORDER BY running_at LIMIT ${limit}`;
+  }
+
+  /** Tăng enqueue_attempts khi Task còn queued. Trả true nếu áp dụng. */
+  async bumpEnqueueAttempts(taskId: string): Promise<boolean> {
+    const n = await this.prisma.$executeRaw`
+      UPDATE tasks SET enqueue_attempts = enqueue_attempts + 1 WHERE id = ${taskId}::uuid AND status = 'queued'`;
+    return n > 0;
   }
 
   /** Đọc Task cho worker (chỉ đọc). */

@@ -22,7 +22,7 @@ import { TASKS_QUEUE, TasksService } from './tasks.service.js';
 export const WORKER_CONCURRENCY = 2;
 const RH_CALL_TIMEOUT_MS = 10_000;
 const DEADLINE_MS = 180_000;
-const ORPHAN_MS = 10 * 60_000;
+export const ORPHAN_MS = 10 * 60_000;
 
 type TaskRow = NonNullable<Awaited<ReturnType<TasksService['getWorkerRow']>>>;
 
@@ -66,6 +66,7 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
   private worker: Worker | null = null;
   private readonly shutdown = new AbortController();
   private readonly gateMutex = new Mutex();
+  private readonly controllers = new Map<string, AbortController>();
 
   constructor(
     private readonly tasks: TasksService,
@@ -83,11 +84,15 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
       async (job) => {
         const taskId = (job.data as { taskId?: string } | undefined)?.taskId;
         if (!taskId) return;
+        const ctrl = new AbortController();
+        this.controllers.set(taskId, ctrl);
         try {
-          await this.processTask(taskId, this.shutdown.signal);
+          await this.processTask(taskId, AbortSignal.any([this.shutdown.signal, ctrl.signal]));
         } catch (err) {
           this.logger.error(`Xử lý Task ${taskId} lỗi: ${String(err)}`);
           throw err;
+        } finally {
+          if (this.controllers.get(taskId) === ctrl) this.controllers.delete(taskId);
         }
       },
       { connection: this.redis.getWorkerConnectionOptions(), concurrency: WORKER_CONCURRENCY },
@@ -102,6 +107,14 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
       this.worker = null;
       await w.close();
     }
+  }
+
+  /** Hủy AbortSignal riêng của Task (bộ quét gọi sau khi kết thúc Task). Trả true nếu có job đang chạy. */
+  abortTask(taskId: string): boolean {
+    const ctrl = this.controllers.get(taskId);
+    if (!ctrl) return false;
+    ctrl.abort();
+    return true;
   }
 
   /** Hàm xử lý job (AD-5/AD-6). Gọi trực tiếp được trong test. */
@@ -167,7 +180,7 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
     // (a)
     let inputs: Record<string, Buffer>;
     try {
-      inputs = await this.loadInputs(row, config);
+      inputs = await this.loadInputs(row, config, signal);
     } catch (err) {
       if (signal.aborted) return;
       this.logger.warn(`Không đọc được input của Task ${taskId}: ${String(err)}`);
@@ -221,13 +234,13 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
     return this.poll(fresh, signal);
   }
 
-  private async loadInputs(row: TaskRow, config: PipelineConfig): Promise<Record<string, Buffer>> {
+  private async loadInputs(row: TaskRow, config: PipelineConfig, signal?: AbortSignal): Promise<Record<string, Buffer>> {
     const keys = (row.inputKeys ?? {}) as Record<string, string>;
     const out: Record<string, Buffer> = {};
     for (const m of config.inputs) {
       const key = keys[m.inputKey];
       if (!key) throw new Error(`Thiếu input ${m.inputKey}`);
-      out[m.inputKey] = await this.storage.getObject(key);
+      out[m.inputKey] = await this.storage.getObject(key, signal);
     }
     return config.prepare ? config.prepare(out) : out;
   }

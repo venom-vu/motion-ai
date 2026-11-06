@@ -483,6 +483,18 @@ describe('Story 2.5: [BE] Worker xử lý Task qua RunningHub', () => {
     assert.ok(r.rh_orphan_until);
   });
 
+  it('loadInputs truyền signal của Task vào storage.getObject', async () => {
+    reset(); await clearGate();
+    const seen = [];
+    getObjectImpl = async (_k, signal) => { seen.push(signal); return Buffer.from('img'); };
+    const u = await newUser();
+    const id = await createTask(u);
+    const ac = new AbortController();
+    await worker.processTask(id, ac.signal);
+    assert.ok(seen.length >= 2);
+    assert.ok(seen.every((s) => s === ac.signal));
+  });
+
   it('không đọc được input => INPUT_FETCH_ERROR', async () => {
     reset(); await clearGate();
     getObjectImpl = async () => { throw new Error('r2 down'); };

@@ -93,9 +93,10 @@ export class S3StorageAdapter implements StoragePort {
     }
   }
 
-  async getObject(key: string): Promise<Buffer> {
+  async getObject(key: string, signal?: AbortSignal): Promise<Buffer> {
     const res = await this.s3.send(
       new GetObjectCommand({ Bucket: getBucketName(), Key: key }),
+      { abortSignal: signal },
     );
     if (!res.Body) throw new Error('Đối tượng rỗng');
     return Buffer.from(await res.Body.transformToByteArray());
@@ -109,7 +110,7 @@ export class S3StorageAdapter implements StoragePort {
     );
   }
 
-  async putObject(key: string, body: Buffer, contentType: string): Promise<string> {
+  async putObject(key: string, body: Buffer, contentType: string, signal?: AbortSignal): Promise<string> {
     const res = await this.s3.send(
       new PutObjectCommand({
         Bucket: getBucketName(),
@@ -117,6 +118,7 @@ export class S3StorageAdapter implements StoragePort {
         Body: body,
         ContentType: contentType,
       }),
+      { abortSignal: signal },
     );
     if (!res.ETag) throw new Error('PutObject không trả ETag');
     return res.ETag;

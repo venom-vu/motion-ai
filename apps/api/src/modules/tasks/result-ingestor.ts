@@ -124,7 +124,7 @@ export class ResultIngestorService implements ResultIngestor {
     // 2. Kiểm tra + mã hóa lại có EXIF (không thử lại)
     let encoded: { data: Buffer; contentType: string };
     try {
-      encoded = await this.validateAndEncode(downloaded, row.pipeline, row.inputKeys);
+      encoded = await this.validateAndEncode(downloaded, row.pipeline, row.inputKeys, signal);
     } catch (err) {
       if (err instanceof OutputInvalidError) {
         this.logger.warn(`Kết quả Task ${task.id} không hợp lệ: ${err.message}`);
@@ -140,7 +140,7 @@ export class ResultIngestorService implements ResultIngestor {
     const resultKey = `out/${row.userId}/${crypto.randomUUID()}`;
     try {
       await this.withRetry(task.id, 'ghi R2', deadlineAt, signal, () =>
-        this.storage.putObject(resultKey, encoded.data, encoded.contentType),
+        this.storage.putObject(resultKey, encoded.data, encoded.contentType, signal),
       );
     } catch (err) {
       await this.safeDelete(resultKey);
@@ -224,6 +224,7 @@ export class ResultIngestorService implements ResultIngestor {
     bytes: Buffer,
     pipeline: string,
     inputKeys: unknown,
+    signal?: AbortSignal,
   ): Promise<{ data: Buffer; contentType: string }> {
     if (bytes.length === 0) throw new OutputInvalidError('ảnh rỗng');
 
@@ -255,7 +256,7 @@ export class ResultIngestorService implements ResultIngestor {
     if (refKey) {
       const key = ((inputKeys ?? {}) as Record<string, string | undefined>)[refKey];
       if (!key) throw new Error(`Thiếu ảnh tham chiếu ${refKey}`);
-      const refMeta = await sharp(await this.storage.getObject(key)).metadata();
+      const refMeta = await sharp(await this.storage.getObject(key, signal)).metadata();
       const ref = displaySize(refMeta);
       if (ref.width !== size.width || ref.height !== size.height) {
         throw new OutputInvalidError(

@@ -26,6 +26,20 @@ describe('S3StorageAdapter (client giả)', () => {
     assert.equal(await a.putObject('k', Buffer.from('x'), 'image/png'), '"abc"');
   });
 
+  it('getObject/putObject truyền abortSignal xuống s3.send', async () => {
+    const ctrl = new AbortController();
+    const seen = [];
+    const a = adapterWith(async (cmd, opts) => {
+      seen.push(opts?.abortSignal);
+      return cmd.constructor.name === 'PutObjectCommand'
+        ? { ETag: '"e"' }
+        : { Body: { transformToByteArray: async () => new Uint8Array([1]) } };
+    });
+    await a.getObject('k', ctrl.signal);
+    await a.putObject('k', Buffer.from('x'), 'image/png', ctrl.signal);
+    assert.deepEqual(seen, [ctrl.signal, ctrl.signal]);
+  });
+
   it('copyIfMatch: 412/PreconditionFailed -> lỗi riêng, mã hóa CopySource', async () => {
     process.env.R2_BUCKET = 'bkt';
     let input;
