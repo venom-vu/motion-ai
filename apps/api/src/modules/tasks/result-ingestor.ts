@@ -18,14 +18,10 @@ const BLACK_MAX = 8;
 const MAX_GPU_COINS = 2147483647;
 const JPEG_WEBP_QUALITY = 95;
 
+import { FORMAT_TO_MIME, displaySize } from '../storage/image-utils.js';
+
 export const EXIF_SOFTWARE = 'AI Generator';
 export const EXIF_COMMENT = 'AI-Generated Content';
-
-const FORMAT_TO_MIME: Readonly<Record<string, string>> = {
-  png: 'image/png',
-  jpeg: 'image/jpeg',
-  webp: 'image/webp',
-};
 
 type FetchFn = (url: string, init: { signal: AbortSignal; redirect?: 'manual' | 'follow' }) => Promise<Response>;
 
@@ -55,16 +51,6 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 export function clampCoins(consumeMoney: number | undefined): number | undefined {
   if (typeof consumeMoney !== 'number' || !Number.isFinite(consumeMoney)) return undefined;
   return Math.min(MAX_GPU_COINS, Math.max(0, Math.round(consumeMoney)));
-}
-
-/** Kích thước hiển thị (sau xoay EXIF orientation 5-8) của ảnh. */
-function displaySize(meta: Metadata): { width: number; height: number } {
-  const o = meta.orientation ?? 1;
-  const rotated = o >= 5 && o <= 8;
-  return {
-    width: (rotated ? meta.height : meta.width) ?? 0,
-    height: (rotated ? meta.width : meta.height) ?? 0,
-  };
 }
 
 const MAX_REDIRECTS = 3;

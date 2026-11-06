@@ -18,6 +18,7 @@ import {
   type UploadCreateResponse,
 } from '@motion-ai/contracts';
 import sharp, { type Metadata, type OutputInfo } from 'sharp';
+import { FORMAT_TO_MIME, displaySize } from './image-utils.js';
 import { PrismaService } from '../../infra/prisma.service.js';
 import {
   STORAGE_PORT,
@@ -28,12 +29,8 @@ import {
 export const PRESIGN_TTL_SECONDS = 10 * 60;
 export const PENDING_WINDOW_MS = 24 * 60 * 60 * 1000;
 export const MAX_IMAGE_LONG_SIDE_PX = 2048;
-
-const FORMAT_TO_MIME: Record<string, string> = {
-  jpeg: 'image/jpeg',
-  png: 'image/png',
-  webp: 'image/webp',
-};
+/** `in/` bị xóa sau 7 ngày (lifecycle R2); chừa 1 giờ biên an toàn. */
+export const CONFIRMED_RETENTION_MS = 7 * 24 * 60 * 60 * 1000 - 60 * 60 * 1000;
 
 function apiError(
   Ctor: new (body: { code: ApiErrorCode; message: string }) => Error,
@@ -134,7 +131,14 @@ export class UploadsService {
     let width: number;
     let height: number;
     let finalHead = head;
-    const body = await this.storage.getObject(rawKey);
+    let body: Buffer;
+    try {
+      // Ghim ETag: object bị ghi đè sau HEAD thì không đọc/giải mã byte lạ.
+      body = await this.storage.getObject(rawKey, undefined, head.etag);
+    } catch (err) {
+      if (err instanceof StoragePreconditionFailedError) throw apiError(ConflictException, ApiErrorCode.CONFLICT);
+      throw err;
+    }
     let meta: Metadata;
     try {
       meta = await sharp(body).metadata();
@@ -150,9 +154,7 @@ export class UploadsService {
       return this.rejectInvalid(rawKey, 'Tệp tải lên không phải ảnh hợp lệ.');
     }
     // EXIF orientation 5-8 hoán đổi chiều ngang/dọc khi hiển thị; kiểm tra và báo cáo theo kích thước sau xoay.
-    const rotated = (meta.orientation ?? 1) >= 5;
-    width = rotated ? meta.height : meta.width;
-    height = rotated ? meta.width : meta.height;
+    ({ width, height } = displaySize(meta));
     const pre = ImageMetaSchema.safeParse({
       mimeType: upload.mimeType,
       sizeBytes: head.sizeBytes,
@@ -231,7 +233,12 @@ export class UploadsService {
   async areConfirmedKeysOwnedBy(userId: string, keys: string[]): Promise<boolean> {
     const unique = [...new Set(keys)];
     const rows = await this.prisma.upload.findMany({
-      where: { userId, status: 'confirmed', confirmedKey: { in: unique } },
+      where: {
+        userId,
+        status: 'confirmed',
+        confirmedKey: { in: unique },
+        OR: [{ confirmedAt: null }, { confirmedAt: { gte: new Date(Date.now() - CONFIRMED_RETENTION_MS) } }],
+      },
       select: { confirmedKey: true },
     });
     return rows.length === unique.length;

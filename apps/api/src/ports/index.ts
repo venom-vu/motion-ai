@@ -92,7 +92,8 @@ export interface StoragePort {
   presignPut(input: StoragePresignPutInput): Promise<StoragePresignPutResult>;
   /** Trả null nếu đối tượng không tồn tại. */
   head(key: string): Promise<StorageHeadResult | null>;
-  getObject(key: string, signal?: AbortSignal): Promise<Buffer>;
+  /** `ifMatch`: ném StoragePreconditionFailedError khi ETag đối tượng khác. */
+  getObject(key: string, signal?: AbortSignal, ifMatch?: string): Promise<Buffer>;
   /** URL GET ký ngắn hạn tới đối tượng (không kiểm tra đối tượng có tồn tại). */
   presignGet(key: string, expiresInSeconds: number): Promise<string>;
   /** Trả ETag của đối tượng vừa ghi (theo phản hồi PutObject). */

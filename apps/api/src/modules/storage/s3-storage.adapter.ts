@@ -93,13 +93,20 @@ export class S3StorageAdapter implements StoragePort {
     }
   }
 
-  async getObject(key: string, signal?: AbortSignal): Promise<Buffer> {
-    const res = await this.s3.send(
-      new GetObjectCommand({ Bucket: getBucketName(), Key: key }),
-      { abortSignal: signal },
-    );
-    if (!res.Body) throw new Error('Đối tượng rỗng');
-    return Buffer.from(await res.Body.transformToByteArray());
+  async getObject(key: string, signal?: AbortSignal, ifMatch?: string): Promise<Buffer> {
+    try {
+      const res = await this.s3.send(
+        new GetObjectCommand({ Bucket: getBucketName(), Key: key, IfMatch: ifMatch }),
+        { abortSignal: signal },
+      );
+      if (!res.Body) throw new Error('Đối tượng rỗng');
+      return Buffer.from(await res.Body.transformToByteArray());
+    } catch (err) {
+      if (errorName(err) === 'PreconditionFailed' || errorStatus(err) === 412) {
+        throw new StoragePreconditionFailedError();
+      }
+      throw err;
+    }
   }
 
   async presignGet(key: string, expiresInSeconds: number): Promise<string> {
