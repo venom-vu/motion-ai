@@ -28,7 +28,7 @@ async function main(): Promise<void> {
           {
             AllowedOrigins: origins,
             AllowedMethods: ['PUT', 'GET', 'HEAD'],
-            AllowedHeaders: ['content-type', 'content-length'],
+            AllowedHeaders: ['content-type', 'content-length', 'range', 'if-none-match'],
             ExposeHeaders: ['ETag'],
             MaxAgeSeconds: 3600,
           },

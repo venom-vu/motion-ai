@@ -236,6 +236,7 @@ export class UploadsService {
       where: {
         userId,
         status: 'confirmed',
+        kind: 'image',
         confirmedKey: { in: unique },
         OR: [{ confirmedAt: null }, { confirmedAt: { gte: new Date(Date.now() - CONFIRMED_RETENTION_MS) } }],
       },

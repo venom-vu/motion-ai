@@ -1,7 +1,6 @@
 ## Deferred from: code review of spec-1-1-shared-dung-monorepo-va-khung-ci (2026-11-01)
 
 - Smoke test spawn `dist/main.js` / `dist/worker.js` (guard entrypoint, PORT): bổ sung ở Story 1.3.
-- API entrypoint thiếu `enableShutdownHooks()`: bổ sung ở Story 1.3.
 - `apps/web` lint chưa phủ `.vue`: làm khi có component FE.
 - CI cần branch protection/required check trên GitHub để thực sự chặn merge.
 - CLAUDE.md "Quy trình làm việc" còn ghi story 1-1 là bước tiếp theo.
@@ -18,9 +17,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-6-be-so-cai-credit-bat-bien.md`
   summary: Thêm `wallet.adjust()` và API đọc số dư/lịch sử cho module khác dùng.
   evidence: `ADJUST` được CHECK cho phép nhưng chưa có đường ghi; thuộc story 1.7 và story admin.
-- source_spec: `_bmad-output/implementation-artifacts/spec-1-6-be-so-cai-credit-bat-bien.md`
-  summary: Chuyển `User.balance/held` (BigInt) sang number hoặc string khi trả JSON.
-  evidence: JSON.stringify ném lỗi với BigInt; `/me` hiện trả hằng 0 nên chưa lộ, sẽ lộ khi nối ví ở 1.7.
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-6-be-so-cai-credit-bat-bien.md`
   summary: Thêm trigger DB chặn UPDATE/DELETE trên `ledger_entries`.
   evidence: Append-only hiện chỉ dựa vào quy ước ứng dụng; ngoài phạm vi AC của 1.6.
@@ -52,9 +48,6 @@
 ## Deferred from: code review of spec-1-8-be-tang-500-credit-va-chong-lam-dung (2026-11-03)
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-8-be-tang-500-credit-va-chong-lam-dung.md`
-  summary: Tích hợp ThrottlerStorageRedisService để rate limit đồng bộ khi scale nhiều pod API.
-  evidence: Hiện ThrottlerModule dùng bộ nhớ RAM mặc định; khi triển khai nhiều container API độc lập cần lưu tracker vào Redis dùng chung.
-- source_spec: `_bmad-output/implementation-artifacts/spec-1-8-be-tang-500-credit-va-chong-lam-dung.md`
   summary: Gom nhóm subnet IPv6 (/64) cho rate limit và chống lạm dụng thiết bị IPv6.
   evidence: Thiết bị di động/mạng IPv6 có thể xoay interface ID trong cùng subnet /64; cần chính sách gom subnet khi vận hành thực tế.
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-8-be-tang-500-credit-va-chong-lam-dung.md`
@@ -78,7 +71,6 @@
 
 - Kiểm thử reactive watcher `accessToken` trên Nuxt client runtime (`apps/web/pages/history.vue:52-59`): cần bổ sung test harness component mount chuyên dụng (@nuxt/test-utils hoặc @vue/test-utils) hiện chưa cấu hình trong repo.
 
-
 ## Deferred from: code review of spec-2-2-be-tai-anh-len-r2-an-toan (2026-11-04)
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-2-be-tai-anh-len-r2-an-toan.md`
@@ -92,25 +84,12 @@
   evidence: `PutBucketLifecycleConfiguration` ghi đè; thêm rule `out/` ở Story 2.6.
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-3-be-tao-task-face-swap-va-xep-vao-hang-doi.md`
-  summary: `queue.add` có thể treo khi Redis mất kết nối, làm `POST /tasks/face-swap` vượt 2 giây (chưa kiểm chứng).
-  evidence: `maxRetriesPerRequest: null` khiến lệnh BullMQ xếp hàng chờ thay vì lỗi; cần thử tắt Redis để xác nhận rồi thêm timeout quanh enqueue.
-- source_spec: `_bmad-output/implementation-artifacts/spec-2-3-be-tao-task-face-swap-va-xep-vao-hang-doi.md`
   summary: Giao dịch tạo Task có thể vượt timeout mặc định 5 giây của Prisma khi chờ khóa dòng user (P2028), chưa kiểm chứng.
   evidence: Chưa có test chờ khóa lâu; cần mô phỏng để quyết định đặt `maxWait`/`timeout` và ánh xạ lỗi.
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-3-be-tao-task-face-swap-va-xep-vao-hang-doi.md`
   summary: Test throttle auth trong `signup-grant.test.mjs` flaky khi chạy cả bộ vì các file test song song dùng chung bộ đếm Redis.
   evidence: Thấy fail một lần ở dòng 881 (429 sớm) trong lần chạy đầu, hai lần sau xanh; diff Story 2.3 không đụng auth.
 
-- source_spec: `_bmad-output/implementation-artifacts/spec-2-4-be-may-trang-thai-task-bang-compare-and-set.md`
-  summary: Job BullMQ của Task đã `cancelled` có thể còn trong hàng đợi khi `job.remove()` lỗi; worker (Story 2.5) phải bỏ job khi CAS `queued→running` trả 0 dòng.
-  evidence: `cancel` xóa job nỗ lực tốt nhất và chỉ log lỗi; worker chưa tồn tại nên chưa kiểm chứng được.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-2-5-be-worker-xu-ly-task-qua-runninghub.md`
-  summary: `PREP_TIMEOUT` và `deadline_at` chỉ được kiểm khi nhận job, không trong lúc chạy (đọc input, `prepare`, chờ cổng tới 15 phút).
-  evidence: Bộ quét Story 2.7 cưỡng chế hạn chót bất kể job; cần quyết định có thêm kiểm trong job hay không và đo chi phí.
-- source_spec: `_bmad-output/implementation-artifacts/spec-2-5-be-worker-xu-ly-task-qua-runninghub.md`
-  summary: Task `running` có thể không còn job sau khi worker tắt giữa chừng (`processTask` thoát khi abort).
-  evidence: Bộ quét Story 2.7 phải enqueue job khôi phục cho Task `running` không còn job sống; cần thử shutdown giữa chừng để xác nhận.
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-5-be-worker-xu-ly-task-qua-runninghub.md`
   summary: Từ khóa `balance`/`insufficient` ở `mapRunningHubFailure` quá rộng và danh sách `CONTENT_BLOCKED` còn trống.
   evidence: Cần chuỗi lỗi thật của RunningHub (benchmark Epic 6) để thu hẹp và điền; hiện chỉ có test với câu "Insufficient balance".
@@ -119,30 +98,15 @@
   evidence: Adapter mặc định ném `RH_ERROR`; cần quyết định cờ cấu hình ở `ops` hoặc kiểm tra khi tạo Task, nên làm cùng adapter thật (Story 2.14).
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-6-be-nhap-ket-qua-r2-va-chot-tien.md`
-  summary: Chặn SSRF và vô hiệu hóa redirect tự động khi tải fileUrl từ RunningHub
-  evidence: URL trả về từ RunningHub cần được kiểm tra để chặn truy cập dải IP riêng tư / metadata service và hạn chế redirect tùy tiện.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-2-6-be-nhap-ket-qua-r2-va-chot-tien.md`
-  summary: Bổ sung CORS headers (Range, If-None-Match) trong configure-bucket.ts
-  evidence: Hỗ trợ resumable download và streaming tốt hơn từ trình duyệt đối với các URL ký R2.
-
-- source_spec: `_bmad-output/implementation-artifacts/spec-2-6-be-nhap-ket-qua-r2-va-chot-tien.md`
   summary: Kiểm thử thực thi hoặc mock SDK cho cấu hình lifecycle R2 trong configure-bucket.ts
   evidence: Hiện script cấu hình bucket chỉ được kiểm tra bằng regex trên file nguồn; cần kiểm thử chạy thực tế hoặc kiểm tra đối tượng PutBucketLifecycleConfigurationCommandInput.
 
 ## Deferred from: code review of spec-2-3-be-tao-task-face-swap-va-xep-vao-hang-doi (2026-11-05)
 
 - FK `ledger_entries_task_id_fkey` còn `NOT VALID`, cần migration `VALIDATE CONSTRAINT` khi dữ liệu dev sạch.
-- `areConfirmedKeysOwnedBy` chưa lọc `kind: 'image'`; thêm bộ lọc khi Story 5.2 đưa upload video vào.
 - Chưa có Idempotency-Key; FE khóa nút khi đang gửi (Story 2.11), hoàn credit qua hủy Task.
-- Enqueue lỗi chưa ghi dấu vết (`enqueue_attempts` giữ 0); bộ quét Story 2.7 xử lý.
 - Test throttle `signup-grant` chập chờn.
 
 ## Deferred from: code review of spec-2-5-be-worker-xu-ly-task-qua-runninghub (2026-11-05)
 
-- Task `running` mất job (tắt worker, lỗi bị ném lại không có `attempts`/`backoff`) giữ HOLD tới khi có bộ quét; kiểm tra khi làm Story 2.7.
 - Cổng đồng thời chỉ đúng trong một tiến trình worker; nếu chạy nhiều bản thì dùng `pg_advisory_xact_lock`.
-
-## Deferred from: code review of spec-2-6-be-nhap-ket-qua-r2-va-chot-tien (2026-11-06)
-
-- `storage.putObject` không có timeout và `StoragePort` không nhận `AbortSignal`; R2 treo giữ slot BullMQ cho tới khi bộ quét (Story 2.7) kết thúc Task. Cần đổi cổng.
