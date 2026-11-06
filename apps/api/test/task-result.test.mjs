@@ -404,6 +404,20 @@ describe('Story 2.6: [BE] Nhập kết quả về R2 và chốt tiền', () => {
       assert.ok(getSignals.every((s) => s === ac.signal));
     });
 
+    it('signal hủy giữa lúc đọc ảnh tham chiếu: ingest ném lỗi, Task vẫn running, không RELEASED', async () => {
+      reset(); await clearGate();
+      const u = await newUser();
+      const t = await runningTask(u);
+      const ac = new AbortController();
+      const origGet = fakeStorage.getObject;
+      fakeStorage.getObject = async () => { ac.abort(); throw new Error('AbortError'); };
+      try {
+        await assert.rejects(ingest(t, RH_URL, 3, ac.signal));
+      } finally { fakeStorage.getObject = origGet; }
+      assert.equal((await row(t.id)).status, 'running');
+      assert.equal(putCalls, 0);
+    });
+
     it('fetch nhận signal có timeout 30 giây và signal hủy được truyền xuống', async () => {
       reset(); await clearGate();
       let received;

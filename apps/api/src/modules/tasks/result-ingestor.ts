@@ -131,6 +131,7 @@ export class ResultIngestorService implements ResultIngestor {
         await fail('OUTPUT_INVALID');
         return;
       }
+      if (signal.aborted) throw new OutputAbortedError();
       this.logger.warn(`Không kiểm tra được kết quả Task ${task.id}: ${String(err)}`);
       await fail('OUTPUT_UPLOAD_ERROR');
       return;
