@@ -11,8 +11,15 @@ import {
   API_ERROR_MESSAGES_VI,
   ApiErrorCode,
   CONTRACTS_PACKAGE_VERSION,
+  MOCK_FACE_SWAP_CREATE_REQUEST,
   MOCK_ME_PRO_RESPONSE,
   MOCK_PRICING_CONFIG_RESPONSE,
+  MOCK_TASK_CANCELLED,
+  MOCK_TASK_FAILED,
+  MOCK_TASK_QUEUED,
+  MOCK_TASK_RUNNING,
+  MOCK_TASK_SUCCEEDED,
+  MOCK_TASK_TIMED_OUT,
   MOCK_UPLOAD_CONFIRM_RESPONSE,
   MOCK_UPLOAD_CREATE_RESPONSE,
   MOCK_WALLET_LEDGER_ITEMS,
@@ -2130,7 +2137,15 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
               hasEnoughBalance: true,
               canSubmit: canSubmitValue,
               uploadedKey: canSubmitValue ? 'in/mock/sample.jpg' : null,
+              sourceKey: null,
+              targetKey: null,
               acceptedConsent: canSubmitValue,
+              mockMode: false,
+              activeTask: null,
+              isSubmitting: false,
+              submitErrorVi: null,
+              compareSplitPercent: 50,
+              TOS_VERSION,
               estimatedCredits: 100,
               formatNumberVi: (n) => String(n),
               emit: () => {},
@@ -2156,6 +2171,12 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
             push('<div data-testid="mock-image-uploader"></div>');
           },
         });
+        app.component('TaskProgressCard', {
+          props: ['task'],
+          ssrRender(_ctx, push) {
+            push('<div data-testid="mock-task-progress-card"></div>');
+          },
+        });
         return app;
       };
 
@@ -2177,5 +2198,362 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
         fs.unlinkSync(tmpFile);
       }
     }
+  });
+
+  describe('@motion-ai/web — Story 2.11 Trang Face Swap và tiến trình xử lý', () => {
+    it('createMotionApiClient hỗ trợ createFaceSwapTask, getTask và cancelTask đúng schema hợp đồng', async () => {
+      const calls = [];
+      const mockFetch = async (input, init) => {
+        const urlStr = String(input);
+        calls.push({ url: urlStr, method: init?.method, body: init?.body });
+
+        if (urlStr.endsWith('/tasks/face-swap')) {
+          return Response.json(MOCK_TASK_QUEUED, { status: 201 });
+        }
+        if (urlStr.includes('/tasks/70000000-0000-4000-8000-000000000002')) {
+          return Response.json(MOCK_TASK_RUNNING, { status: 200 });
+        }
+        if (urlStr.includes('/cancel')) {
+          return Response.json(MOCK_TASK_CANCELLED, { status: 200 });
+        }
+        return new Response('Not found', { status: 404 });
+      };
+
+      const client = createMotionApiClient({
+        baseUrl: 'http://localhost:3001',
+        fetchImpl: mockFetch,
+      });
+
+      // 1. Tạo Task Face Swap
+      const createdTask = await client.createFaceSwapTask(
+        MOCK_FACE_SWAP_CREATE_REQUEST,
+      );
+      assert.equal(createdTask.id, MOCK_TASK_QUEUED.id);
+      assert.equal(createdTask.status, 'queued');
+      assert.equal(createdTask.queuePosition, 3);
+      assert.equal(calls[0].method, 'POST');
+      assert.match(calls[0].url, /\/tasks\/face-swap$/);
+
+      // 2. Lấy thông tin Task theo ID
+      const fetchedTask = await client.getTask(
+        '70000000-0000-4000-8000-000000000002',
+      );
+      assert.equal(fetchedTask.id, MOCK_TASK_RUNNING.id);
+      assert.equal(fetchedTask.status, 'running');
+
+      // 3. Hủy Task khi đang queued
+      const cancelledTask = await client.cancelTask(
+        '70000000-0000-4000-8000-000000000006',
+      );
+      assert.equal(cancelledTask.status, 'cancelled');
+      assert.equal(cancelledTask.reasonCode, 'USER_CANCEL');
+    });
+
+    it('TaskProgressCard SSR render chính xác các trạng thái vòng đời Task (queued, running, succeeded, failed, timed_out, cancelled)', async () => {
+      const cardRaw = fs.readFileSync(
+        path.join(webRoot, 'components/TaskProgressCard.vue'),
+        'utf8',
+      );
+      const { descriptor } = parse(cardRaw);
+      const compiled = compileTemplate({
+        id: 'test-task-progress-card',
+        filename: 'TaskProgressCard.vue',
+        source: descriptor.template.content,
+        ssr: true,
+        ssrCssVars: [],
+      });
+      assert.equal(compiled.errors.length, 0);
+
+      const tmpCardFile = path.join(
+        webRoot,
+        'test',
+        `.tmp-card-${Date.now()}.mjs`,
+      );
+      fs.writeFileSync(tmpCardFile, compiled.code, 'utf8');
+
+      try {
+        const { ssrRender } = await import(pathToFileURL(tmpCardFile).href);
+
+        const makeCardApp = (taskData) => {
+          const app = createSSRApp({
+            ssrRender,
+            setup() {
+              return {
+                localTask: taskData,
+                isQueued: taskData.status === 'queued',
+                isRunning: taskData.status === 'running',
+                isSucceeded: taskData.status === 'succeeded',
+                isFailed:
+                  taskData.status === 'failed' ||
+                  taskData.status === 'timed_out' ||
+                  taskData.status === 'cancelled',
+                reasonMessageVi:
+                  taskData.status === 'cancelled'
+                    ? 'Tác vụ đã được hủy theo yêu cầu của bạn.'
+                    : taskData.reasonCode === 'NO_FACE'
+                      ? 'Không tìm thấy khuôn mặt rõ ràng trong ảnh nguồn.'
+                      : taskData.reasonCode === 'FREE_WAIT_EXPIRED'
+                        ? 'Hết hạn thời gian chờ trong hàng đợi miễn phí.'
+                        : 'Lỗi không xác định',
+                actionErrorVi: null,
+                isCancelling: false,
+                pipelineLabelVi: 'Hoán đổi khuôn mặt',
+                handleCancel: () => {},
+                handleRetry: () => {},
+              };
+            },
+          });
+          app.component('Icon', {
+            props: ['name'],
+            ssrRender(_ctx, push) {
+              push('<span class="icon-mock"></span>');
+            },
+          });
+          app.component('NuxtLink', {
+            props: ['to'],
+            ssrRender(ctx, push, _parent, attrs) {
+              const testIdAttr = attrs?.['data-testid']
+                ? ` data-testid="${attrs['data-testid']}"`
+                : '';
+              push(`<a href="${ctx.to || '#'}"${testIdAttr}>MockLink</a>`);
+            },
+          });
+          return app;
+        };
+
+        // 1. Queued: Vị trí hàng đợi #3 + Nút hủy
+        const queuedHtml = await renderToString(
+          makeCardApp(MOCK_TASK_QUEUED),
+        );
+        assert.match(queuedHtml, /data-testid="task-queued-state"/);
+        assert.match(queuedHtml, /data-testid="queue-position-badge"/);
+        assert.match(queuedHtml, /#3/);
+        assert.match(queuedHtml, /data-testid="cancel-task-button"/);
+
+        // 2. Running: Trạng thái thực thi + Thanh tiến trình nhịp xung + KHÔNG CÓ nút hủy
+        const runningHtml = await renderToString(
+          makeCardApp(MOCK_TASK_RUNNING),
+        );
+        assert.match(runningHtml, /data-testid="task-running-state"/);
+        assert.match(runningHtml, /data-testid="running-status-badge"/);
+        assert.match(runningHtml, /role="progressbar"/);
+        assert.doesNotMatch(runningHtml, /data-testid="cancel-task-button"/);
+
+        // 3. Succeeded: Hoàn tất + Nút xem kết quả
+        const succeededHtml = await renderToString(
+          makeCardApp(MOCK_TASK_SUCCEEDED),
+        );
+        assert.match(succeededHtml, /data-testid="task-succeeded-state"/);
+        assert.match(succeededHtml, /data-testid="succeeded-status-badge"/);
+        assert.match(succeededHtml, /data-testid="view-result-button"/);
+        assert.match(succeededHtml, /data-testid="create-new-button"/);
+
+        // 4. Failed với NO_FACE: Thông báo lý do + Hoàn 100% credit + Nút thử lại
+        const failedHtml = await renderToString(
+          makeCardApp(MOCK_TASK_FAILED),
+        );
+        assert.match(failedHtml, /data-testid="task-failed-state"/);
+        assert.match(failedHtml, /data-testid="credit-refund-note"/);
+        assert.match(failedHtml, /100% credit \(100 CR\)/);
+        assert.match(failedHtml, /data-testid="retry-task-button"/);
+
+        // 5. Timed out với FREE_WAIT_EXPIRED: Gợi ý nạp credit nâng hạng
+        const timedOutHtml = await renderToString(
+          makeCardApp(MOCK_TASK_TIMED_OUT),
+        );
+        assert.match(timedOutHtml, /data-testid="task-failed-state"/);
+        assert.match(timedOutHtml, /data-testid="free-wait-expired-hint"/);
+        assert.match(timedOutHtml, /data-testid="upgrade-tier-button"/);
+        assert.match(timedOutHtml, /data-testid="credit-refund-note"/);
+
+        // 6. Cancelled: Thông báo đã hủy
+        const cancelledHtml = await renderToString(
+          makeCardApp(MOCK_TASK_CANCELLED),
+        );
+        assert.match(cancelledHtml, /data-testid="task-failed-state"/);
+        assert.match(cancelledHtml, /Tác vụ đã được hủy/);
+      } finally {
+        if (fs.existsSync(tmpCardFile)) {
+          fs.unlinkSync(tmpCardFile);
+        }
+      }
+    });
+
+    it('pages/face-swap.vue SSR render đầy đủ 2 uploader, giá 100 credit, ToS checkbox và nút Tạo Face Swap', async () => {
+      const pageRaw = fs.readFileSync(
+        path.join(webRoot, 'pages/face-swap.vue'),
+        'utf8',
+      );
+      const { descriptor } = parse(pageRaw);
+      const compiled = compileTemplate({
+        id: 'test-page-face-swap',
+        filename: 'pages/face-swap.vue',
+        source: descriptor.template.content,
+        ssr: true,
+        ssrCssVars: [],
+      });
+      assert.equal(compiled.errors.length, 0);
+
+      const tmpPageFile = path.join(
+        webRoot,
+        'test',
+        `.tmp-page-fs-${Date.now()}.mjs`,
+      );
+      fs.writeFileSync(tmpPageFile, compiled.code, 'utf8');
+
+      try {
+        const { ssrRender } = await import(pathToFileURL(tmpPageFile).href);
+
+        const makePageApp = ({
+          hasBalance = true,
+          canSubmitVal = false,
+          hasTask = false,
+          isAuth = true,
+        }) => {
+          const app = createSSRApp({
+            ssrRender,
+            setup() {
+              return {
+                faceSwapCreditCost: 100,
+                userBalance: hasBalance ? 500 : 50,
+                hasEnoughBalance: hasBalance,
+                isAuthenticated: isAuth,
+                canSubmit: canSubmitVal,
+                isSubmitting: false,
+                submitErrorVi: null,
+                sourceKey: canSubmitVal ? 'in/mock/source.jpg' : null,
+                targetKey: canSubmitVal ? 'in/mock/target.jpg' : null,
+                acceptedConsent: canSubmitVal,
+                activeTask: hasTask ? MOCK_TASK_QUEUED : null,
+                isMockMode: false,
+                TOS_VERSION,
+                handleSubmit: () => {},
+                handleReset: () => {},
+                openAuthDialog: () => {},
+              };
+            },
+          });
+          app.component('Icon', {
+            props: ['name'],
+            ssrRender(_ctx, push) {
+              push('<span class="icon-mock"></span>');
+            },
+          });
+          app.component('NuxtLink', {
+            props: ['to'],
+            ssrRender(ctx, push, _parent, attrs) {
+              const testIdAttr = attrs?.['data-testid']
+                ? ` data-testid="${attrs['data-testid']}"`
+                : '';
+              push(`<a href="${ctx.to || '#'}"${testIdAttr}>MockLink</a>`);
+            },
+          });
+          app.component('ImageUploader', {
+            props: ['modelValue', 'idPrefix', 'labelVi'],
+            ssrRender(_ctx, push) {
+              push('<div data-testid="mock-uploader"></div>');
+            },
+          });
+          app.component('TaskProgressCard', {
+            props: ['task'],
+            ssrRender(_ctx, push) {
+              push('<div data-testid="mock-task-progress-card"></div>');
+            },
+          });
+          return app;
+        };
+
+        // 1. Trạng thái form ban đầu (chưa đủ điều kiện submit)
+        const initialHtml = await renderToString(
+          makePageApp({ hasBalance: true, canSubmitVal: false, hasTask: false }),
+        );
+        assert.match(initialHtml, /data-testid="page-face-swap"/);
+        assert.match(initialHtml, /data-testid="source-image-section"/);
+        assert.match(initialHtml, /data-testid="target-image-section"/);
+        assert.match(initialHtml, /data-testid="face-swap-tos-checkbox"/);
+        assert.match(initialHtml, /100 Credit/);
+        assert.match(initialHtml, /500 Credit/);
+        assert.match(
+          initialHtml,
+          /<button[^>]*data-testid="create-face-swap-button"[^>]*\sdisabled(=|"|\s|>)/,
+        );
+
+        // 2. Trạng thái số dư dưới 100: hiện ghi chú và nút nạp credit
+        const outOfCreditHtml = await renderToString(
+          makePageApp({ hasBalance: false, canSubmitVal: false, hasTask: false }),
+        );
+        assert.match(outOfCreditHtml, /data-testid="insufficient-credit-note"/);
+        assert.match(outOfCreditHtml, /data-testid="topup-credit-button"/);
+
+        // 3. Trạng thái đủ điều kiện: nút submit bật
+        const readyHtml = await renderToString(
+          makePageApp({ hasBalance: true, canSubmitVal: true, hasTask: false }),
+        );
+        assert.doesNotMatch(
+          readyHtml,
+          /<button[^>]*data-testid="create-face-swap-button"[^>]*\sdisabled(=|"|\s|>)/,
+        );
+
+        // 4. Trạng thái đã có Task: render TaskProgressCard
+        const taskActiveHtml = await renderToString(
+          makePageApp({ hasBalance: true, canSubmitVal: false, hasTask: true }),
+        );
+        assert.match(taskActiveHtml, /data-testid="mock-task-progress-card"/);
+
+        // 5. Trạng thái khách chưa đăng nhập: hiển thị banner yêu cầu đăng nhập
+        const guestHtml = await renderToString(
+          makePageApp({ hasBalance: true, canSubmitVal: false, hasTask: false, isAuth: false }),
+        );
+        assert.match(guestHtml, /data-testid="guest-login-notice"/);
+        assert.match(guestHtml, /data-testid="face-swap-login-button"/);
+      } finally {
+        if (fs.existsSync(tmpPageFile)) {
+          fs.unlinkSync(tmpPageFile);
+        }
+      }
+    });
+
+    it('FeatureWorkspaceDialog hỗ trợ 2 uploader cho Face Swap và liên kết mở trang riêng /face-swap', () => {
+      const dialogRaw = fs.readFileSync(
+        path.join(webRoot, 'components/FeatureWorkspaceDialog.vue'),
+        'utf8',
+      );
+      assert.match(dialogRaw, /workspace-face-swap-inputs/);
+      assert.match(dialogRaw, /workspace-source-face/);
+      assert.match(dialogRaw, /workspace-target-face/);
+      assert.match(dialogRaw, /to="\/face-swap"/);
+      assert.match(dialogRaw, /TaskProgressCard/);
+    });
+
+    it('Tuân thủ Slate Cyber tokens, vùng chạm tối thiểu 48px và không có emoji UTF-8 trong UI chrome', () => {
+      const faceSwapPageRaw = fs.readFileSync(
+        path.join(webRoot, 'pages/face-swap.vue'),
+        'utf8',
+      );
+      const cardComponentRaw = fs.readFileSync(
+        path.join(webRoot, 'components/TaskProgressCard.vue'),
+        'utf8',
+      );
+
+      // 1. Vùng chạm tối thiểu 48px
+      assert.match(faceSwapPageRaw, /min-h-\[48px\]/);
+      assert.match(cardComponentRaw, /min-h-\[48px\]/);
+      assert.match(faceSwapPageRaw, /touch-target/);
+      assert.match(cardComponentRaw, /touch-target/);
+
+      // 2. Không chứa emoji UTF-8 trong UI chrome
+      const emojiRegex =
+        /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}]/u;
+      assert.equal(
+        emojiRegex.test(faceSwapPageRaw),
+        false,
+        'pages/face-swap.vue không được chứa emoji UTF-8',
+      );
+      assert.equal(
+        emojiRegex.test(cardComponentRaw),
+        false,
+        'components/TaskProgressCard.vue không được chứa emoji UTF-8',
+      );
+    });
   });
 });

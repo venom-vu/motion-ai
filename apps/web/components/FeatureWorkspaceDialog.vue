@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import type { AccountTier } from '@motion-ai/contracts';
+import { TOS_VERSION, type AccountTier, type Task } from '@motion-ai/contracts';
 import ImageUploader from '~/components/ImageUploader.vue';
+import TaskProgressCard from '~/components/TaskProgressCard.vue';
+import { useApiClient } from '~/composables/useApiClient';
+import { resolveApiErrorMessageVi } from '~/utils/api-client';
 import {
   calculateFeatureEstimatedCredits,
   formatNumberVi,
@@ -14,10 +17,12 @@ const props = withDefaults(
     feature: AiFeatureTool | null;
     userTier?: AccountTier;
     userBalance?: number | null;
+    mockMode?: boolean;
   }>(),
   {
     userTier: 'FREE',
     userBalance: null,
+    mockMode: false,
   },
 );
 
@@ -29,14 +34,23 @@ const emit = defineEmits<{
       seconds: number;
       estimatedCredits: number;
       uploadedKey?: string | null;
+      sourceKey?: string | null;
+      targetKey?: string | null;
     },
   ];
 }>();
 
+const { client } = useApiClient();
+
 const compareSplitPercent = ref<number>(50);
 const selectedSeconds = ref<number>(1);
 const uploadedKey = ref<string | null>(null);
+const sourceKey = ref<string | null>(null);
+const targetKey = ref<string | null>(null);
 const acceptedConsent = ref<boolean>(false);
+const activeTask = ref<Task | null>(null);
+const isSubmitting = ref<boolean>(false);
+const submitErrorVi = ref<string | null>(null);
 
 const maxSeconds = computed<number>(() => {
   return props.feature?.tierCapSeconds ?? 1;
@@ -47,7 +61,11 @@ watch(
   (nextFeature) => {
     compareSplitPercent.value = 50;
     uploadedKey.value = null;
+    sourceKey.value = null;
+    targetKey.value = null;
     acceptedConsent.value = false;
+    activeTask.value = null;
+    submitErrorVi.value = null;
     if (nextFeature?.tierCapSeconds) {
       selectedSeconds.value = Math.min(3, nextFeature.tierCapSeconds);
     } else {
@@ -65,11 +83,19 @@ watch(
     }
     if (!isOpen) {
       uploadedKey.value = null;
+      sourceKey.value = null;
+      targetKey.value = null;
       acceptedConsent.value = false;
+      activeTask.value = null;
+      submitErrorVi.value = null;
     }
   },
   { immediate: true },
 );
+
+watch([sourceKey, targetKey], () => {
+  acceptedConsent.value = false;
+});
 
 const estimatedCredits = computed<number>(() => {
   if (!props.feature) {
@@ -89,14 +115,17 @@ const hasEnoughBalance = computed<boolean>(() => {
 });
 
 const canSubmit = computed<boolean>(() => {
-  if (!hasEnoughBalance.value) {
+  if (!hasEnoughBalance.value || isSubmitting.value) {
     return false;
+  }
+  if (props.feature?.id === 'face-swap') {
+    return Boolean(sourceKey.value && targetKey.value && acceptedConsent.value);
   }
   return Boolean(uploadedKey.value && acceptedConsent.value);
 });
 
-function handleSubmit(): void {
-  if (!props.feature || !canSubmit.value) {
+async function handleSubmit(): Promise<void> {
+  if (!props.feature || !canSubmit.value || isSubmitting.value) {
     return;
   }
   emit('submit', {
@@ -104,7 +133,40 @@ function handleSubmit(): void {
     seconds: selectedSeconds.value,
     estimatedCredits: estimatedCredits.value,
     uploadedKey: uploadedKey.value,
+    sourceKey: sourceKey.value,
+    targetKey: targetKey.value,
   });
+
+  if (props.feature.id === 'face-swap') {
+    isSubmitting.value = true;
+    submitErrorVi.value = null;
+    try {
+      if (props.mockMode) {
+        const mockTask: Task = {
+          id: '70000000-0000-4000-8000-000000000001',
+          pipeline: 'face_swap',
+          status: 'queued',
+          queuePosition: 2,
+          creditCost: estimatedCredits.value || 100,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        activeTask.value = mockTask;
+        return;
+      }
+
+      const task = await client.createFaceSwapTask({
+        sourceKey: sourceKey.value!,
+        targetKey: targetKey.value!,
+        consent: true,
+      });
+      activeTask.value = task;
+    } catch (error: unknown) {
+      submitErrorVi.value = resolveApiErrorMessageVi(error);
+    } finally {
+      isSubmitting.value = false;
+    }
+  }
 }
 
 function handleKeydown(event: KeyboardEvent): void {
@@ -169,23 +231,123 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <button
-          type="button"
-          aria-label="Đóng hộp thoại làm việc"
-          data-testid="close-workspace-dialog"
-          class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-xl border border-cyber-border bg-cyber-bg/80 p-2.5 text-cyber-muted transition hover:border-cyber-violet hover:text-cyber-text"
-          @click="emit('close')"
-        >
-          <Icon name="lucide:x" class="h-5 w-5" />
-        </button>
+        <div class="flex items-center gap-2">
+          <NuxtLink
+            v-if="feature.id === 'face-swap'"
+            to="/face-swap"
+            class="touch-target hidden items-center gap-1.5 rounded-xl border border-cyber-border bg-cyber-bg px-3 py-2 text-xs font-semibold text-cyber-muted transition hover:border-cyber-cyan hover:text-cyber-cyan sm:inline-flex"
+            @click="emit('close')"
+          >
+            <Icon name="lucide:maximize-2" class="h-3.5 w-3.5" />
+            <span>Mở trang riêng</span>
+          </NuxtLink>
+
+          <button
+            type="button"
+            aria-label="Đóng hộp thoại làm việc"
+            data-testid="close-workspace-dialog"
+            class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-xl border border-cyber-border bg-cyber-bg/80 p-2.5 text-cyber-muted transition hover:border-cyber-violet hover:text-cyber-text"
+            @click="emit('close')"
+          >
+            <Icon name="lucide:x" class="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
-      <!-- Nội dung 2 cột trên Desktop, 1 cột trên Mobile -->
-      <div class="grid grid-cols-1 gap-6 p-4 sm:p-6 lg:grid-cols-12">
+      <!-- Tiến trình tác vụ khi đã tạo (TaskProgressCard) -->
+      <div v-if="activeTask" class="p-4 sm:p-6">
+        <TaskProgressCard
+          :task="activeTask"
+          pipeline-label-vi="Hoán đổi khuôn mặt"
+          :mock-mode="mockMode"
+          @update:task="activeTask = $event"
+          @retry="activeTask = null"
+        />
+      </div>
+
+      <!-- Nội dung 2 cột trên Desktop, 1 cột trên Mobile khi chưa có activeTask -->
+      <div v-else class="grid grid-cols-1 gap-6 p-4 sm:p-6 lg:grid-cols-12">
         <!-- Cột trái: Tải tệp & Điều chỉnh thông số (Trimmer bước 1 giây cho video) -->
         <div class="space-y-5 lg:col-span-6">
-          <!-- Thành phần tải ảnh có cam kết ToS dùng chung (Story 2.10) -->
-          <div class="rounded-xl border border-cyber-border bg-cyber-bg/60 p-4">
+          <!-- Trường hợp Face Swap: Yêu cầu 2 ảnh (mặt nguồn + đích) theo Story 2.11 -->
+          <div
+            v-if="feature.id === 'face-swap'"
+            class="space-y-4"
+            data-testid="workspace-face-swap-inputs"
+          >
+            <!-- 1. Ảnh mặt nguồn -->
+            <div class="space-y-3 rounded-xl border border-cyber-border bg-cyber-bg/60 p-4">
+              <div class="flex items-center gap-2">
+                <span
+                  class="flex h-6 w-6 items-center justify-center rounded-lg border border-cyber-cyan/40 bg-cyber-cyan/15 font-mono text-xs font-bold text-cyber-cyan"
+                >
+                  1
+                </span>
+                <p class="text-sm font-semibold text-cyber-text">
+                  Ảnh mặt nguồn (Khuôn mặt cần lấy)
+                </p>
+              </div>
+              <ImageUploader
+                v-model="sourceKey"
+                id-prefix="workspace-source-face"
+                label-vi="Chọn ảnh mặt nguồn"
+                description-vi="Ảnh chân dung rõ mặt, JPG/PNG/WebP ≤ 10 MB"
+                :show-tos-consent="false"
+                :mock-mode="mockMode"
+              />
+            </div>
+
+            <!-- 2. Ảnh đích -->
+            <div class="space-y-3 rounded-xl border border-cyber-border bg-cyber-bg/60 p-4">
+              <div class="flex items-center gap-2">
+                <span
+                  class="flex h-6 w-6 items-center justify-center rounded-lg border border-cyber-violet/40 bg-cyber-violet/15 font-mono text-xs font-bold text-cyber-violet"
+                >
+                  2
+                </span>
+                <p class="text-sm font-semibold text-cyber-text">
+                  Ảnh đích (Bối cảnh muốn ghép)
+                </p>
+              </div>
+              <ImageUploader
+                v-model="targetKey"
+                id-prefix="workspace-target-face"
+                label-vi="Chọn ảnh đích"
+                description-vi="Ảnh có người rõ dáng, JPG/PNG/WebP ≤ 10 MB"
+                :show-tos-consent="false"
+                :mock-mode="mockMode"
+              />
+            </div>
+
+            <!-- Checkbox ToS theo FR19 -->
+            <div class="rounded-xl border border-cyber-border bg-cyber-bg/70 p-3.5">
+              <label
+                for="workspace-face-swap-tos"
+                class="touch-target flex min-h-[48px] items-start gap-3 text-xs text-cyber-muted transition"
+                :class="{
+                  'cursor-pointer': Boolean(sourceKey && targetKey),
+                  'opacity-60 cursor-not-allowed': !sourceKey || !targetKey,
+                }"
+              >
+                <input
+                  id="workspace-face-swap-tos"
+                  v-model="acceptedConsent"
+                  :disabled="!sourceKey || !targetKey"
+                  type="checkbox"
+                  class="mt-0.5 h-4 w-4 shrink-0 accent-cyber-violet disabled:cursor-not-allowed"
+                />
+                <span class="leading-relaxed">
+                  Tôi xác nhận đủ 18 tuổi, sở hữu quyền hợp pháp đối với cả hai ảnh tải lên, những người trong ảnh đã đồng ý cho xử lý và cam kết tuân thủ Điều khoản dịch vụ (phiên bản {{ TOS_VERSION }}).
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Các công cụ AI khác: Thành phần tải ảnh đơn dùng chung (Story 2.10) -->
+          <div
+            v-else
+            class="rounded-xl border border-cyber-border bg-cyber-bg/60 p-4"
+          >
             <div class="mb-4 flex items-start gap-3">
               <Icon
                 name="lucide:upload-cloud"
@@ -211,7 +373,16 @@ onBeforeUnmount(() => {
                   : 'Tải ảnh lên'
               "
               :description-vi="feature.inputRequirementVi"
+              :mock-mode="mockMode"
             />
+          </div>
+
+          <!-- Banner lỗi nếu có -->
+          <div
+            v-if="submitErrorVi"
+            class="rounded-xl border border-cyber-danger/40 bg-cyber-danger/10 p-3 text-xs text-cyber-danger"
+          >
+            {{ submitErrorVi }}
           </div>
 
           <!-- Bộ cắt video bước 1 giây (chỉ hiện với công cụ tính phí theo giây) -->
@@ -378,7 +549,10 @@ onBeforeUnmount(() => {
           <span>Đóng Cửa Sổ</span>
         </button>
 
-        <div class="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+        <div
+          v-if="!activeTask"
+          class="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center"
+        >
           <NuxtLink
             v-if="!hasEnoughBalance"
             to="/pricing"
@@ -396,9 +570,18 @@ onBeforeUnmount(() => {
             class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl bg-cyber-violet px-6 py-3 text-sm font-semibold text-cyber-text transition hover:bg-cyber-violet/90 disabled:cursor-not-allowed disabled:opacity-50"
             @click="handleSubmit"
           >
-            <Icon name="lucide:play" class="h-4 w-4" />
+            <Icon
+              v-if="isSubmitting"
+              name="lucide:loader-2"
+              class="h-4 w-4 animate-spin"
+            />
+            <Icon v-else name="lucide:play" class="h-4 w-4" />
             <span>
-              Tạo Tác Vụ AI ({{ formatNumberVi(estimatedCredits) }} CR)
+              {{
+                isSubmitting
+                  ? 'Đang gửi yêu cầu...'
+                  : `Tạo Tác Vụ AI (${formatNumberVi(estimatedCredits)} CR)`
+              }}
             </span>
           </button>
         </div>

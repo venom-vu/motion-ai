@@ -7,8 +7,13 @@ import {
   AuthGoogleResponseSchema,
   AuthLogoutResponseSchema,
   AuthRefreshResponseSchema,
+  FaceSwapCreateRequestSchema,
+  FaceSwapCreateResponseSchema,
   MeResponseSchema,
   PricingConfigResponseSchema,
+  TaskIdParamsSchema,
+  TaskGetResponseSchema,
+  TaskCancelResponseSchema,
   UploadConfirmParamsSchema,
   UploadConfirmRequestSchema,
   UploadConfirmResponseSchema,
@@ -17,14 +22,21 @@ import {
   WalletLedgerQuerySchema,
   WalletLedgerResponseSchema,
   getApiErrorMessageVi,
+  getReasonCodeMessageVi,
   type AuthGoogleCallbackQuery,
   type AuthGoogleCallbackResponse,
   type AuthGoogleQuery,
   type AuthGoogleResponse,
   type AuthLogoutResponse,
   type AuthRefreshResponse,
+  type FaceSwapCreateRequest,
+  type FaceSwapCreateResponse,
   type MeResponse,
   type PricingConfigResponse,
+  type ReasonCode,
+  type Task,
+  type TaskCancelResponse,
+  type TaskGetResponse,
   type UploadConfirmRequest,
   type UploadConfirmResponse,
   type UploadCreateRequest,
@@ -33,7 +45,18 @@ import {
   type WalletLedgerResponse,
 } from '@motion-ai/contracts';
 
-export { API_ERROR_MESSAGES_VI, ApiErrorCode, getApiErrorMessageVi };
+export {
+  API_ERROR_MESSAGES_VI,
+  ApiErrorCode,
+  getApiErrorMessageVi,
+  getReasonCodeMessageVi,
+  type FaceSwapCreateRequest,
+  type FaceSwapCreateResponse,
+  type ReasonCode,
+  type Task,
+  type TaskCancelResponse,
+  type TaskGetResponse,
+};
 
 export interface MotionApiClientOptions {
   baseUrl?: string;
@@ -320,7 +343,19 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
       });
     }
 
-    return parseResponse(payload);
+    const resolvedData =
+      payload &&
+      typeof payload === 'object' &&
+      'data' in payload &&
+      (payload as { data?: unknown }).data !== undefined
+        ? (payload as { data?: unknown }).data
+        : payload;
+
+    try {
+      return parseResponse(resolvedData);
+    } catch {
+      return parseResponse(payload);
+    }
   }
 
   return {
@@ -441,6 +476,53 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
           signal: options?.signal,
         },
         (payload) => UploadConfirmResponseSchema.parse(payload),
+      );
+    },
+
+    async createFaceSwapTask(
+      rawRequest: FaceSwapCreateRequest,
+      options?: { signal?: AbortSignal },
+    ): Promise<FaceSwapCreateResponse> {
+      const data = FaceSwapCreateRequestSchema.parse(rawRequest);
+      return requestLive(
+        '/tasks/face-swap',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          signal: options?.signal,
+        },
+        (payload) => FaceSwapCreateResponseSchema.parse(payload),
+      );
+    },
+
+    async getTask(
+      id: string,
+      options?: { signal?: AbortSignal },
+    ): Promise<TaskGetResponse> {
+      TaskIdParamsSchema.parse({ id });
+      return requestLive(
+        `/tasks/${encodeURIComponent(id)}`,
+        {
+          method: 'GET',
+          signal: options?.signal,
+        },
+        (payload) => TaskGetResponseSchema.parse(payload),
+      );
+    },
+
+    async cancelTask(
+      id: string,
+      options?: { signal?: AbortSignal },
+    ): Promise<TaskCancelResponse> {
+      TaskIdParamsSchema.parse({ id });
+      return requestLive(
+        `/tasks/${encodeURIComponent(id)}/cancel`,
+        {
+          method: 'POST',
+          signal: options?.signal,
+        },
+        (payload) => TaskCancelResponseSchema.parse(payload),
       );
     },
   };
