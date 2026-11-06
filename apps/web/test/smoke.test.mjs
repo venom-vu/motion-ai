@@ -3460,7 +3460,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
       );
       assert.match(
         sharePageRaw,
-        /name:\s*['"]robots['"],\s*content:\s*['"]noindex,\s*nofollow['"]/,
+        /name:\s*['"]robots['"],\s*content:\s*\(\)\s*=>\s*\(isNotFound\.value\s*\?\s*['"]noindex,\s*nofollow['"]/,
         'Phải gắn thẻ robots noindex cho trang 404',
       );
     });
