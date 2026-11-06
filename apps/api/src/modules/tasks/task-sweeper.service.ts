@@ -4,13 +4,12 @@ import { Interval } from '@nestjs/schedule';
 import type { ReasonCode } from '@motion-ai/contracts';
 import type { Job, Queue } from 'bullmq';
 import { NOTIFIER_PORT, type NotifierPort } from '../../ports/index.js';
-import { ORPHAN_MS, TaskWorkerService } from './task-worker.service.js';
+import { FREE_WAIT_MS, ORPHAN_MS, TaskWorkerService } from './task-worker.service.js';
 import { TASKS_QUEUE, TasksService, type SweepRow } from './tasks.service.js';
 
 export const SWEEP_INTERVAL_MS = 30_000;
 export const QUEUED_GRACE_MS = 30_000;
 export const MAX_ENQUEUE_ATTEMPTS = 5;
-export const FREE_WAIT_MS = 15 * 60_000;
 const BATCH = 100;
 
 /** Bộ quét Task treo và hạn chót (AD-6). Chỉ chạy ở tiến trình worker. */
@@ -124,7 +123,9 @@ export class TaskSweeperService {
           await this.expire(row.id, 'RH_GATE_TIMEOUT');
         } else {
           const live = await this.liveJob(row.id);
-          if (live && live.state === 'active') continue;
+          // Job còn trong hàng (waiting/delayed/active) là đang chờ slot worker, không phải chết;
+          // hạn chót cuối cùng vẫn là gate_deadline.
+          if (live) continue;
           await this.expire(row.id, 'PREP_TIMEOUT');
         }
       } catch (err) {

@@ -13,7 +13,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../dist/generated/prisma/client.js';
 import { bootstrapApi } from '../dist/main.js';
 import { WalletService } from '../dist/modules/wallet/index.js';
-import { TasksService } from '../dist/modules/tasks/index.js';
+import { TasksService, TaskWorkerService } from '../dist/modules/tasks/index.js';
 import { TaskSweeperService } from '../dist/modules/tasks/task-sweeper.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -211,5 +211,27 @@ describe('Story 2.8: [BE] Ưu tiên theo Tier và hết hạn hàng đợi FREE'
     try { await sweeper.sweep(); } finally { svc.transition = orig; }
     assert.equal((await row(b)).status, 'timed_out');
     assert.equal((await row(a)).status, 'queued');
+  });
+
+  it('Worker không chạy Task FREE đã chờ quá 15 phút: timed_out/FREE_WAIT_EXPIRED', async () => {
+    await clean();
+    const id = await createTask(await newUser());
+    await upd(id, `queued_at = now() - interval '16 minutes'`);
+    await app.get(TaskWorkerService).processTask(id);
+    const r = await row(id);
+    assert.equal(r.status, 'timed_out');
+    assert.equal(r.reason_code, 'FREE_WAIT_EXPIRED');
+    assert.equal((await ledger(id, 'RELEASED')).length, 1);
+  });
+
+  it('Job running còn trong hàng (waiting) quá prep: không PREP_TIMEOUT', async () => {
+    await clean();
+    const id = await createTask(await newUser());
+    await svc.transition(id, 'queued', 'running');
+    await queue.add('process', { taskId: id }, { jobId: id, priority: 10, delay: 60_000 });
+    await upd(id, `prep_deadline_at = now() - interval '1 second'`);
+    await sweeper.sweep();
+    assert.equal((await row(id)).status, 'running');
+    await queue.remove(id);
   });
 });

@@ -2,7 +2,6 @@ import crypto from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Inject,
   NotFoundException,
   HttpException,
@@ -253,8 +252,7 @@ export class TasksService {
   /** URL ký ngắn hạn tới kết quả và (nếu còn) ảnh gốc. Không bao giờ trả link RunningHub. */
   async getResult(userId: string, taskId: string): Promise<TaskResultResponse> {
     const row = await this.prisma.task.findUnique({ where: { id: taskId } });
-    if (!row) throw this.apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
-    if (row.userId !== userId) throw this.apiError(ForbiddenException, ApiErrorCode.FORBIDDEN);
+    if (!row || row.userId !== userId) throw this.apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
     if (row.status !== 'succeeded' || !row.resultKey) {
       throw this.apiError(ConflictException, ApiErrorCode.CONFLICT);
     }

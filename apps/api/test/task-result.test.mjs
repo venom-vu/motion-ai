@@ -592,16 +592,16 @@ describe('Story 2.6: [BE] Nhập kết quả về R2 và chốt tiền', () => {
       }
     });
 
-    it('người khác chủ: 403 FORBIDDEN, không URL', async () => {
+    it('người khác chủ: 404 NOT_FOUND, không URL', async () => {
       reset(); await clearGate();
       const u = await newUser();
       const other = await newUser();
       const t = await createTask(u);
       await worker.processTask(t.id);
       const res = await get(t.id, other.token);
-      assert.equal(res.status, 403);
+      assert.equal(res.status, 404);
       const body = await res.json();
-      assert.equal(body.code, 'FORBIDDEN');
+      assert.equal(body.code, 'NOT_FOUND');
       assert.ok(!JSON.stringify(body).includes('http'));
     });
 

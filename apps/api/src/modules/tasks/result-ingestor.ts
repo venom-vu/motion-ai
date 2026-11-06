@@ -27,7 +27,7 @@ const FORMAT_TO_MIME: Readonly<Record<string, string>> = {
   webp: 'image/webp',
 };
 
-type FetchFn = (url: string, init: { signal: AbortSignal }) => Promise<Response>;
+type FetchFn = (url: string, init: { signal: AbortSignal; redirect?: 'manual' | 'follow' }) => Promise<Response>;
 
 class OutputInvalidError extends Error {}
 class OutputAbortedError extends Error {}
@@ -65,6 +65,28 @@ function displaySize(meta: Metadata): { width: number; height: number } {
     width: (rotated ? meta.height : meta.width) ?? 0,
     height: (rotated ? meta.width : meta.height) ?? 0,
   };
+}
+
+const MAX_REDIRECTS = 3;
+
+/** Chặn host literal nội bộ (loopback, link-local, dải private, localhost). Không thay thế allowlist DNS. */
+export function isPublicHttpUrl(raw: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+  const h = u.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.internal') || h.endsWith('.local')) return false;
+  if (h.includes(':')) return !(h === '::1' || h === '::' || /^(fc|fd|fe80)/.test(h) || h.startsWith('::ffff:'));
+  const m = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(h);
+  if (m) {
+    const [a, b] = [Number(m[1]), Number(m[2])];
+    if (a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)) return false;
+  }
+  return true;
 }
 
 /**
@@ -191,9 +213,19 @@ export class ResultIngestorService implements ResultIngestor {
   }
 
   private async download(url: string, signal: AbortSignal): Promise<Buffer> {
-    const res = await this.fetchFn(url, {
-      signal: AbortSignal.any([signal, AbortSignal.timeout(OUTPUT_FETCH_TIMEOUT_MS)]),
-    });
+    const combined = AbortSignal.any([signal, AbortSignal.timeout(OUTPUT_FETCH_TIMEOUT_MS)]);
+    let current = url;
+    let res: Response | undefined;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      if (!isPublicHttpUrl(current)) throw new Error('URL kết quả trỏ tới địa chỉ nội bộ hoặc không hợp lệ');
+      res = await this.fetchFn(current, { signal: combined, redirect: 'manual' });
+      const loc = res.status >= 300 && res.status < 400 ? res.headers.get('location') : null;
+      if (!loc) break;
+      await res.body?.cancel().catch(() => {});
+      current = new URL(loc, current).toString();
+      res = undefined;
+    }
+    if (!res) throw new Error('Quá nhiều lần chuyển hướng');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const declared = Number(res.headers.get('content-length'));
     if (Number.isFinite(declared) && declared > OUTPUT_MAX_BYTES) {

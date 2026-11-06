@@ -15,6 +15,7 @@ import {
 } from '../../ports/index.js';
 import { mapRunningHubFailure, type PipelineConfig } from '../pipelines/pipeline-config.js';
 import { PipelinesService } from '../pipelines/pipelines.service.js';
+import { PRICING_CONFIG } from '../wallet/tier.js';
 import { clampCoins } from './result-ingestor.js';
 import { isTerminal } from './task-transitions.js';
 import { TASKS_QUEUE, TasksService } from './tasks.service.js';
@@ -23,6 +24,8 @@ export const WORKER_CONCURRENCY = 2;
 const RH_CALL_TIMEOUT_MS = 10_000;
 const DEADLINE_MS = 180_000;
 export const ORPHAN_MS = 10 * 60_000;
+export const FREE_WAIT_MS = 15 * 60_000;
+const FREE_PRIORITY = PRICING_CONFIG.tiers.find((t) => t.tier === 'FREE')!.priority;
 
 type TaskRow = NonNullable<Awaited<ReturnType<TasksService['getWorkerRow']>>>;
 
@@ -123,6 +126,11 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
     if (!row || isTerminal(row.status as never)) return;
 
     if (row.status === 'queued') {
+      const snap = (row.tierSnapshot ?? {}) as { priority?: number };
+      if (snap.priority === FREE_PRIORITY && Date.now() - row.queuedAt.getTime() >= FREE_WAIT_MS) {
+        await this.tasks.transition(taskId, 'queued', 'timed_out', 'FREE_WAIT_EXPIRED');
+        return;
+      }
       const { applied } = await this.tasks.transition(taskId, 'queued', 'running');
       if (!applied) {
         row = await this.tasks.getWorkerRow(taskId);
