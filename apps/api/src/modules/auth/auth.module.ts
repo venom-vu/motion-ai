@@ -54,6 +54,7 @@ import { AuthThrottlerGuard, getAuthThrottleOptions } from './throttler.guard.js
     RolesGuard,
     AccountLockedGuard,
     JwtModule,
+    AuthThrottlerGuard,
   ],
 })
 export class AuthModule {}

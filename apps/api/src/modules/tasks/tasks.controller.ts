@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
 import {
   ApiErrorCode,
   FaceSwapCreateRequestSchema,
@@ -7,17 +7,23 @@ import {
   getApiErrorMessageVi,
   type FaceSwapCreateResponse,
   type TaskResultResponse,
+  type TaskShareResponse,
+  type TaskShareRevokeResponse,
 } from '@motion-ai/contracts';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { AccountLockedGuard } from '../auth/guards/account-locked.guard.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import type { JwtUserPayload } from '../auth/jwt.strategy.js';
+import { ShareService } from '../storage/share.service.js';
 import { TasksService } from './tasks.service.js';
 
 @Controller('tasks')
 @UseGuards(JwtAuthGuard, AccountLockedGuard)
 export class TasksController {
-  constructor(private readonly tasks: TasksService) {}
+  constructor(
+    private readonly tasks: TasksService,
+    private readonly share: ShareService,
+  ) {}
 
   @Post('face-swap')
   async createFaceSwap(
@@ -53,6 +59,17 @@ export class TasksController {
   @HttpCode(200)
   async cancel(@CurrentUser() user: JwtUserPayload, @Param('id') id: string): Promise<Task> {
     return this.tasks.cancel(user.sub, this.parseId(id));
+  }
+
+  @Post(':id/share')
+  async createShare(@CurrentUser() user: JwtUserPayload, @Param('id') id: string): Promise<TaskShareResponse> {
+    return this.share.create(user.sub, this.parseId(id));
+  }
+
+  @Delete(':id/share')
+  async revokeShare(@CurrentUser() user: JwtUserPayload, @Param('id') id: string): Promise<TaskShareRevokeResponse> {
+    await this.share.revoke(user.sub, this.parseId(id));
+    return { revoked: true };
   }
 
   @Get(':id/result')
