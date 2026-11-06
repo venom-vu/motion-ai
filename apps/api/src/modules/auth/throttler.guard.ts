@@ -1,5 +1,5 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerGuard, type ThrottlerRequest } from '@nestjs/throttler';
 import { ApiErrorCode, getApiErrorMessageVi } from '@motion-ai/contracts';
 import { resolveClientIp, type ClientIpRequest } from './client-ip.js';
 
@@ -27,5 +27,28 @@ export class AuthThrottlerGuard extends ThrottlerGuard {
       },
       HttpStatus.TOO_MANY_REQUESTS,
     );
+  }
+}
+
+export function getShareThrottleOptions(): { limit: number; ttl: number } {
+  const limit = Number.parseInt(process.env.SHARE_THROTTLE_LIMIT ?? '', 10);
+  const ttl = Number.parseInt(process.env.SHARE_THROTTLE_TTL_MS ?? '', 10);
+  return {
+    limit: Number.isFinite(limit) && limit > 0 ? limit : 120,
+    ttl: Number.isFinite(ttl) && ttl > 0 ? ttl : 60_000,
+  };
+}
+
+/** Giới hạn riêng cho `GET /s/<token>` (công khai, nhiều người xem sau cùng một NAT); không dùng chung bộ đếm với auth. */
+@Injectable()
+export class ShareThrottlerGuard extends AuthThrottlerGuard {
+  protected override async handleRequest(props: ThrottlerRequest): Promise<boolean> {
+    const { limit, ttl } = getShareThrottleOptions();
+    return super.handleRequest({
+      ...props,
+      limit,
+      ttl,
+      generateKey: (ctx, tracker, name) => props.generateKey(ctx, tracker, `share-${name}`),
+    });
   }
 }

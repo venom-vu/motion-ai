@@ -110,3 +110,9 @@
 ## Deferred from: code review of spec-2-5-be-worker-xu-ly-task-qua-runninghub (2026-11-05)
 
 - Cổng đồng thời chỉ đúng trong một tiến trình worker; nếu chạy nhiều bản thì dùng `pg_advisory_xact_lock`.
+
+## Deferred from: code review of spec-2-9-be-chia-se-ket-qua-bang-token (2026-11-06)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-9-be-chia-se-ket-qua-bang-token.md`
+  summary: Tài khoản bị khóa không thu hồi được link chia sẻ vì `AccountLockedGuard` chặn cả `DELETE /tasks/{id}/share`, và link cũ vẫn mở được.
+  evidence: AD-18 giao Admin thu hồi token và xóa file khi khóa tài khoản (Epic 6); cân nhắc cho `DELETE` bỏ qua guard khóa nếu cần sớm hơn.

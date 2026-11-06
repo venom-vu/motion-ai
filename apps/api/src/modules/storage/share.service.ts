@@ -17,7 +17,11 @@ export function hashShareToken(token: string): string {
 
 function publicBase(): string {
   const raw = (process.env.API_PUBLIC_URL ?? '').trim().replace(/\/+$/, '');
-  return raw || `http://localhost:${process.env.PORT || 3001}`;
+  if (raw) return raw;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Thiếu API_PUBLIC_URL: không dựng được đường dẫn chia sẻ');
+  }
+  return `http://localhost:${process.env.PORT || 3001}`;
 }
 
 /** Chủ sở hữu bảng `share_tokens` (AD-1). Chỉ lưu hash của token. */
@@ -37,12 +41,15 @@ export class ShareService {
     if (!task || task.userId !== userId) throw apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
     if (task.status !== 'succeeded' || !task.resultKey) throw apiError(ConflictException, ApiErrorCode.CONFLICT);
 
+    const base = publicBase();
     const token = crypto.randomBytes(32).toString('base64url');
     await this.prisma.$transaction(async (tx) => {
+      // Tuần tự hóa các lệnh tạo song song cho cùng Task (nhấp đúp, retry).
+      await tx.$queryRaw`SELECT id FROM tasks WHERE id = ${taskId}::uuid FOR UPDATE`;
       await tx.shareToken.updateMany({ where: { taskId, revokedAt: null }, data: { revokedAt: new Date() } });
       await tx.shareToken.create({ data: { taskId, userId, tokenHash: hashShareToken(token) } });
     });
-    return { token, shareUrl: `${publicBase()}/s/${token}` };
+    return { token, shareUrl: `${base}/s/${token}` };
   }
 
   /** Thu hồi mọi token đang hiệu lực của Task. Idempotent với chủ Task. */

@@ -13,7 +13,7 @@ import { AccountLockedGuard } from './guards/account-locked.guard.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
 import { RolesGuard } from './guards/roles.guard.js';
 import { JwtStrategy } from './jwt.strategy.js';
-import { AuthThrottlerGuard, getAuthThrottleOptions } from './throttler.guard.js';
+import { AuthThrottlerGuard, ShareThrottlerGuard, getAuthThrottleOptions } from './throttler.guard.js';
 
 @Module({
   imports: [
@@ -46,6 +46,7 @@ import { AuthThrottlerGuard, getAuthThrottleOptions } from './throttler.guard.js
     RolesGuard,
     AccountLockedGuard,
     AuthThrottlerGuard,
+    ShareThrottlerGuard,
   ],
   exports: [
     AuthService,
@@ -55,6 +56,7 @@ import { AuthThrottlerGuard, getAuthThrottleOptions } from './throttler.guard.js
     AccountLockedGuard,
     JwtModule,
     AuthThrottlerGuard,
+    ShareThrottlerGuard,
   ],
 })
 export class AuthModule {}

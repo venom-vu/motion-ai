@@ -91,6 +91,7 @@ describe('Story 2.9: [BE] Chia sẻ kết quả bằng token', () => {
     process.env.FRONTEND_URL = 'http://localhost:3000';
     process.env.API_PUBLIC_URL = 'https://api.example.test';
     process.env.AUTH_THROTTLE_LIMIT = '1000';
+    process.env.SHARE_THROTTLE_LIMIT = '1000';
     await ensureInfra();
     pool = new pg.Pool({ connectionString: DB_URL });
     prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
@@ -206,6 +207,40 @@ describe('Story 2.9: [BE] Chia sẻ kết quả bằng token', () => {
     );
   });
 
+  it('Hai POST /share song song cho cùng Task: không có 500, đúng một token hiệu lực', async () => {
+    const u = await newUser();
+    const t = await succeededTask(u);
+    const rs = await Promise.all([1, 2, 3, 4].map(() => call('POST', `/tasks/${t.id}/share`, u)));
+    assert.deepEqual(rs.map((r) => r.status), [201, 201, 201, 201]);
+    const { rows } = await pool.query('SELECT 1 FROM share_tokens WHERE task_id=$1 AND revoked_at IS NULL', [t.id]);
+    assert.equal(rows.length, 1);
+  });
+
+  it('302 có Cache-Control: no-store và Referrer-Policy: no-referrer', async () => {
+    const u = await newUser();
+    const t = await succeededTask(u);
+    const { token } = await (await call('POST', `/tasks/${t.id}/share`, u)).json();
+    const res = await call('GET', `/s/${token}`);
+    assert.equal(res.headers.get('cache-control'), 'no-store');
+    assert.equal(res.headers.get('referrer-policy'), 'no-referrer');
+  });
+
+  it('API_PUBLIC_URL trống ở production: không dựng link localhost', async () => {
+    const u = await newUser();
+    const t = await succeededTask(u);
+    const saved = [process.env.API_PUBLIC_URL, process.env.NODE_ENV];
+    process.env.API_PUBLIC_URL = '';
+    process.env.NODE_ENV = 'production';
+    try {
+      const res = await call('POST', `/tasks/${t.id}/share`, u);
+      assert.equal(res.status, 500);
+    } finally {
+      [process.env.API_PUBLIC_URL, process.env.NODE_ENV] = saved;
+    }
+    const { rows } = await pool.query('SELECT 1 FROM share_tokens WHERE task_id=$1', [t.id]);
+    assert.equal(rows.length, 0);
+  });
+
   it('Token sai định dạng: 404 (không chạm CSDL)', async () => {
     assert.equal((await call('GET', '/s/abc')).status, 404);
   });
@@ -213,8 +248,9 @@ describe('Story 2.9: [BE] Chia sẻ kết quả bằng token', () => {
   it('GET /s/<token> bị gọi quá nhiều: 429 RATE_LIMITED', async () => {
     const limit = 5;
     await app.close();
-    process.env.AUTH_THROTTLE_LIMIT = String(limit);
-    process.env.AUTH_THROTTLE_TTL_MS = '60000';
+    process.env.AUTH_THROTTLE_LIMIT = '1000';
+    process.env.SHARE_THROTTLE_LIMIT = String(limit);
+    process.env.SHARE_THROTTLE_TTL_MS = '60000';
     app = await bootstrapApi();
     baseUrl = `http://127.0.0.1:${app.getHttpServer().address().port}`;
     app.get(ShareService).storage = fakeStorage;
