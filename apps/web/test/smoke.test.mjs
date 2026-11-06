@@ -3279,4 +3279,221 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
       );
     });
   });
+
+  describe('Story 2.13: [FE] Trang chia sẻ công khai có Open Graph', () => {
+    it('pages/share/[token].vue SSR render trạng thái thành công với token hợp lệ, hiển thị ảnh và nút kêu gọi dùng thử, không lộ thông tin riêng của chủ Task', async () => {
+      const sharePageSfc = fs.readFileSync(
+        path.join(webRoot, 'pages/share/[token].vue'),
+        'utf8',
+      );
+      const { descriptor } = parse(sharePageSfc, {
+        filename: 'pages/share/[token].vue',
+      });
+      const compiled = compileTemplate({
+        id: 'test-page-share-token',
+        filename: 'pages/share/[token].vue',
+        source: descriptor.template.content,
+        ssr: true,
+        ssrCssVars: [],
+      });
+      assert.equal(compiled.errors.length, 0);
+
+      const tmpShareFile = path.join(
+        webRoot,
+        'test',
+        `.tmp-share-page-${Date.now()}.mjs`,
+      );
+      fs.writeFileSync(tmpShareFile, compiled.code, 'utf8');
+
+      try {
+        const { ssrRender } = await import(pathToFileURL(tmpShareFile).href);
+
+        const makeShareApp = ({ isNotFound, isRateLimited = false, imageUrl }) => {
+          const app = createSSRApp({
+            ssrRender,
+            setup() {
+              return {
+                isNotFound,
+                isRateLimited,
+                currentImageUrl: imageUrl,
+                toastMessage: null,
+                isDownloading: false,
+                handleImageError: () => {},
+                handleDownload: () => {},
+                handleShareLink: () => {},
+                route: { path: '/share/mock-token' },
+              };
+            },
+          });
+          app.component('Icon', {
+            props: ['name'],
+            ssrRender(_ctx, push) {
+              push('<span class="icon-mock"></span>');
+            },
+          });
+          app.component('NuxtLink', {
+            props: ['to'],
+            ssrRender(ctx, push, _parent, attrs) {
+              const testIdAttr = attrs?.['data-testid']
+                ? ` data-testid="${attrs['data-testid']}"`
+                : '';
+              push(`<a href="${ctx.to || '#'}"${testIdAttr}>MockLink</a>`);
+            },
+          });
+          return app;
+        };
+
+        // 1. Token hợp lệ: hiển thị ảnh, nút CTA dùng thử, nút tải ảnh HD, nút chia sẻ
+        const successHtml = await renderToString(
+          makeShareApp({
+            isNotFound: false,
+            imageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb',
+          }),
+        );
+        assert.match(successHtml, /data-testid="share-success-view"/);
+        assert.match(successHtml, /data-testid="share-result-image"/);
+        assert.match(successHtml, /data-testid="try-motion-ai-button"/);
+        assert.match(successHtml, /href="\/"/);
+        assert.match(successHtml, /data-testid="download-share-image-button"/);
+        assert.match(successHtml, /Tải ảnh HD/);
+        assert.match(successHtml, /data-testid="re-share-button"/);
+        assert.match(successHtml, /Chia sẻ/);
+        assert.match(successHtml, /data-testid="share-tag"/);
+        assert.match(successHtml, /Công khai/);
+        // Kiểm tra template có nhãn CTA dùng thử
+        assert.match(sharePageSfc, /Thử tạo ảnh tương tự miễn phí/);
+        // Không chứa thông tin riêng tư của chủ Task
+        assert.doesNotMatch(successHtml, /data-testid="share-not-found-view"/);
+        assert.doesNotMatch(successHtml, /userId/i);
+        assert.doesNotMatch(successHtml, /@example/i);
+        assert.doesNotMatch(successHtml, /Số dư/i);
+
+        // 2. Token không tồn tại hoặc đã thu hồi: hiển thị 404 "Liên kết không còn tồn tại"
+        const notFoundHtml = await renderToString(
+          makeShareApp({
+            isNotFound: true,
+            imageUrl: null,
+          }),
+        );
+        assert.match(notFoundHtml, /data-testid="share-not-found-view"/);
+        assert.match(notFoundHtml, /Liên kết không còn tồn tại/);
+        assert.match(notFoundHtml, /data-testid="back-home-button"/);
+        assert.match(sharePageSfc, /Về trang chủ Motion AI/);
+        assert.doesNotMatch(notFoundHtml, /data-testid="share-success-view"/);
+        assert.doesNotMatch(notFoundHtml, /data-testid="share-result-image"/);
+
+        // 3. Trạng thái Rate limited (429)
+        const rateLimitHtml = await renderToString(
+          makeShareApp({
+            isNotFound: false,
+            isRateLimited: true,
+            imageUrl: null,
+          }),
+        );
+        assert.match(rateLimitHtml, /data-testid="share-rate-limit-view"/);
+        assert.match(rateLimitHtml, /Hệ thống đang bận/);
+        assert.match(rateLimitHtml, /data-testid="retry-share-button"/);
+      } finally {
+        if (fs.existsSync(tmpShareFile)) {
+          fs.unlinkSync(tmpShareFile);
+        }
+      }
+    });
+
+    it('Thẻ Open Graph và Twitter card SSR có og:title, og:description, og:image và og:url ổn định', () => {
+      const sharePageRaw = fs.readFileSync(
+        path.join(webRoot, 'pages/share/[token].vue'),
+        'utf8',
+      );
+
+      // Thẻ og:image trỏ tới GET /s/<token>
+      assert.match(
+        sharePageRaw,
+        /property:\s*['"]og:image['"]/,
+        'Bắt buộc có thẻ og:image cho crawler',
+      );
+      assert.match(
+        sharePageRaw,
+        /\/s\/\${encodeURIComponent\(token\.value\)\}/,
+        'og:image phải trỏ tới GET /s/<token> để crawler thấy URL ổn định',
+      );
+
+      // Thẻ og:title, og:description, og:url, og:site_name, og:type
+      assert.match(
+        sharePageRaw,
+        /property:\s*['"]og:title['"]/,
+        'Bắt buộc có thẻ og:title',
+      );
+      assert.match(
+        sharePageRaw,
+        /property:\s*['"]og:description['"]/,
+        'Bắt buộc có thẻ og:description',
+      );
+      assert.match(
+        sharePageRaw,
+        /property:\s*['"]og:url['"]/,
+        'Bắt buộc có thẻ og:url',
+      );
+      assert.match(
+        sharePageRaw,
+        /property:\s*['"]og:site_name['"]/,
+        'Bắt buộc có thẻ og:site_name',
+      );
+      assert.match(
+        sharePageRaw,
+        /property:\s*['"]og:type['"]/,
+        'Bắt buộc có thẻ og:type',
+      );
+
+      // Thẻ Twitter Card
+      assert.match(
+        sharePageRaw,
+        /name:\s*['"]twitter:card['"],\s*content:\s*['"]summary_large_image['"]/,
+        'Bắt buộc cấu hình twitter:card dạng summary_large_image',
+      );
+
+      // Thiết lập mã HTTP 404 cho SSR khi token không tồn tại hoặc đã thu hồi
+      assert.match(
+        sharePageRaw,
+        /setResponseStatus\(event,\s*404/,
+        'Phải gọi setResponseStatus(event, 404) khi token không tồn tại',
+      );
+      assert.match(
+        sharePageRaw,
+        /name:\s*['"]robots['"],\s*content:\s*['"]noindex,\s*nofollow['"]/,
+        'Phải gắn thẻ robots noindex cho trang 404',
+      );
+    });
+
+    it('Tuân thủ Slate Cyber tokens, responsive 360px và không có emoji UTF-8 trong UI chrome', () => {
+      const sharePageRaw = fs.readFileSync(
+        path.join(webRoot, 'pages/share/[token].vue'),
+        'utf8',
+      );
+
+      // 1. Vùng chạm tối thiểu 48px
+      assert.match(sharePageRaw, /touch-target/);
+      assert.match(sharePageRaw, /min-h-\[48px\]/);
+
+      // 2. Không chứa emoji UTF-8 trong UI chrome
+      const emojiRegex =
+        /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}]/u;
+      assert.equal(
+        emojiRegex.test(sharePageRaw),
+        false,
+        'pages/share/[token].vue không được chứa emoji UTF-8',
+      );
+
+      // 3. Responsive di động 360px: không có thanh cuộn ngang, ảnh vừa khung
+      assert.match(sharePageRaw, /max-w-full/);
+      assert.match(sharePageRaw, /object-contain/);
+
+      // 4. Tuân thủ Slate Cyber tokens
+      assert.match(sharePageRaw, /cyber-cyan/);
+      assert.match(sharePageRaw, /cyber-surface/);
+      assert.match(sharePageRaw, /cyber-border/);
+      assert.match(sharePageRaw, /cyber-text/);
+      assert.match(sharePageRaw, /cyber-muted/);
+    });
+  });
 });

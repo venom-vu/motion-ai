@@ -248,7 +248,14 @@ async function handleShare(): Promise<void> {
     } else {
       res = await client.shareTask(taskId.value);
     }
-    shareData.value = res;
+    const webShareUrl =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/share/${res.token}`
+        : res.shareUrl;
+    shareData.value = {
+      ...res,
+      shareUrl: webShareUrl,
+    };
 
     // Ưu tiên Web Share API trên thiết bị hỗ trợ
     let sharedViaNavigator = false;
@@ -256,8 +263,8 @@ async function handleShare(): Promise<void> {
       try {
         await navigator.share({
           title: 'Kết quả tạo ảnh AI — Motion AI',
-          text: 'Xem kết quả hoán đổi khuôn mặt được tạo bởi Motion AI:',
-          url: res.shareUrl,
+          text: `Xem tác phẩm ${getPipelineLabelVi(currentTask.value?.pipeline || 'face_swap')} được tạo trên Motion AI:`,
+          url: webShareUrl,
         });
         sharedViaNavigator = true;
         shareToastMessage.value = 'Đã mở bảng chia sẻ thành công!';
@@ -271,10 +278,10 @@ async function handleShare(): Promise<void> {
 
     if (!sharedViaNavigator && typeof navigator !== 'undefined' && navigator.clipboard) {
       try {
-        await navigator.clipboard.writeText(res.shareUrl);
+        await navigator.clipboard.writeText(webShareUrl);
         shareToastMessage.value = 'Đã sao chép liên kết chia sẻ vào khay nhớ tạm!';
       } catch {
-        shareToastMessage.value = `Đường dẫn chia sẻ: ${res.shareUrl}`;
+        shareToastMessage.value = `Đường dẫn chia sẻ: ${webShareUrl}`;
       }
     }
   } catch (err) {
