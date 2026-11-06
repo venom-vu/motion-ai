@@ -4,6 +4,8 @@ import { TOS_VERSION, type AccountTier, type Task } from '@motion-ai/contracts';
 import ImageUploader from '~/components/ImageUploader.vue';
 import TaskProgressCard from '~/components/TaskProgressCard.vue';
 import { useApiClient } from '~/composables/useApiClient';
+import { useAuthDialog } from '~/composables/useAuthDialog';
+import { usePricingConfig } from '~/composables/usePricingConfig';
 import { resolveApiErrorMessageVi } from '~/utils/api-client';
 import {
   calculateFeatureEstimatedCredits,
@@ -41,6 +43,8 @@ const emit = defineEmits<{
 }>();
 
 const { client } = useApiClient();
+const { open: openAuthDialog } = useAuthDialog();
+const { refreshAll } = usePricingConfig();
 
 const compareSplitPercent = ref<number>(50);
 const selectedSeconds = ref<number>(1);
@@ -93,8 +97,12 @@ watch(
   { immediate: true },
 );
 
-watch([sourceKey, targetKey], () => {
+watch([uploadedKey, sourceKey, targetKey], () => {
   acceptedConsent.value = false;
+});
+
+const isAuthenticated = computed<boolean>(() => {
+  return typeof props.userBalance === 'number';
 });
 
 const estimatedCredits = computed<number>(() => {
@@ -108,14 +116,14 @@ const estimatedCredits = computed<number>(() => {
 });
 
 const hasEnoughBalance = computed<boolean>(() => {
-  if (typeof props.userBalance !== 'number') {
-    return true;
+  if (!isAuthenticated.value || typeof props.userBalance !== 'number') {
+    return false;
   }
   return props.userBalance >= estimatedCredits.value;
 });
 
 const canSubmit = computed<boolean>(() => {
-  if (!hasEnoughBalance.value || isSubmitting.value) {
+  if (!isAuthenticated.value || !hasEnoughBalance.value || isSubmitting.value) {
     return false;
   }
   if (props.feature?.id === 'face-swap') {
@@ -128,14 +136,6 @@ async function handleSubmit(): Promise<void> {
   if (!props.feature || !canSubmit.value || isSubmitting.value) {
     return;
   }
-  emit('submit', {
-    featureId: props.feature.id,
-    seconds: selectedSeconds.value,
-    estimatedCredits: estimatedCredits.value,
-    uploadedKey: uploadedKey.value,
-    sourceKey: sourceKey.value,
-    targetKey: targetKey.value,
-  });
 
   if (props.feature.id === 'face-swap') {
     isSubmitting.value = true;
@@ -152,6 +152,13 @@ async function handleSubmit(): Promise<void> {
           updatedAt: new Date().toISOString(),
         };
         activeTask.value = mockTask;
+        emit('submit', {
+          featureId: props.feature.id,
+          seconds: selectedSeconds.value,
+          estimatedCredits: estimatedCredits.value,
+          sourceKey: sourceKey.value,
+          targetKey: targetKey.value,
+        });
         return;
       }
 
@@ -161,11 +168,26 @@ async function handleSubmit(): Promise<void> {
         consent: true,
       });
       activeTask.value = task;
+      void refreshAll();
+      emit('submit', {
+        featureId: props.feature.id,
+        seconds: selectedSeconds.value,
+        estimatedCredits: estimatedCredits.value,
+        sourceKey: sourceKey.value,
+        targetKey: targetKey.value,
+      });
     } catch (error: unknown) {
       submitErrorVi.value = resolveApiErrorMessageVi(error);
     } finally {
       isSubmitting.value = false;
     }
+  } else {
+    emit('submit', {
+      featureId: props.feature.id,
+      seconds: selectedSeconds.value,
+      estimatedCredits: estimatedCredits.value,
+      uploadedKey: uploadedKey.value,
+    });
   }
 }
 
@@ -262,6 +284,8 @@ onBeforeUnmount(() => {
           :mock-mode="mockMode"
           @update:task="activeTask = $event"
           @retry="activeTask = null"
+          @completed="void refreshAll()"
+          @settled="void refreshAll()"
         />
       </div>
 
@@ -553,8 +577,20 @@ onBeforeUnmount(() => {
           v-if="!activeTask"
           class="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center"
         >
+          <!-- Nút đăng nhập cho khách chưa đăng nhập -->
+          <button
+            v-if="!isAuthenticated"
+            type="button"
+            data-testid="workspace-login-button"
+            class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-cyan/50 bg-cyber-cyan/15 px-4 py-2.5 text-xs font-semibold text-cyber-cyan transition hover:bg-cyber-cyan/25"
+            @click="openAuthDialog('login')"
+          >
+            <Icon name="lucide:log-in" class="h-4 w-4" />
+            <span>Đăng nhập để tạo tác vụ</span>
+          </button>
+
           <NuxtLink
-            v-if="!hasEnoughBalance"
+            v-else-if="!hasEnoughBalance"
             to="/pricing"
             class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-warning/50 bg-cyber-warning/15 px-4 py-2.5 text-xs font-semibold text-cyber-warning"
             @click="emit('close')"

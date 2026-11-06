@@ -22,8 +22,12 @@ const { client } = useApiClient();
 const { open: openAuthDialog } = useAuthDialog();
 const route = useRoute();
 
-// Hỗ trợ mock mode khi query param ?mock=true hoặc khi được truyền
-const isMockMode = computed<boolean>(() => route.query.mock === 'true');
+// Hỗ trợ mock mode khi query param ?mock=true/failed/timed_out/cancelled
+const mockModeQuery = computed<string>(() => {
+  const m = route.query.mock;
+  return typeof m === 'string' ? m : '';
+});
+const isMockMode = computed<boolean>(() => Boolean(mockModeQuery.value));
 
 // Trạng thái đăng nhập
 const isAuthenticated = computed<boolean>(() => Boolean(me.value));
@@ -84,13 +88,30 @@ async function handleSubmit(): Promise<void> {
 
   try {
     if (isMockMode.value) {
-      // Mô phỏng tạo task trong chế độ mock
+      const mode = mockModeQuery.value;
+      const targetStatus =
+        mode === 'failed'
+          ? 'failed'
+          : mode === 'timed_out'
+            ? 'timed_out'
+            : mode === 'cancelled'
+              ? 'cancelled'
+              : 'queued';
+
       const mockTask: Task = {
         id: '70000000-0000-4000-8000-000000000001',
         pipeline: 'face_swap',
-        status: 'queued',
-        queuePosition: 2,
+        status: targetStatus,
+        queuePosition: targetStatus === 'queued' ? 2 : null,
         creditCost: faceSwapCreditCost.value,
+        reasonCode:
+          targetStatus === 'failed'
+            ? 'NO_FACE'
+            : targetStatus === 'timed_out'
+              ? 'FREE_WAIT_EXPIRED'
+              : targetStatus === 'cancelled'
+                ? 'USER_CANCEL'
+                : null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -117,8 +138,6 @@ async function handleSubmit(): Promise<void> {
 function handleReset(): void {
   activeTask.value = null;
   submitErrorVi.value = null;
-  sourceKey.value = null;
-  targetKey.value = null;
   acceptedConsent.value = false;
   void refreshAll();
 }
@@ -178,6 +197,7 @@ function handleReset(): void {
         @update:task="activeTask = $event"
         @retry="handleReset"
         @completed="void refreshAll()"
+        @settled="void refreshAll()"
       />
     </section>
 

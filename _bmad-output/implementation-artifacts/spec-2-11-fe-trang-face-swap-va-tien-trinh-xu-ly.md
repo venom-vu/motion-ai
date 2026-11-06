@@ -52,3 +52,16 @@ route: 'oneshot'
 - **Finding 9 & 10 (FR19 ToS wording & mockMode in FeatureWorkspaceDialog)**: Phán quyết: `true` — Đã bổ sung cụm từ `"những người trong ảnh đã đồng ý cho xử lý"` và prop `mockMode` chuyển tiếp cho các thành phần con.
 - **Finding 13 (SEO meta useHead)**: Phán quyết: `true` — Đã bổ sung `useHead` tiêu đề và meta description chuẩn nhận diện trong `pages/face-swap.vue`.
 - **Finding 14 (Polling backoff)**: Phán quyết: `true` — Đã bổ sung chuyển đổi nhịp polling từ 2.5s sang 5s sau 30 lần thăm dò liên tục.
+
+### Review Findings
+
+- [x] [Review][Patch] FeatureWorkspaceDialog: Kiểm tra trạng thái khách chưa đăng nhập và bỏ chọn ToS khi thay đổi ảnh tải lên ở các công cụ 1 ảnh [apps/web/components/FeatureWorkspaceDialog.vue:117-126]
+- [x] [Review][Patch] TaskProgressCard: Sửa lỗi reset pollCount trong watcher props.task, thêm cờ chống trùng lặp fetch, và theo dõi prop polling [apps/web/components/TaskProgressCard.vue:43-52]
+- [x] [Review][Patch] TaskProgressCard & Trang Face Swap: Phân tách lỗi hủy tác vụ, hiển thị lỗi kết nối khi đang running, và tự động làm mới số dư ví khi task kết thúc lỗi/quá hạn/bị hủy [apps/web/components/TaskProgressCard.vue:99-115, apps/web/pages/face-swap.vue:155-165]
+- [x] [Review][Patch] FeatureWorkspaceDialog & Mock Mode: Phát emit submit sau khi gọi API thành công và hỗ trợ query param ?mock=failed / ?mock=timed_out [apps/web/components/FeatureWorkspaceDialog.vue:140-165, apps/web/pages/face-swap.vue:68-81]
+- [x] [Review][Patch] Smoke Test: Bổ sung SSR execution test cho FeatureWorkspaceDialog (nhánh face-swap & khách), test script logic TaskProgressCard, và test unwrap payload { data: ... } [apps/web/test/smoke.test.mjs:2190-2530]
+
+#### Rejected
+- AA-1 & BH-7: Tự động điều hướng và nút xem kết quả dẫn sang /tasks/:id — Bị từ chối: Route /tasks/:id và thanh trượt Before/After toàn màn hình thuộc phạm vi thực hiện của Story 2.12. Nút "Xem trong Lịch Sử" (/history) là giải pháp bắc cầu hợp lý cho Story 2.11.
+- BH-8: Mất tiến trình khi F5 tải lại trang — Bị từ chối: Lưu vết task draft vào URL query/localStorage khi reload vượt quá yêu cầu AC Story 2.11. Tác vụ vẫn được bảo toàn trên backend và hiển thị tại /history.
+- ECH-6: Đóng dialog khi request đang gửi — Bị từ chối: Watcher `open` của FeatureWorkspaceDialog đã tự động đặt lại `activeTask = null` khi dialog đóng.

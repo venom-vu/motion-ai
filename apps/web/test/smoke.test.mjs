@@ -2134,6 +2134,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
               },
               userTier: 'FREE',
               userBalance: 500,
+              isAuthenticated: true,
               hasEnoughBalance: true,
               canSubmit: canSubmitValue,
               uploadedKey: canSubmitValue ? 'in/mock/sample.jpg' : null,
@@ -2247,6 +2248,17 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
       );
       assert.equal(cancelledTask.status, 'cancelled');
       assert.equal(cancelledTask.reasonCode, 'USER_CANCEL');
+
+      // 4. Tự động unwrap payload bọc dạng { data: ... }
+      const wrappedClient = createMotionApiClient({
+        baseUrl: 'http://localhost:3001',
+        fetchImpl: async () => Response.json({ code: 'OK', data: MOCK_TASK_QUEUED }),
+      });
+      const unwrappedTask = await wrappedClient.getTask(
+        '70000000-0000-4000-8000-000000000001',
+      );
+      assert.equal(unwrappedTask.id, MOCK_TASK_QUEUED.id);
+      assert.equal(unwrappedTask.status, 'queued');
     });
 
     it('TaskProgressCard SSR render chính xác các trạng thái vòng đời Task (queued, running, succeeded, failed, timed_out, cancelled)', async () => {
@@ -2513,16 +2525,125 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
       }
     });
 
-    it('FeatureWorkspaceDialog hỗ trợ 2 uploader cho Face Swap và liên kết mở trang riêng /face-swap', () => {
+    it('FeatureWorkspaceDialog SSR render hỗ trợ 2 uploader cho Face Swap, nút mở trang riêng /face-swap và nút đăng nhập cho khách', async () => {
       const dialogRaw = fs.readFileSync(
         path.join(webRoot, 'components/FeatureWorkspaceDialog.vue'),
         'utf8',
       );
-      assert.match(dialogRaw, /workspace-face-swap-inputs/);
-      assert.match(dialogRaw, /workspace-source-face/);
-      assert.match(dialogRaw, /workspace-target-face/);
-      assert.match(dialogRaw, /to="\/face-swap"/);
-      assert.match(dialogRaw, /TaskProgressCard/);
+      const { descriptor } = parse(dialogRaw);
+      const compiled = compileTemplate({
+        id: 'test-fwd-face-swap-dual',
+        filename: 'FeatureWorkspaceDialog.vue',
+        source: descriptor.template.content,
+        ssr: true,
+        ssrCssVars: [],
+      });
+      assert.equal(compiled.errors.length, 0);
+
+      const tmpFwdFile = path.join(
+        webRoot,
+        'test',
+        `.tmp-fwd-fs-${Date.now()}.mjs`,
+      );
+      fs.writeFileSync(tmpFwdFile, compiled.code, 'utf8');
+
+      try {
+        const { ssrRender } = await import(pathToFileURL(tmpFwdFile).href);
+
+        const makeFwdApp = ({ isGuest = false }) => {
+          const app = createSSRApp({
+            ssrRender,
+            setup() {
+              return {
+                open: true,
+                feature: {
+                  id: 'face-swap',
+                  titleVi: 'Hoán Đổi Khuôn Mặt',
+                  icon: 'lucide:sparkles',
+                  category: 'face',
+                  categoryLabelVi: 'Khuôn mặt',
+                  pricingMode: 'per_image',
+                  credits: 100,
+                  priceBadgeVi: '100 CR / lượt',
+                  descriptionVi: 'Mô tả test',
+                  inputRequirementVi: 'Tải 2 ảnh',
+                  beforeLabelVi: 'Ảnh gốc',
+                  afterLabelVi: 'Ảnh sau swap',
+                  outputFormatVi: 'JPEG',
+                },
+                userTier: 'FREE',
+                userBalance: isGuest ? null : 500,
+                isAuthenticated: !isGuest,
+                hasEnoughBalance: !isGuest,
+                canSubmit: false,
+                uploadedKey: null,
+                sourceKey: null,
+                targetKey: null,
+                acceptedConsent: false,
+                mockMode: false,
+                activeTask: null,
+                isSubmitting: false,
+                submitErrorVi: null,
+                compareSplitPercent: 50,
+                TOS_VERSION,
+                estimatedCredits: 100,
+                formatNumberVi: (n) => String(n),
+                emit: () => {},
+                handleSubmit: () => {},
+                openAuthDialog: () => {},
+              };
+            },
+          });
+          app.component('Icon', {
+            props: ['name'],
+            ssrRender(_ctx, push) {
+              push('<span class="icon-mock"></span>');
+            },
+          });
+          app.component('NuxtLink', {
+            props: ['to'],
+            ssrRender(ctx, push, _parent, attrs) {
+              const testIdAttr = attrs?.['data-testid']
+                ? ` data-testid="${attrs['data-testid']}"`
+                : '';
+              push(`<a href="${ctx.to || '#'}"${testIdAttr}>MockLink</a>`);
+            },
+          });
+          app.component('ImageUploader', {
+            props: ['modelValue', 'idPrefix', 'labelVi'],
+            ssrRender(ctx, push) {
+              push(`<div data-testid="mock-uploader-${ctx.idPrefix || 'default'}"></div>`);
+            },
+          });
+          app.component('TaskProgressCard', {
+            props: ['task'],
+            ssrRender(_ctx, push) {
+              push('<div data-testid="mock-task-progress-card"></div>');
+            },
+          });
+          return app;
+        };
+
+        // 1. Kiểm tra SSR render 2 uploader và liên kết /face-swap
+        const authHtml = await renderToString(makeFwdApp({ isGuest: false }));
+        assert.match(authHtml, /data-testid="workspace-face-swap-inputs"/);
+        assert.match(authHtml, /workspace-source-face/);
+        assert.match(authHtml, /workspace-target-face/);
+        assert.match(authHtml, /href="\/face-swap"/);
+        assert.match(authHtml, /id="workspace-face-swap-tos"/);
+
+        // 2. Kiểm tra khách chưa đăng nhập: hiển thị nút workspace-login-button
+        const guestHtml = await renderToString(makeFwdApp({ isGuest: true }));
+        assert.match(guestHtml, /data-testid="workspace-login-button"/);
+        assert.match(
+          guestHtml,
+          /<button[^>]*data-testid="submit-task-button"[^>]*\sdisabled(=|"|\s|>)/,
+        );
+      } finally {
+        if (fs.existsSync(tmpFwdFile)) {
+          fs.unlinkSync(tmpFwdFile);
+        }
+      }
     });
 
     it('Tuân thủ Slate Cyber tokens, vùng chạm tối thiểu 48px và không có emoji UTF-8 trong UI chrome', () => {

@@ -28,12 +28,14 @@ const emit = defineEmits<{
   cancel: [taskId: string];
   retry: [];
   completed: [task: Task];
+  settled: [task: Task];
 }>();
 
 const { client } = useApiClient();
 
 const localTask = ref<Task | null>(props.task);
 const isCancelling = ref<boolean>(false);
+const isFetching = ref<boolean>(false);
 const actionErrorVi = ref<string | null>(null);
 const pollCount = ref<number>(0);
 
@@ -41,12 +43,19 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 let mockTimer: ReturnType<typeof setTimeout> | null = null;
 
 watch(
-  () => props.task,
-  (next) => {
-    localTask.value = next;
-    actionErrorVi.value = null;
-    pollCount.value = 0;
-    checkPollingNeed();
+  [() => props.task, () => props.polling],
+  ([nextTask, nextPolling], [prevTask, prevPolling]) => {
+    localTask.value = nextTask;
+    // Chỉ reset nhịp đếm và timer khi Task ID thay đổi hoặc bật/tắt polling
+    if (nextTask?.id !== prevTask?.id || nextPolling !== prevPolling) {
+      if (!isCancelling.value) {
+        actionErrorVi.value = null;
+      }
+      pollCount.value = 0;
+      checkPollingNeed();
+    } else if (!nextPolling) {
+      stopTimers();
+    }
   },
   { deep: true },
 );
@@ -97,27 +106,34 @@ function stopTimers(): void {
 }
 
 async function fetchLatestStatus(): Promise<void> {
-  if (!localTask.value || isTerminal.value) return;
+  if (!localTask.value || isTerminal.value || isFetching.value) return;
 
+  isFetching.value = true;
   try {
     const updated = await client.getTask(localTask.value.id);
-    actionErrorVi.value = null;
+    if (!isCancelling.value) {
+      actionErrorVi.value = null;
+    }
     localTask.value = updated;
     emit('update:task', updated);
 
     if (updated.status === 'succeeded') {
       stopTimers();
       emit('completed', updated);
+      emit('settled', updated);
     } else if (
       updated.status === 'failed' ||
       updated.status === 'timed_out' ||
       updated.status === 'cancelled'
     ) {
       stopTimers();
+      emit('settled', updated);
     }
   } catch (error: unknown) {
     // Không gián đoạn polling nếu mạng chập chờn tạm thời
     actionErrorVi.value = resolveApiErrorMessageVi(error);
+  } finally {
+    isFetching.value = false;
   }
 }
 
@@ -163,6 +179,7 @@ function startMockProgress(): void {
       localTask.value = succeededTask;
       emit('update:task', succeededTask);
       emit('completed', succeededTask);
+      emit('settled', succeededTask);
     }, 1500);
   }
 }
@@ -212,6 +229,7 @@ async function handleCancel(): Promise<void> {
       localTask.value = cancelledTask;
       emit('update:task', cancelledTask);
       emit('cancel', cancelledTask.id);
+      emit('settled', cancelledTask);
       return;
     }
 
@@ -220,6 +238,7 @@ async function handleCancel(): Promise<void> {
     localTask.value = cancelled;
     emit('update:task', cancelled);
     emit('cancel', cancelled.id);
+    emit('settled', cancelled);
   } catch (error: unknown) {
     actionErrorVi.value = resolveApiErrorMessageVi(error);
   } finally {
@@ -361,6 +380,13 @@ onBeforeUnmount(() => {
         AI đang phân tích khuôn mặt, căn chỉnh góc xoay và tái tạo biểu cảm chi
         tiết. Quá trình này thường diễn ra trong khoảng 10–25 giây.
       </p>
+
+      <div
+        v-if="actionErrorVi"
+        class="rounded-xl border border-cyber-danger/40 bg-cyber-danger/10 p-3 text-xs text-cyber-danger"
+      >
+        {{ actionErrorVi }}
+      </div>
     </div>
 
     <!-- Trạng thái 3: SUCCEEDED (Thành công) -->
