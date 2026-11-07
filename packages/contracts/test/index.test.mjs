@@ -5,6 +5,8 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   API_ERROR_MESSAGES_VI,
+  MAX_OPEN_TOPUPS,
+  TopupConfirmTransferRequestSchema,
   ApiErrorCode,
   ApiErrorSchema,
   AuthGoogleCallbackQuerySchema,
@@ -67,6 +69,27 @@ import {
   WalletLedgerResponseSchema,
   getApiErrorMessageVi,
   getLedgerEntryLabelVi,
+  AdminTopupApproveExpiredRequestSchema,
+  AdminTopupApproveRequestSchema,
+  AdminTopupListQuerySchema,
+  AdminTopupListResponseSchema,
+  AdminTopupNeedsReviewRequestSchema,
+  AdminTopupRejectRequestSchema,
+  AdminTopupReturnToPendingRequestSchema,
+  AdminTopupSchema,
+  MOCK_ADMIN_TOPUPS_BY_STATUS,
+  MOCK_ADMIN_TOPUP_LIST_RESPONSE,
+  MOCK_TOPUPS_BY_STATUS,
+  MOCK_TOPUP_LIST_RESPONSE,
+  TOPUP_PACK_IDS,
+  TOPUP_STATUSES,
+  TopupCreateRequestSchema,
+  TopupIdParamsSchema,
+  TopupListQuerySchema,
+  TopupListResponseSchema,
+  TopupSchema,
+  TopupStatusSchema,
+  getTopupStatusLabelVi,
 } from '../dist/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -77,7 +100,7 @@ describe('@motion-ai/contracts', () => {
   });
 
   describe('ApiErrorCode & ApiErrorSchema (AC1)', () => {
-    it('exports all 11 required ApiErrorCode values and fallback message for unknown codes', () => {
+    it('exports all 15 required ApiErrorCode values and fallback message for unknown codes', () => {
       const expectedCodes = [
         'PAUSED',
         'INSUFFICIENT_CREDIT',
@@ -90,6 +113,10 @@ describe('@motion-ai/contracts', () => {
         'NOT_FOUND',
         'FORBIDDEN',
         'CONFLICT',
+        'TOPUP_LIMIT',
+        'BANK_REF_DUPLICATE',
+        'TOPUP_STATE_INVALID',
+        'TOPUP_QR_EXPIRED',
       ];
       assert.deepEqual(Object.values(ApiErrorCode), expectedCodes);
 
@@ -821,6 +848,126 @@ describe('@motion-ai/contracts', () => {
       assert.equal(getReasonCodeMessageVi('NO_FACE', 'body_retouch'), getReasonCodeMessageVi('NO_FACE'));
       assert.equal(getReasonCodeMessageVi('FOO'), 'Tác vụ không thành công. Vui lòng thử lại sau.');
       for (const c of REASON_CODES) assert.ok(getReasonCodeMessageVi(c).length > 0);
+    });
+  });
+
+  describe('Epic 3 contracts', () => {
+    const okTopup = MOCK_TOPUPS_BY_STATUS.awaiting_transfer;
+
+    it('exports 6 statuses, 3 packs and Vietnamese labels', () => {
+      assert.deepEqual([...TOPUP_STATUSES], [
+        'awaiting_transfer', 'pending', 'approved', 'rejected', 'needs_review', 'expired',
+      ]);
+      assert.deepEqual([...TOPUP_PACK_IDS], ['starter', 'pro', 'creator']);
+      assert.equal(getTopupStatusLabelVi('pending'), 'Đang chờ duyệt');
+      assert.equal(getTopupStatusLabelVi('needs_review'), 'Cần xem xét');
+      assert.equal(getTopupStatusLabelVi('paid'), 'Không xác định');
+      assert.equal(TopupStatusSchema.safeParse('paid').success, false);
+    });
+
+    it('validates create request', () => {
+      assert.equal(TopupCreateRequestSchema.safeParse({ pack: 'pro', consent: true }).success, true);
+      assert.equal(TopupCreateRequestSchema.safeParse({ pack: 'pro', consent: false }).success, false);
+      assert.equal(TopupCreateRequestSchema.safeParse({ pack: 'pro' }).success, false);
+      assert.equal(TopupCreateRequestSchema.safeParse({ pack: 'vip', consent: true }).success, false);
+      assert.equal(
+        TopupCreateRequestSchema.safeParse({ pack: 'pro', consent: true, amountVnd: 1 }).success,
+        false,
+      );
+    });
+
+    it('validates admin requests', () => {
+      for (const bankRef of ['', '   ']) {
+        const r = AdminTopupApproveRequestSchema.safeParse({ bankRef });
+        assert.equal(r.success, false);
+        assert.deepEqual(r.error.issues[0].path, ['bankRef']);
+        assert.equal(AdminTopupApproveExpiredRequestSchema.safeParse({ bankRef }).success, false);
+      }
+      assert.equal(AdminTopupApproveRequestSchema.parse({ bankRef: '  FT1 ' }).bankRef, 'FT1');
+      const r = AdminTopupRejectRequestSchema.safeParse({ rejectReason: '' });
+      assert.equal(r.success, false);
+      assert.deepEqual(r.error.issues[0].path, ['rejectReason']);
+      assert.equal(AdminTopupNeedsReviewRequestSchema.safeParse({ note: ' ' }).success, false);
+      assert.equal(AdminTopupNeedsReviewRequestSchema.safeParse({ note: 'x' }).success, true);
+      assert.equal(AdminTopupReturnToPendingRequestSchema.safeParse({}).success, true);
+      assert.equal(AdminTopupReturnToPendingRequestSchema.safeParse({ a: 1 }).success, false);
+    });
+
+    it('enforces Topup invariants', () => {
+      const fails = (patch, field) => {
+        const r = TopupSchema.safeParse({ ...okTopup, ...patch });
+        assert.equal(r.success, false);
+        assert.ok(r.error.issues.some((i) => i.path[0] === field));
+      };
+      fails({ status: 'pending' }, 'approveBy');
+      fails({ status: 'rejected' }, 'rejectReason');
+      fails({ transferContent: 'NAP OTHER' }, 'transferContent');
+      fails({ bankRef: 'FT1' }, 'bankRef');
+      fails({ rejectReason: 'x' }, 'rejectReason');
+      fails({ status: 'paid' }, 'status');
+      fails({ status: 'approved' }, 'bankRef');
+      fails({ status: 'needs_review' }, 'note');
+      fails({ note: 'x' }, 'note');
+    });
+
+    it('enforces Admin isOverdue, empty pages and unique mock codes', () => {
+      const admin = MOCK_ADMIN_TOPUPS_BY_STATUS.approved;
+      const r = AdminTopupSchema.safeParse({ ...admin, isOverdue: true });
+      assert.equal(r.success, false);
+      assert.ok(r.error.issues.some((i) => i.path[0] === 'isOverdue'));
+      assert.equal(MOCK_ADMIN_TOPUPS_BY_STATUS.pending.isOverdue, true);
+      assert.equal(
+        TopupListResponseSchema.safeParse({ items: [], pageSize: 20, hasMore: true, nextCursor: 'x' }).success,
+        false,
+      );
+      const codes = TOPUP_STATUSES.map((s) => MOCK_TOPUPS_BY_STATUS[s].code);
+      assert.equal(new Set(codes).size, codes.length);
+      assert.match(getApiErrorMessageVi('TOPUP_LIMIT'), new RegExp(String(MAX_OPEN_TOPUPS)));
+    });
+
+    it('mocks parse against schemas', () => {
+      for (const s of TOPUP_STATUSES) {
+        assert.equal(TopupSchema.safeParse(MOCK_TOPUPS_BY_STATUS[s]).success, true, s);
+        assert.equal(AdminTopupSchema.safeParse(MOCK_ADMIN_TOPUPS_BY_STATUS[s]).success, true, s);
+      }
+      assert.equal(TopupListResponseSchema.safeParse(MOCK_TOPUP_LIST_RESPONSE).success, true);
+      assert.equal(AdminTopupListResponseSchema.safeParse(MOCK_ADMIN_TOPUP_LIST_RESPONSE).success, true);
+      assert.equal('email' in MOCK_ADMIN_TOPUPS_BY_STATUS.pending, false);
+    });
+
+    it('validates list queries, paging and params', () => {
+      assert.equal(TopupListQuerySchema.parse({}).pageSize, 20);
+      assert.equal(TopupListQuerySchema.parse({ pageSize: '50' }).pageSize, 50);
+      assert.equal(TopupListQuerySchema.safeParse({ pageSize: 0 }).success, false);
+      assert.equal(TopupListQuerySchema.safeParse({ pageSize: 101 }).success, false);
+      assert.equal(AdminTopupListQuerySchema.safeParse({ status: 'pending' }).success, true);
+      assert.equal(AdminTopupListQuerySchema.safeParse({ status: 'paid' }).success, false);
+      const item = MOCK_TOPUPS_BY_STATUS.pending;
+      const page = { items: [item], pageSize: 20, hasMore: false, nextCursor: null };
+      assert.equal(TopupListResponseSchema.safeParse(page).success, true);
+      assert.equal(TopupListResponseSchema.safeParse({ ...page, hasMore: true }).success, false);
+      assert.equal(TopupListResponseSchema.safeParse({ ...page, nextCursor: 'c' }).success, false);
+      assert.equal(TopupListResponseSchema.safeParse({ ...page, pageSize: 1, items: [item, item] }).success, false);
+      assert.equal(TopupIdParamsSchema.safeParse({ id: 'abc' }).success, false);
+    });
+
+    it('validates bodyless requests, max lengths and positive invariants', () => {
+      assert.equal(TopupConfirmTransferRequestSchema.safeParse(undefined).success, true);
+      assert.equal(TopupConfirmTransferRequestSchema.safeParse({}).success, true);
+      assert.equal(TopupConfirmTransferRequestSchema.safeParse({ a: 1 }).success, false);
+      assert.equal(AdminTopupReturnToPendingRequestSchema.safeParse(undefined).success, true);
+      assert.equal(AdminTopupApproveRequestSchema.safeParse({ bankRef: 'a'.repeat(128) }).success, true);
+      assert.equal(AdminTopupApproveRequestSchema.safeParse({ bankRef: 'a'.repeat(129) }).success, false);
+      assert.equal(AdminTopupRejectRequestSchema.safeParse({ rejectReason: 'a'.repeat(501) }).success, false);
+      assert.equal(AdminTopupNeedsReviewRequestSchema.safeParse({ note: 'a'.repeat(501) }).success, false);
+      assert.equal(TopupSchema.safeParse(MOCK_TOPUPS_BY_STATUS.approved).success, true);
+      assert.equal(TopupSchema.safeParse(MOCK_TOPUPS_BY_STATUS.rejected).success, true);
+    });
+
+    it('has Vietnamese messages for new error codes', () => {
+      for (const c of ['TOPUP_LIMIT', 'BANK_REF_DUPLICATE', 'TOPUP_STATE_INVALID', 'TOPUP_QR_EXPIRED']) {
+        assert.ok(API_ERROR_MESSAGES_VI[c].length > 0);
+      }
     });
   });
 });

@@ -15,6 +15,10 @@ export enum ApiErrorCode {
   NOT_FOUND = 'NOT_FOUND',
   FORBIDDEN = 'FORBIDDEN',
   CONFLICT = 'CONFLICT',
+  TOPUP_LIMIT = 'TOPUP_LIMIT',
+  BANK_REF_DUPLICATE = 'BANK_REF_DUPLICATE',
+  TOPUP_STATE_INVALID = 'TOPUP_STATE_INVALID',
+  TOPUP_QR_EXPIRED = 'TOPUP_QR_EXPIRED',
 }
 
 export const ApiErrorCodeSchema = z.nativeEnum(ApiErrorCode);
@@ -30,6 +34,9 @@ export interface ApiError {
   message: string;
   details?: Record<string, unknown>;
 }
+
+/** Số đơn nạp tối đa ở `awaiting_transfer`, `pending`, `needs_review` của một người dùng. */
+export const MAX_OPEN_TOPUPS = 3 as const;
 
 /**
  * Bảng ánh xạ mã lỗi API sang thông báo tiếng Việt thân thiện cho người dùng.
@@ -57,6 +64,14 @@ export const API_ERROR_MESSAGES_VI: Readonly<Record<ApiErrorCode, string>> = {
     'Bạn không có quyền thực hiện thao tác này.',
   [ApiErrorCode.CONFLICT]:
     'Thao tác không phù hợp với trạng thái hiện tại của tác vụ. Vui lòng tải lại và thử lại.',
+  [ApiErrorCode.TOPUP_LIMIT]:
+    `Bạn đang có tối đa ${MAX_OPEN_TOPUPS} đơn nạp chưa hoàn tất. Vui lòng đợi các đơn đó được xử lý trước khi tạo đơn mới.`,
+  [ApiErrorCode.BANK_REF_DUPLICATE]:
+    'Mã giao dịch ngân hàng này đã được dùng cho một đơn nạp khác. Vui lòng kiểm tra lại.',
+  [ApiErrorCode.TOPUP_STATE_INVALID]:
+    'Đơn nạp không ở trạng thái phù hợp để thực hiện thao tác này. Vui lòng tải lại danh sách.',
+  [ApiErrorCode.TOPUP_QR_EXPIRED]:
+    'Mã QR đã hết hạn. Vui lòng tạo mã mới để tiếp tục nạp credit.',
 };
 
 /**

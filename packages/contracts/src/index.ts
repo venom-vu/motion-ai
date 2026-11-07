@@ -9,4 +9,5 @@ export * from './auth.js';
 export * from './wallet.js';
 export * from './uploads.js';
 export * from './tasks.js';
+export * from './topups.js';
 export * from './mocks.js';
