@@ -34,6 +34,7 @@ model User {
   uploads       Upload[]
   tasks         Task[]
   shareTokens   ShareToken[]
+  topups        Topup[]
 
   @@map("users")
 }
@@ -62,6 +63,7 @@ model LedgerEntry {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
   task      Task?    @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  topup     Topup?   @relation(fields: [topupId], references: [id], onDelete: Restrict)
 
   @@index([userId, createdAt])
   @@map("ledger_entries")
@@ -148,4 +150,30 @@ model ShareToken {
 
   @@index([userId])
   @@map("share_tokens")
+}
+
+model Topup {
+  id                String        @id @db.Uuid
+  userId            String        @map("user_id") @db.Uuid
+  code              String        @unique @map("code")
+  pack              String        @map("pack")
+  amountVnd         Int           @map("amount_vnd")
+  status            String        @default("awaiting_transfer") @map("status")
+  qrExpiresAt       DateTime      @map("qr_expires_at") @db.Timestamptz(6)
+  approveBy         DateTime?     @map("approve_by") @db.Timestamptz(6)
+  bankRef           String?       @unique @map("bank_ref")
+  rejectReason      String?       @map("reject_reason")
+  note              String?       @map("note")
+  tosVersion        String        @map("tos_version")
+  notifiedAt        DateTime?     @map("notified_at") @db.Timestamptz(6)
+  overdueNotifiedAt DateTime?     @map("overdue_notified_at") @db.Timestamptz(6)
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user              User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  ledgerEntries     LedgerEntry[]
+
+  @@index([userId, status])
+  @@index([userId, createdAt(sort: Desc), id(sort: Desc)], map: "topups_user_id_created_at_idx")
+  @@index([status])
+  @@map("topups")
 }

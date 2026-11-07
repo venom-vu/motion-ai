@@ -122,6 +122,7 @@ describe('Story 1.7: [BE] Tier, API ví và đối soát sổ cái', () => {
     if (pool) {
       await pool.query('DELETE FROM ledger_entries WHERE user_id = ANY($1::uuid[])', [userIds]);
       await pool.query('DELETE FROM tasks WHERE user_id = ANY($1::uuid[])', [userIds]);
+      await pool.query('DELETE FROM topups WHERE user_id = ANY($1::uuid[])', [userIds]);
       await prisma.user.deleteMany({ where: { id: { in: userIds } } });
       await prisma.$disconnect();
     }

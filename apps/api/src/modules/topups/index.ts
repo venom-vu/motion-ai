@@ -1,4 +1,3 @@
-import { Module } from '@nestjs/common';
-
-@Module({})
-export class TopupsModule {}
+export * from './topups.module.js';
+export * from './topups.service.js';
+export * from './vietqr.js';

@@ -52,3 +52,26 @@ export class ShareThrottlerGuard extends AuthThrottlerGuard {
     });
   }
 }
+
+export function getTopupThrottleOptions(): { limit: number; ttl: number } {
+  const limit = Number.parseInt(process.env.TOPUP_THROTTLE_LIMIT ?? '', 10);
+  const ttl = Number.parseInt(process.env.TOPUP_THROTTLE_TTL_MS ?? '', 10);
+  return {
+    limit: Number.isFinite(limit) && limit > 0 ? limit : 10,
+    ttl: Number.isFinite(ttl) && ttl > 0 ? ttl : 60_000,
+  };
+}
+
+/** Giới hạn riêng cho route ghi `POST /topups`; không dùng chung bộ đếm với auth. */
+@Injectable()
+export class TopupThrottlerGuard extends AuthThrottlerGuard {
+  protected override async handleRequest(props: ThrottlerRequest): Promise<boolean> {
+    const { limit, ttl } = getTopupThrottleOptions();
+    return super.handleRequest({
+      ...props,
+      limit,
+      ttl,
+      generateKey: (ctx, tracker, name) => props.generateKey(ctx, tracker, `topup-${name}`),
+    });
+  }
+}

@@ -108,6 +108,7 @@ describe('Story 1.6: [BE] Sổ cái credit bất biến', () => {
       // Dọn dẹp bằng SQL thô (test-only); sổ cái là append-only trong mã ứng dụng.
       await pool.query('DELETE FROM ledger_entries WHERE user_id = ANY($1::uuid[])', [userIds]);
       await pool.query('DELETE FROM tasks WHERE user_id = ANY($1::uuid[])', [userIds]);
+      await pool.query('DELETE FROM topups WHERE user_id = ANY($1::uuid[])', [userIds]);
       await prisma.user.deleteMany({ where: { id: { in: userIds } } });
       await prisma.$disconnect();
     }
