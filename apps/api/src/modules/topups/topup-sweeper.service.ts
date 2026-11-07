@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import { TopupNotifierService } from './topup-notifier.service.js';
 import { TopupsService } from './topups.service.js';
 
 export const TOPUP_SWEEP_INTERVAL_MS = 30_000;
@@ -10,12 +11,36 @@ export class TopupSweeperService {
   private readonly logger = new Logger(TopupSweeperService.name);
   private running = false;
 
-  constructor(private readonly topups: TopupsService) {}
+  private notifying = false;
+
+  constructor(
+    private readonly topups: TopupsService,
+    private readonly notifier: TopupNotifierService,
+  ) {}
 
   @Interval(TOPUP_SWEEP_INTERVAL_MS)
   async scheduledSweep(): Promise<void> {
     if (process.env.MOTION_PROCESS_ROLE !== 'worker') return;
-    await this.sweepExpired();
+    try {
+      await this.sweepExpired();
+    } catch (err) {
+      this.logger.error(`Bộ quét hết hạn lỗi: ${String(err)}`);
+    }
+    await this.sweepNotifications();
+  }
+
+  /** Gửi lại thông báo pending còn thiếu và cảnh báo quá approve_by. */
+  async sweepNotifications(): Promise<void> {
+    if (this.notifying) return;
+    this.notifying = true;
+    try {
+      await this.notifier.retryPending();
+      await this.notifier.alertOverdue();
+    } catch (err) {
+      this.logger.error(`Bộ quét thông báo đơn nạp lỗi: ${String(err)}`);
+    } finally {
+      this.notifying = false;
+    }
   }
 
   /** Đổi mọi đơn awaiting_transfer quá qr_expires_at sang expired; trả số đơn đã đổi. */

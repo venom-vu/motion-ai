@@ -26,6 +26,7 @@ import { PrismaService } from '../../infra/prisma.service.js';
 import { AccountLockedException } from '../auth/guards/account-locked.guard.js';
 import { PRICING_CONFIG } from '../wallet/tier.js';
 import { computeApproveBy } from './approve-by.js';
+import { TopupNotifierService } from './topup-notifier.service.js';
 import { buildVietQrPayload } from './vietqr.js';
 
 export const QR_TTL_MS = 15 * 60 * 1000;
@@ -91,7 +92,12 @@ interface TopupRow {
 
 @Injectable()
 export class TopupsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(TopupsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifier: TopupNotifierService,
+  ) {}
 
   private apiError(Ex: new (r: { code: string; message: string }) => Error, code: ApiErrorCode): Error {
     return new Ex({ code, message: getApiErrorMessageVi(code) });
@@ -212,6 +218,10 @@ export class TopupsService {
       }
       throw this.apiError(ConflictException, ApiErrorCode.TOPUP_STATE_INVALID);
     }
+    // Không chặn yêu cầu của người dùng; lỗi chỉ ghi log, bộ quét sẽ thử lại.
+    void this.notifier
+      .notifyPending(id)
+      .catch((err) => this.logger.error(`Thông báo đơn nạp ${id} lỗi: ${String(err)}`));
     const row = await this.prisma.topup.findUnique({ where: { id } });
     if (!row) throw this.apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
     return this.toDto(row);

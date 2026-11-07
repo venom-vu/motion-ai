@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
+import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
@@ -12,7 +13,9 @@ import { Redis } from 'ioredis';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../dist/generated/prisma/client.js';
 import { bootstrapApi } from '../dist/main.js';
-import { TopupSweeperService, buildVietQrPayload, computeApproveBy, crc16, generateTopupCode } from '../dist/modules/topups/index.js';
+import { NOTIFIER_PORT } from '../dist/ports/index.js';
+import { DiscordNotifierAdapter, createNotifierPort } from '../dist/modules/ops/discord-notifier.adapter.js';
+import { TopupNotifierService, TopupSweeperService, buildVietQrPayload, computeApproveBy, crc16, generateTopupCode } from '../dist/modules/topups/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const apiRoot = path.resolve(__dirname, '..');
@@ -579,5 +582,236 @@ describe('Story 3.3: [BE] Xác nhận chuyển khoản, hạn QR và hạn duy�
     // Bộ quét vẫn an toàn khi chạy sau đó.
     await sweeper.sweepExpired();
     assert.equal((await create()).status, 429);
+  });
+});
+
+describe('Story 3.4: [BE] Thông báo Discord cho Admin', () => {
+  let app, baseUrl, pool, jwt, sweeper, fake, notifier;
+  const runId = crypto.randomBytes(4).toString('hex');
+  const users = [];
+  let seq = 0;
+  let mode = 'ok';
+  const received = [];
+  const WEBHOOK_PATH = '/api/webhooks/secret-token-xyz';
+
+  async function newUser() {
+    const n = users.length;
+    const r = await pool.query(
+      `INSERT INTO users (id,google_id,email,tos_version,updated_at) VALUES (gen_random_uuid(),$1,$2,'tos-v7',now()) RETURNING id,email`,
+      [`td-${runId}-${n}`, `td-${runId}-${n}@motionai.vn`],
+    );
+    users.push(r.rows[0].id);
+    return { id: r.rows[0].id, email: r.rows[0].email, token: jwt.sign({ sub: r.rows[0].id, email: r.rows[0].email, role: 'user' }) };
+  }
+  async function mkTopup(user, status) {
+    const r = await pool.query(
+      `INSERT INTO topups (id,user_id,code,pack,amount_vnd,status,qr_expires_at,tos_version,updated_at)
+       VALUES (gen_random_uuid(),$1,$2,'pro',99000,$3, now() + interval '600 seconds','t',now()) RETURNING id`,
+      [user.id, `D${runId}${seq++}`.slice(0, 12), status],
+    );
+    return r.rows[0].id;
+  }
+  const row = async (id) =>
+    (await pool.query('SELECT status, notified_at, notify_attempts, notify_attempted_at, overdue_notified_at FROM topups WHERE id=$1', [id])).rows[0];
+  const confirm = (user, id) =>
+    fetch(`${baseUrl}/topups/${id}/confirm-transfer`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${user.token}`, 'Content-Type': 'application/json' },
+    });
+  const ageAttempt = (id) =>
+    pool.query(`UPDATE topups SET notify_attempted_at = now() - interval '2 minutes' WHERE id=$1`, [id]);
+  const forId = (id) => received.filter((r) => r.body.includes(id));
+  async function waitFor(fn, ms = 5000) {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+      if (await fn()) return;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    assert.fail('waitFor timeout');
+  }
+
+  before(async () => {
+    process.env.DATABASE_URL = DB_URL;
+    process.env.REDIS_URL = REDIS_URL;
+    process.env.PORT = '0';
+    process.env.JWT_SECRET = 'super-secret-test-jwt-key-with-at-least-32-chars-ok';
+    process.env.FRONTEND_URL = 'http://localhost:3000';
+    process.env.TOPUP_BANK_BIN = '970422';
+    process.env.TOPUP_BANK_ACCOUNT_NO = '0123456789';
+    process.env.TOPUP_BANK_ACCOUNT_NAME = 'CONG TY MOTION AI';
+    process.env.TOPUP_THROTTLE_LIMIT = '1000';
+    fake = http.createServer((req, res) => {
+      const chunks = [];
+      req.on('data', (c) => chunks.push(c));
+      req.on('end', () => {
+        received.push({ url: req.url, body: Buffer.concat(chunks).toString() });
+        if (mode === 'fail') { res.writeHead(500); res.end('boom'); }
+        else if (mode === '429') { res.writeHead(429); res.end('slow'); }
+        else { res.writeHead(204); res.end(); }
+      });
+    });
+    await new Promise((r) => fake.listen(0, '127.0.0.1', r));
+    process.env.DISCORD_WEBHOOK_URL = `http://127.0.0.1:${fake.address().port}${WEBHOOK_PATH}`;
+    await ensureInfra();
+    const rd0 = new Redis(REDIS_URL);
+    const stale = await rd0.keys('throttle:*');
+    if (stale.length) await rd0.del(...stale);
+    rd0.disconnect();
+    pool = new pg.Pool({ connectionString: DB_URL });
+    app = await bootstrapApi();
+    baseUrl = `http://127.0.0.1:${app.getHttpServer().address().port}`;
+    jwt = app.get(JwtService);
+    sweeper = app.get(TopupSweeperService);
+    notifier = app.get(NOTIFIER_PORT);
+  });
+
+  after(async () => {
+    delete process.env.DISCORD_WEBHOOK_URL;
+    if (pool) {
+      await pool.query('DELETE FROM topups WHERE user_id = ANY($1::uuid[])', [users]);
+      await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [users]);
+    }
+    await pool?.end().catch(() => {});
+    await app?.close();
+    await new Promise((r) => fake?.close(r));
+  });
+
+  it('đơn mới pending: đúng 1 request, notified_at đặt, nội dung an toàn, lặp không gửi thêm', async () => {
+    mode = 'ok';
+    const u = await newUser();
+    const id = await mkTopup(u, 'awaiting_transfer');
+    const code = (await pool.query('SELECT code FROM topups WHERE id=$1', [id])).rows[0].code;
+    assert.equal((await confirm(u, id)).status, 200);
+    await waitFor(async () => (await row(id)).notified_at !== null);
+    assert.equal((await confirm(u, id)).status, 200);
+    await sweeper.sweepNotifications();
+    const reqs = forId(id);
+    assert.equal(reqs.length, 1);
+    assert.equal(reqs[0].url, WEBHOOK_PATH);
+    const parsed = JSON.parse(reqs[0].body);
+    assert.deepEqual(parsed.allowed_mentions, { parse: [] });
+    assert.ok(parsed.content.length <= 2000);
+    for (const needle of [code, '99000', 'pro']) assert.ok(parsed.content.includes(needle), needle);
+    for (const bad of [u.email, 'jwt', u.token, '0123456789', 'CONG TY MOTION AI', 'secret-token-xyz', 'Bearer'])
+      assert.ok(!reqs[0].body.includes(bad), bad);
+  });
+
+  it('Discord lỗi: confirm vẫn 200, thử lại bằng bộ quét sau 60 giây, đúng 1 thông báo thành công', async () => {
+    mode = 'fail';
+    const u = await newUser();
+    const id = await mkTopup(u, 'awaiting_transfer');
+    assert.equal((await confirm(u, id)).status, 200);
+    await waitFor(async () => (await row(id)).notify_attempts === 1 && forId(id).length === 1);
+    let r = await row(id);
+    assert.equal(r.notified_at, null);
+    // Chưa đủ 60 giây: bộ quét không nhận phiên.
+    await sweeper.sweepNotifications();
+    assert.equal(forId(id).length, 1);
+    mode = '429';
+    await ageAttempt(id);
+    await sweeper.sweepNotifications();
+    assert.equal((await row(id)).notified_at, null);
+    assert.equal((await row(id)).notify_attempts, 2);
+    mode = 'ok';
+    await ageAttempt(id);
+    await sweeper.sweepNotifications();
+    await sweeper.sweepNotifications();
+    r = await row(id);
+    assert.ok(r.notified_at);
+    assert.equal(r.notify_attempts, 3);
+    assert.equal(forId(id).length, 3);
+  });
+
+  it('hết 5 lượt: không gửi thêm', async () => {
+    mode = 'fail';
+    const u = await newUser();
+    const id = await mkTopup(u, 'awaiting_transfer');
+    assert.equal((await confirm(u, id)).status, 200);
+    await waitFor(async () => (await row(id)).notify_attempts === 1 && forId(id).length === 1);
+    for (let i = 0; i < 6; i++) {
+      await ageAttempt(id);
+      await sweeper.sweepNotifications();
+    }
+    assert.equal((await row(id)).notify_attempts, 5);
+    assert.equal(forId(id).length, 5);
+    assert.equal((await row(id)).notified_at, null);
+    mode = 'ok';
+  });
+
+  it('hai bên đua: đúng 1 request Discord', async () => {
+    mode = 'ok';
+    const u = await newUser();
+    const id = await mkTopup(u, 'pending');
+    await pool.query(`UPDATE topups SET approve_by = now() + interval '1 hour' WHERE id=$1`, [id]);
+    await Promise.all([
+      sweeper.sweepNotifications(),
+      app.get(TopupNotifierService).notifyPending(id),
+      app.get(TopupNotifierService).notifyPending(id),
+    ]);
+    assert.equal(forId(id).length, 1);
+    assert.ok((await row(id)).notified_at);
+  });
+
+  it('quá hạn duyệt: đúng 1 cảnh báo, các lần quét sau không lặp', async () => {
+    mode = 'ok';
+    const u = await newUser();
+    const id = await mkTopup(u, 'pending');
+    await pool.query(`UPDATE topups SET approve_by = now() - interval '1 minute', notified_at = now() WHERE id=$1`, [id]);
+    await sweeper.sweepNotifications();
+    await sweeper.sweepNotifications();
+    assert.equal(forId(id).length, 1);
+    assert.ok((await row(id)).overdue_notified_at);
+    assert.ok(forId(id)[0].body.includes('quá hạn'));
+  });
+
+  it('quá hạn duyệt: Discord lỗi thì không mất cảnh báo, lần quét sau gửi lại đúng 1 lần', async () => {
+    const u = await newUser();
+    const id = await mkTopup(u, 'pending');
+    await pool.query(`UPDATE topups SET approve_by = now() - interval '1 minute', notified_at = now() WHERE id=$1`, [id]);
+    mode = 'fail';
+    await sweeper.sweepNotifications();
+    assert.equal((await row(id)).overdue_notified_at, null);
+    mode = 'ok';
+    await sweeper.sweepNotifications();
+    await sweeper.sweepNotifications();
+    assert.ok((await row(id)).overdue_notified_at);
+    assert.equal(forId(id).filter((x) => x.body.includes('quá hạn')).length, 2);
+  });
+
+  it('createNotifierPort: URL sai định dạng thì dùng adapter log', async () => {
+    const prev = process.env.DISCORD_WEBHOOK_URL;
+    process.env.DISCORD_WEBHOOK_URL = 'không phải url';
+    try {
+      assert.ok(!(createNotifierPort() instanceof DiscordNotifierAdapter));
+    } finally {
+      if (prev === undefined) delete process.env.DISCORD_WEBHOOK_URL;
+      else process.env.DISCORD_WEBHOOK_URL = prev;
+    }
+  });
+
+  it('cảnh báo LEDGER_MISMATCH đi qua Discord; lỗi Discord được ném ra cho người gọi', async () => {
+    mode = 'ok';
+    const marker = `mismatch-${runId}`;
+    await notifier.notify({ kind: 'LEDGER_MISMATCH', severity: 'error', message: marker });
+    assert.equal(received.filter((r) => r.body.includes(marker)).length, 1);
+    mode = 'fail';
+    await assert.rejects(() => notifier.notify({ kind: 'X', message: 'y' }), (e) => {
+      assert.ok(!String(e.message).includes('secret-token-xyz'));
+      return true;
+    });
+    mode = 'ok';
+  });
+
+  it('createNotifierPort: không có webhook thì dùng adapter log', async () => {
+    const prev = process.env.DISCORD_WEBHOOK_URL;
+    delete process.env.DISCORD_WEBHOOK_URL;
+    try {
+      const p = createNotifierPort();
+      assert.ok(!(p instanceof DiscordNotifierAdapter));
+      await p.notify({ kind: 'T', message: 'm' });
+    } finally {
+      if (prev === undefined) delete process.env.DISCORD_WEBHOOK_URL;
+      else process.env.DISCORD_WEBHOOK_URL = prev;
+    }
   });
 });

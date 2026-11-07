@@ -167,6 +167,8 @@ model Topup {
   tosVersion        String        @map("tos_version")
   notifiedAt        DateTime?     @map("notified_at") @db.Timestamptz(6)
   overdueNotifiedAt DateTime?     @map("overdue_notified_at") @db.Timestamptz(6)
+  notifyAttempts    Int           @default(0) @map("notify_attempts")
+  notifyAttemptedAt DateTime?     @map("notify_attempted_at") @db.Timestamptz(6)
   createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
   user              User          @relation(fields: [userId], references: [id], onDelete: Restrict)
