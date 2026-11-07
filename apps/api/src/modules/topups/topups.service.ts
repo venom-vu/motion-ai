@@ -15,6 +15,9 @@ import {
   MAX_OPEN_TOPUPS,
   TOS_VERSION,
   getApiErrorMessageVi,
+  type AdminTopup,
+  type AdminTopupListQuery,
+  type AdminTopupListResponse,
   type Topup,
   type TopupCreateRequest,
   type TopupListQuery,
@@ -22,7 +25,9 @@ import {
   type TopupPackId,
   type TopupStatus,
 } from '@motion-ai/contracts';
-import { PrismaService } from '../../infra/prisma.service.js';
+import { PrismaService, type PrismaTransactionClient } from '../../infra/prisma.service.js';
+import { AuditService } from '../audit/audit.service.js';
+import { WalletService } from '../wallet/wallet.service.js';
 import { AccountLockedException } from '../auth/guards/account-locked.guard.js';
 import { PRICING_CONFIG } from '../wallet/tier.js';
 import { computeApproveBy } from './approve-by.js';
@@ -97,6 +102,8 @@ export class TopupsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifier: TopupNotifierService,
+    private readonly wallet: WalletService,
+    private readonly audit: AuditService,
   ) {}
 
   private apiError(Ex: new (r: { code: string; message: string }) => Error, code: ApiErrorCode): Error {
@@ -258,5 +265,149 @@ export class TopupsService {
       hasMore,
       nextCursor: hasMore && items.length > 0 ? items[items.length - 1].id : null,
     };
+  }
+  // ---------------------------------------------------------------- Admin
+
+  toAdminDto(row: TopupRow & { userId: string }, bank: BankAccountConfig = readBankAccountConfig()): AdminTopup {
+    return {
+      ...this.toDto(row, bank),
+      userId: row.userId,
+      isOverdue: row.status === 'pending' && row.approveBy !== null && row.approveBy.getTime() < Date.now(),
+    };
+  }
+
+  async adminList(query: AdminTopupListQuery): Promise<AdminTopupListResponse> {
+    const pageSize = query.pageSize ?? 20;
+    const cursor = query.cursor;
+    if (cursor) {
+      const found = UUID_REGEX.test(cursor)
+        ? await this.prisma.topup.findUnique({ where: { id: cursor }, select: { id: true } })
+        : null;
+      if (!found) throw this.apiError(BadRequestException, ApiErrorCode.VALIDATION_FAILED);
+    }
+    const rows = await this.prisma.topup.findMany({
+      where: query.status ? { status: query.status } : {},
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: pageSize + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+    const hasMore = rows.length > pageSize;
+    const items = hasMore ? rows.slice(0, pageSize) : rows;
+    const bank = items.length > 0 ? readBankAccountConfig() : undefined;
+    return {
+      items: items.map((r) => this.toAdminDto(r, bank)),
+      pageSize,
+      hasMore,
+      nextCursor: hasMore && items.length > 0 ? items[items.length - 1].id : null,
+    };
+  }
+
+  /** CAS trong transaction: trả dòng trước khi đổi, hoặc ném NOT_FOUND / TOPUP_STATE_INVALID. */
+  private async casTransition(
+    tx: PrismaTransactionClient,
+    id: string,
+    from: readonly string[],
+    data: { status: string; bankRef?: string; rejectReason?: string; note?: string | null },
+  ) {
+    // Khóa dòng để `before` của audit đúng là trạng thái nguồn mà CAS chuyển đi (READ COMMITTED).
+    const locked = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM topups WHERE id = ${id}::uuid FOR UPDATE`;
+    if (locked.length === 0) throw this.apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
+    const before = await tx.topup.findUnique({ where: { id } });
+    if (!before) throw this.apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
+    const res = await tx.topup.updateMany({ where: { id, status: { in: [...from] } }, data });
+    if (res.count === 0) throw this.apiError(ConflictException, ApiErrorCode.TOPUP_STATE_INVALID);
+    return before;
+  }
+
+  private isBankRefDuplicate(err: unknown): boolean {
+    const e = err as { code?: unknown };
+    if (e?.code !== 'P2002') return false;
+    let text = '';
+    try {
+      text = JSON.stringify(err, Object.getOwnPropertyNames(err as object));
+    } catch {
+      text = String(err);
+    }
+    return text.includes('topups_bank_ref_key');
+  }
+
+  private async adminTransition(
+    id: string,
+    run: (tx: PrismaTransactionClient) => Promise<void>,
+  ): Promise<AdminTopup> {
+    try {
+      await this.prisma.$transaction(run);
+    } catch (err) {
+      if (this.isBankRefDuplicate(err)) throw this.apiError(ConflictException, ApiErrorCode.BANK_REF_DUPLICATE);
+      throw err;
+    }
+    const row = await this.prisma.topup.findUnique({ where: { id } });
+    if (!row) throw this.apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
+    return this.toAdminDto(row);
+  }
+
+  private async doApprove(
+    adminId: string,
+    id: string,
+    bankRef: string,
+    from: 'pending_or_review' | 'expired',
+  ): Promise<AdminTopup> {
+    const sources = from === 'expired' ? ['expired'] : ['pending', 'needs_review'];
+    return this.adminTransition(id, async (tx) => {
+      const before = await this.casTransition(tx, id, sources, { status: 'approved', bankRef });
+      const pack = PRICING_CONFIG.topupPacks.find((p) => p.id === before.pack);
+      if (!pack) throw new Error(`Gói nạp không hợp lệ: ${before.pack}`);
+      await this.wallet.topup(tx, before.userId, id, pack.credits, pack.id as TopupPackId);
+      await this.audit.record(tx, {
+        adminId,
+        action: from === 'expired' ? 'topup.approve_expired' : 'topup.approve',
+        target: `topup:${id}`,
+        beforeAfter: { before: { status: before.status, bankRef: before.bankRef }, after: { status: 'approved', bankRef }, credits: pack.credits },
+      });
+    });
+  }
+
+  approve(adminId: string, id: string, bankRef: string): Promise<AdminTopup> {
+    return this.doApprove(adminId, id, bankRef, 'pending_or_review');
+  }
+
+  approveExpired(adminId: string, id: string, bankRef: string): Promise<AdminTopup> {
+    return this.doApprove(adminId, id, bankRef, 'expired');
+  }
+
+  reject(adminId: string, id: string, rejectReason: string): Promise<AdminTopup> {
+    return this.adminTransition(id, async (tx) => {
+      const before = await this.casTransition(tx, id, ['pending', 'needs_review'], { status: 'rejected', rejectReason });
+      await this.audit.record(tx, {
+        adminId,
+        action: 'topup.reject',
+        target: `topup:${id}`,
+        beforeAfter: { before: { status: before.status }, after: { status: 'rejected', rejectReason } },
+      });
+    });
+  }
+
+  markNeedsReview(adminId: string, id: string, note: string): Promise<AdminTopup> {
+    return this.adminTransition(id, async (tx) => {
+      const before = await this.casTransition(tx, id, ['pending'], { status: 'needs_review', note });
+      await this.audit.record(tx, {
+        adminId,
+        action: 'topup.needs_review',
+        target: `topup:${id}`,
+        beforeAfter: { before: { status: before.status }, after: { status: 'needs_review', note } },
+      });
+    });
+  }
+
+  returnToPending(adminId: string, id: string): Promise<AdminTopup> {
+    return this.adminTransition(id, async (tx) => {
+      const before = await this.casTransition(tx, id, ['needs_review'], { status: 'pending', note: null });
+      await this.audit.record(tx, {
+        adminId,
+        action: 'topup.return_to_pending',
+        target: `topup:${id}`,
+        beforeAfter: { before: { status: before.status, note: before.note }, after: { status: 'pending' } },
+      });
+    });
   }
 }

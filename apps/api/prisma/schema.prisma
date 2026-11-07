@@ -35,6 +35,7 @@ model User {
   tasks         Task[]
   shareTokens   ShareToken[]
   topups        Topup[]
+  adminAudits   AdminAudit[]
 
   @@map("users")
 }
@@ -178,4 +179,18 @@ model Topup {
   @@index([userId, createdAt(sort: Desc), id(sort: Desc)], map: "topups_user_id_created_at_idx")
   @@index([status])
   @@map("topups")
+}
+
+model AdminAudit {
+  id          String   @id @db.Uuid
+  adminId     String   @map("admin_id") @db.Uuid
+  action      String   @map("action")
+  target      String   @map("target")
+  beforeAfter Json     @map("before_after")
+  at          DateTime @default(now()) @map("at") @db.Timestamptz(6)
+  admin       User     @relation(fields: [adminId], references: [id], onDelete: Restrict)
+
+  @@index([target])
+  @@index([at(sort: Desc)])
+  @@map("admin_audit")
 }

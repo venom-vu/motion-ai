@@ -139,3 +139,18 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-6-fe-trang-nap-credit-va-theo-doi-don.md`
   summary: Polling đơn nạp dừng im lặng sau 5 lỗi liên tiếp hoặc 401/403/404; người dùng không thấy thông báo hay nút làm mới, trạng thái hiển thị bị cũ.
   evidence: `useTopup.ts` `startPolling` gọi `stopPolling()` không đặt thông báo lỗi; cần quyết định thiết kế UX (banner "không cập nhật được" + nút làm mới).
+
+## Deferred from: code review of spec-3-5-be-duyet-va-tu-choi-don-nhat-ky-admin (2026-11-07)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-5-be-duyet-va-tu-choi-don-nhat-ky-admin.md`
+  summary: `bankRef` chỉ được trim; khác hoa/thường hoặc khoảng trắng bên trong vẫn lọt chỉ mục unique, có thể cộng credit hai lần cho cùng một giao dịch ngân hàng.
+  evidence: `topups_bank_ref_key` so khớp chính xác; cần quyết định có chuẩn hóa (upper-case) hoặc đặt unique trên `upper(bank_ref)` hay không.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-5-be-duyet-va-tu-choi-don-nhat-ky-admin.md`
+  summary: `return-to-pending` giữ nguyên `approve_by` nên đơn có thể trở lại `pending` đã quá hạn; đơn `needs_review` không có cờ `isOverdue`.
+  evidence: Spec đóng băng ghi giữ `approve_by`; cần quyết định UX/nghiệp vụ có tính lại hạn duyệt không.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-5-be-duyet-va-tu-choi-don-nhat-ky-admin.md`
+  summary: `RolesGuard` tin role trong JWT, Admin bị hạ quyền hoặc khóa vẫn duyệt được đến khi token hết hạn (unverified).
+  evidence: Kiểm tra lại role trong DB mỗi request thuộc Epic 6.4 (khóa tài khoản); cần xác nhận khi làm story đó.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-5-be-duyet-va-tu-choi-don-nhat-ky-admin.md`
+  summary: `pnpm run reconcile` báo lệch hai user fixture `p-0840a375-9/10@motionai.vn` còn sót trong DB dev từ test cũ (tạo 2026-11-06).
+  evidence: Hai user không có bút toán hay đơn nạp nào; một test cũ (nghi `task-priority`) đặt `balance/held` trực tiếp mà không dọn; làm `reconcile` không sạch trên DB dev.
