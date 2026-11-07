@@ -30,17 +30,6 @@ const token = computed<string>(() => {
   return typeof raw === 'string' ? raw : '';
 });
 
-const mockModeQuery = computed<string | null>(() => {
-  const m = route.query.mock;
-  return typeof m === 'string' ? m.trim().toLowerCase() : null;
-});
-
-const isMockMode = computed<boolean>(() => {
-  if (mockModeQuery.value !== null) return true;
-  if (typeof token.value === 'string' && token.value.startsWith('mock-')) return true;
-  return false;
-});
-
 const apiBaseUrl = computed(() => {
   const raw = (config.public?.apiBaseUrl || 'http://localhost:8080') as string;
   return raw.replace(/\/+$/, '');
@@ -49,24 +38,7 @@ const apiBaseUrl = computed(() => {
 const { data: asyncState, error: asyncError } = await useAsyncData<SharePageState>(
   `share-page-${token.value}`,
   async () => {
-    // 1. Chế độ Mock
-    if (isMockMode.value) {
-      if (
-        mockModeQuery.value === '404' ||
-        token.value === 'mock-invalid-token' ||
-        !token.value
-      ) {
-        return { notFound: true, rateLimited: false, imageUrl: null };
-      }
-      return {
-        notFound: false,
-        rateLimited: false,
-        imageUrl:
-          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=1200&q=80',
-      };
-    }
-
-    // 2. Chế độ Live: Kiểm tra định dạng token (32 byte base64url = 43 ký tự)
+    // Kiểm tra định dạng token (32 byte base64url = 43 ký tự)
     if (!token.value || !TOKEN_RE.test(token.value)) {
       return { notFound: true, rateLimited: false, imageUrl: null };
     }
@@ -172,12 +144,6 @@ const pageDescription = computed(() => {
 const ogImageUrl = computed(() => {
   if (isNotFound.value || isRateLimited.value) {
     return null;
-  }
-  if (isMockMode.value) {
-    return (
-      shareState.value.imageUrl ||
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=1200&q=80'
-    );
   }
   return `${apiBaseUrl.value}/s/${encodeURIComponent(token.value)}`;
 });

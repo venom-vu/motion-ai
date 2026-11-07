@@ -40,66 +40,10 @@ useHead({
   ],
 });
 
-const mockModeQuery = computed<string>(() => {
-  const m = route.query.mock;
-  return typeof m === 'string' ? m.trim().toLowerCase() : '';
-});
-const isMockMode = computed<boolean>(() => Boolean(mockModeQuery.value));
-
-function getMockTask(): Task {
-  const now = new Date();
-  const thirtyFiveDaysAgo = new Date(now.getTime() - 35 * 86400000);
-  const status =
-    mockModeQuery.value === 'queued'
-      ? 'queued'
-      : mockModeQuery.value === 'running'
-        ? 'running'
-        : mockModeQuery.value === 'failed'
-          ? 'failed'
-          : 'succeeded';
-
-  const isExpired = mockModeQuery.value === 'expired';
-
-  return {
-    id: taskId.value || 'mock-task-id',
-    pipeline: 'face_swap',
-    status,
-    queuePosition: status === 'queued' ? 1 : null,
-    resultKey:
-      status === 'succeeded'
-        ? 'out/00000000-0000-0000-0000-000000000001/mock-task-id'
-        : null,
-    reasonCode: status === 'failed' ? 'NO_FACE' : null,
-    creditCost: 100,
-    createdAt: isExpired
-      ? thirtyFiveDaysAgo.toISOString()
-      : new Date(now.getTime() - 60000).toISOString(),
-    updatedAt: now.toISOString(),
-  };
-}
-
-function getMockResult(): TaskResultResponse {
-  if (mockModeQuery.value === 'no_source') {
-    return {
-      resultUrl: 'https://cdn.example.com/mock-result-image.png',
-      sourceUrl: null,
-    };
-  }
-  return {
-    resultUrl: 'https://cdn.example.com/mock-result-image.png',
-    sourceUrl: 'https://cdn.example.com/mock-source-image.png',
-  };
-}
-
 // 1. Tải thông tin Task
 const taskAsync = useAsyncData<Task>(
   `motion-ai-task-${taskId.value}`,
-  async () => {
-    if (isMockMode.value) {
-      return getMockTask();
-    }
-    return client.getTask(taskId.value);
-  },
+  () => client.getTask(taskId.value),
 );
 
 const currentTask = ref<Task | null>(null);
@@ -132,9 +76,6 @@ const resultAsync = useAsyncData<TaskResultResponse | null>(
     if (isExpired.value) {
       return null;
     }
-    if (isMockMode.value) {
-      return getMockResult();
-    }
     return client.getTaskResult(taskId.value);
   },
   {
@@ -150,7 +91,6 @@ const shareToastMessage = ref<string | null>(null);
 const shareErrorVi = ref<string | null>(null);
 
 const isUnauthenticated = computed<boolean>(() => {
-  if (isMockMode.value) return false;
   if (
     isUnauthorizedError(taskAsync.error.value) ||
     isUnauthorizedError(resultAsync.error.value)
@@ -239,15 +179,7 @@ async function handleShare(): Promise<void> {
   shareErrorVi.value = null;
 
   try {
-    let res: TaskShareResponse;
-    if (isMockMode.value) {
-      res = {
-        token: 'mock-share-token-123',
-        shareUrl: `https://motion-ai.vn/share/mock-share-token-123`,
-      };
-    } else {
-      res = await client.shareTask(taskId.value);
-    }
+    const res: TaskShareResponse = await client.shareTask(taskId.value);
     const webShareUrl =
       typeof window !== 'undefined'
         ? `${window.location.origin}/share/${res.token}`
@@ -299,9 +231,7 @@ async function handleRevokeShare(): Promise<void> {
   shareErrorVi.value = null;
 
   try {
-    if (!isMockMode.value) {
-      await client.revokeTaskShare(taskId.value);
-    }
+    await client.revokeTaskShare(taskId.value);
     shareData.value = null;
     shareToastMessage.value = 'Đã ngừng chia sẻ liên kết công khai.';
   } catch (err) {
@@ -486,7 +416,6 @@ function handleGoBack(): void {
     >
       <TaskProgressCard
         :task="currentTask"
-        :mock-mode="isMockMode"
         @update:task="(t) => currentTask = t"
       />
     </div>
@@ -500,7 +429,6 @@ function handleGoBack(): void {
       <TaskProgressCard
         :task="currentTask"
         :polling="false"
-        :mock-mode="isMockMode"
       />
     </div>
 

@@ -20,14 +20,6 @@ useHead({
 const { pricing, me, refreshAll } = usePricingConfig();
 const { client } = useApiClient();
 const { open: openAuthDialog } = useAuthDialog();
-const route = useRoute();
-
-// Hỗ trợ mock mode khi query param ?mock=true/failed/timed_out/cancelled
-const mockModeQuery = computed<string>(() => {
-  const m = route.query.mock;
-  return typeof m === 'string' ? m : '';
-});
-const isMockMode = computed<boolean>(() => Boolean(mockModeQuery.value));
 
 // Trạng thái đăng nhập
 const isAuthenticated = computed<boolean>(() => Boolean(me.value));
@@ -87,38 +79,6 @@ async function handleSubmit(): Promise<void> {
   submitErrorVi.value = null;
 
   try {
-    if (isMockMode.value) {
-      const mode = mockModeQuery.value;
-      const targetStatus =
-        mode === 'failed'
-          ? 'failed'
-          : mode === 'timed_out'
-            ? 'timed_out'
-            : mode === 'cancelled'
-              ? 'cancelled'
-              : 'queued';
-
-      const mockTask: Task = {
-        id: '70000000-0000-4000-8000-000000000001',
-        pipeline: 'face_swap',
-        status: targetStatus,
-        queuePosition: targetStatus === 'queued' ? 2 : null,
-        creditCost: faceSwapCreditCost.value,
-        reasonCode:
-          targetStatus === 'failed'
-            ? 'NO_FACE'
-            : targetStatus === 'timed_out'
-              ? 'FREE_WAIT_EXPIRED'
-              : targetStatus === 'cancelled'
-                ? 'USER_CANCEL'
-                : null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      activeTask.value = mockTask;
-      return;
-    }
-
     const task = await client.createFaceSwapTask({
       sourceKey: sourceKey.value!,
       targetKey: targetKey.value!,
@@ -193,7 +153,6 @@ function handleReset(): void {
       <TaskProgressCard
         :task="activeTask"
         pipeline-label-vi="Hoán đổi khuôn mặt"
-        :mock-mode="isMockMode"
         @update:task="activeTask = $event"
         @retry="handleReset"
         @completed="void refreshAll()"
@@ -232,7 +191,6 @@ function handleReset(): void {
             label-vi="Chọn ảnh mặt nguồn"
             description-vi="Ảnh chân dung rõ mặt, JPG/PNG/WebP ≤ 10 MB"
             :show-tos-consent="false"
-            :mock-mode="isMockMode"
           />
         </div>
 
@@ -263,7 +221,6 @@ function handleReset(): void {
             label-vi="Chọn ảnh đích"
             description-vi="Ảnh có người rõ dáng, JPG/PNG/WebP ≤ 10 MB"
             :show-tos-consent="false"
-            :mock-mode="isMockMode"
           />
         </div>
       </div>

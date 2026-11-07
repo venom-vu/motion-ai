@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { clearNuxtData, refreshNuxtData, useAsyncData, useHead, useRoute } from '#imports';
+import { clearNuxtData, refreshNuxtData, useAsyncData, useHead } from '#imports';
 import type { Task, TaskListResponse } from '@motion-ai/contracts';
 import { ME_KEY, useApiClient } from '~/composables/useApiClient';
 import { useAuth } from '~/composables/useAuth';
@@ -18,101 +18,15 @@ useHead({
   ],
 });
 
-const route = useRoute();
 const { client, accessToken } = useApiClient();
 const { isAuthenticated, sessionChecked } = useAuth();
 const { open: openAuthDialog } = useAuthDialog();
 
 const PAGE_SIZE = 20;
 
-const mockModeQuery = computed<string>(() => {
-  const m = route.query.mock;
-  return typeof m === 'string' ? m.trim().toLowerCase() : '';
-});
-const isMockMode = computed<boolean>(() => Boolean(mockModeQuery.value));
-
-function getMockTaskList(): TaskListResponse {
-  if (mockModeQuery.value === 'empty') {
-    return { items: [], pageSize: PAGE_SIZE, hasMore: false, nextCursor: null };
-  }
-  const now = new Date();
-  const tenDaysAgo = new Date(now.getTime() - 10 * 86400000);
-  const thirtyFiveDaysAgo = new Date(now.getTime() - 35 * 86400000);
-
-  const mockTasks: Task[] = [
-    {
-      id: 'a0000000-0000-0000-0000-000000000001',
-      pipeline: 'face_swap',
-      status: 'queued',
-      queuePosition: 2,
-      resultKey: null,
-      reasonCode: null,
-      creditCost: 100,
-      createdAt: now.toISOString(),
-      updatedAt: now.toISOString(),
-    },
-    {
-      id: 'a0000000-0000-0000-0000-000000000002',
-      pipeline: 'face_swap',
-      status: 'running',
-      queuePosition: null,
-      resultKey: null,
-      reasonCode: null,
-      creditCost: 100,
-      createdAt: new Date(now.getTime() - 60000).toISOString(),
-      updatedAt: now.toISOString(),
-    },
-    {
-      id: 'a0000000-0000-0000-0000-000000000003',
-      pipeline: 'face_swap',
-      status: 'succeeded',
-      queuePosition: null,
-      resultKey: 'out/00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-000000000003',
-      reasonCode: null,
-      creditCost: 100,
-      createdAt: tenDaysAgo.toISOString(),
-      updatedAt: tenDaysAgo.toISOString(),
-    },
-    {
-      id: 'a0000000-0000-0000-0000-000000000004',
-      pipeline: 'face_swap',
-      status: 'succeeded',
-      queuePosition: null,
-      resultKey: 'out/00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-000000000004',
-      reasonCode: null,
-      creditCost: 100,
-      createdAt: thirtyFiveDaysAgo.toISOString(),
-      updatedAt: thirtyFiveDaysAgo.toISOString(),
-    },
-    {
-      id: 'a0000000-0000-0000-0000-000000000005',
-      pipeline: 'face_swap',
-      status: 'failed',
-      queuePosition: null,
-      resultKey: null,
-      reasonCode: 'NO_FACE',
-      creditCost: 100,
-      createdAt: new Date(now.getTime() - 120000).toISOString(),
-      updatedAt: new Date(now.getTime() - 100000).toISOString(),
-    },
-  ];
-
-  return {
-    items: mockTasks,
-    pageSize: PAGE_SIZE,
-    hasMore: false,
-    nextCursor: null,
-  };
-}
-
 const tasksAsync = useAsyncData<TaskListResponse>(
   'motion-ai-tasks-list',
-  async () => {
-    if (isMockMode.value) {
-      return getMockTaskList();
-    }
-    return client.listTasks({ pageSize: PAGE_SIZE });
-  },
+  () => client.listTasks({ pageSize: PAGE_SIZE }),
 );
 
 const items = ref<Task[]>([]);
@@ -150,7 +64,6 @@ watch(accessToken, (newToken, oldToken) => {
 });
 
 const isUnauthenticated = computed<boolean>(() => {
-  if (isMockMode.value) return false;
   if (isUnauthorizedError(tasksAsync.error.value)) {
     return true;
   }
@@ -201,25 +114,10 @@ async function handleCancelTask(taskId: string): Promise<void> {
   actionErrorVi.value = null;
 
   try {
-    if (isMockMode.value) {
-      // Mock cancel
-      const idx = items.value.findIndex((t) => t.id === taskId);
-      const current = items.value[idx];
-      if (current) {
-        items.value[idx] = {
-          ...current,
-          status: 'cancelled',
-          reasonCode: 'USER_CANCEL',
-          queuePosition: null,
-          updatedAt: new Date().toISOString(),
-        };
-      }
-    } else {
-      const updated = await client.cancelTask(taskId);
-      const idx = items.value.findIndex((t) => t.id === taskId);
-      if (idx !== -1) {
-        items.value[idx] = updated;
-      }
+    const updated = await client.cancelTask(taskId);
+    const idx = items.value.findIndex((t) => t.id === taskId);
+    if (idx !== -1) {
+      items.value[idx] = updated;
     }
     actionMessageVi.value = 'Đã hủy tác vụ thành công. Credit đã được hoàn lại ví.';
     // Đồng bộ lại số dư credit trên Header

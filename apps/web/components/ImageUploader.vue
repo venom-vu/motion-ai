@@ -24,8 +24,7 @@ const props = withDefaults(
     idPrefix?: string;
     disabled?: boolean;
     showTosConsent?: boolean;
-    mockMode?: boolean;
-    initialPreviewUrl?: string | null;
+      initialPreviewUrl?: string | null;
   }>(),
   {
     modelValue: null,
@@ -36,8 +35,7 @@ const props = withDefaults(
     idPrefix: 'image-uploader',
     disabled: false,
     showTosConsent: true,
-    mockMode: false,
-    initialPreviewUrl: null,
+      initialPreviewUrl: null,
   },
 );
 
@@ -71,7 +69,6 @@ const uploadProgress = ref<number>(0);
 const errorMessageVi = ref<string | null>(null);
 
 let activeAbortController: AbortController | null = null;
-let mockTimer: ReturnType<typeof setInterval> | null = null;
 const isDragging = ref(false);
 
 // Quản lý ô tích cam kết ToS theo FR19
@@ -129,10 +126,6 @@ function cancelOngoingUpload(): void {
   if (activeAbortController) {
     activeAbortController.abort();
     activeAbortController = null;
-  }
-  if (mockTimer) {
-    clearInterval(mockTimer);
-    mockTimer = null;
   }
   isDragging.value = false;
 }
@@ -192,12 +185,6 @@ async function startUpload(file: File, meta: ImageMeta): Promise<void> {
   activeAbortController = new AbortController();
   const signal = activeAbortController.signal;
 
-  // Xử lý chế độ mock
-  if (props.mockMode) {
-    await simulateMockUpload(file, meta, signal);
-    return;
-  }
-
   try {
     // Bước 1: Khai báo file và lấy URL presigned
     const createRes = await client.createUpload(
@@ -253,70 +240,6 @@ async function startUpload(file: File, meta: ImageMeta): Promise<void> {
   } finally {
     activeAbortController = null;
   }
-}
-
-function simulateMockUpload(
-  file: File,
-  meta: ImageMeta,
-  signal: AbortSignal,
-): Promise<void> {
-  return new Promise((resolve) => {
-    let progress = 0;
-
-    const cleanup = () => {
-      if (mockTimer) {
-        clearInterval(mockTimer);
-        mockTimer = null;
-      }
-      signal.removeEventListener('abort', onAbort);
-    };
-
-    const onAbort = () => {
-      cleanup();
-      status.value = 'idle';
-      resolve();
-    };
-
-    if (signal.aborted) {
-      onAbort();
-      return;
-    }
-
-    signal.addEventListener('abort', onAbort, { once: true });
-
-    const interval = setInterval(() => {
-      if (signal.aborted) {
-        onAbort();
-        return;
-      }
-      progress += 25;
-      uploadProgress.value = Math.min(100, progress);
-      if (progress >= 100) {
-        cleanup();
-        const uuid =
-          typeof crypto !== 'undefined' &&
-          typeof crypto.randomUUID === 'function'
-            ? crypto.randomUUID()
-            : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-        const mockKey = `in/00000000-0000-4000-8000-000000000001/${uuid}`;
-        confirmedKey.value = mockKey;
-        status.value = 'ready';
-        const mockResponse: UploadConfirmResponse = {
-          key: mockKey,
-          image: meta,
-        };
-        emit('update:modelValue', mockKey);
-        emit('success', mockResponse, file);
-        emit('change', {
-          key: mockKey,
-          meta,
-          consent: localConsent.value,
-        });
-        resolve();
-      }
-    }, 80);
-    mockTimer = interval;
-  });
 }
 
 function handleCancel(): void {

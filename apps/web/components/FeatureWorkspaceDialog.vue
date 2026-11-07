@@ -19,12 +19,10 @@ const props = withDefaults(
     feature: AiFeatureTool | null;
     userTier?: AccountTier;
     userBalance?: number | null;
-    mockMode?: boolean;
   }>(),
   {
     userTier: 'FREE',
     userBalance: null,
-    mockMode: false,
   },
 );
 
@@ -141,27 +139,6 @@ async function handleSubmit(): Promise<void> {
     isSubmitting.value = true;
     submitErrorVi.value = null;
     try {
-      if (props.mockMode) {
-        const mockTask: Task = {
-          id: '70000000-0000-4000-8000-000000000001',
-          pipeline: 'face_swap',
-          status: 'queued',
-          queuePosition: 2,
-          creditCost: estimatedCredits.value || 100,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        activeTask.value = mockTask;
-        emit('submit', {
-          featureId: props.feature.id,
-          seconds: selectedSeconds.value,
-          estimatedCredits: estimatedCredits.value,
-          sourceKey: sourceKey.value,
-          targetKey: targetKey.value,
-        });
-        return;
-      }
-
       const task = await client.createFaceSwapTask({
         sourceKey: sourceKey.value!,
         targetKey: targetKey.value!,
@@ -281,7 +258,6 @@ onBeforeUnmount(() => {
         <TaskProgressCard
           :task="activeTask"
           pipeline-label-vi="Hoán đổi khuôn mặt"
-          :mock-mode="mockMode"
           @update:task="activeTask = $event"
           @retry="activeTask = null"
           @completed="void refreshAll()"
@@ -317,7 +293,6 @@ onBeforeUnmount(() => {
                 label-vi="Chọn ảnh mặt nguồn"
                 description-vi="Ảnh chân dung rõ mặt, JPG/PNG/WebP ≤ 10 MB"
                 :show-tos-consent="false"
-                :mock-mode="mockMode"
               />
             </div>
 
@@ -339,7 +314,6 @@ onBeforeUnmount(() => {
                 label-vi="Chọn ảnh đích"
                 description-vi="Ảnh có người rõ dáng, JPG/PNG/WebP ≤ 10 MB"
                 :show-tos-consent="false"
-                :mock-mode="mockMode"
               />
             </div>
 
@@ -397,7 +371,6 @@ onBeforeUnmount(() => {
                   : 'Tải ảnh lên'
               "
               :description-vi="feature.inputRequirementVi"
-              :mock-mode="mockMode"
             />
           </div>
 

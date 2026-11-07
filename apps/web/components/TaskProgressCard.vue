@@ -13,14 +13,12 @@ const props = withDefaults(
     polling?: boolean;
     pollIntervalMs?: number;
     pipelineLabelVi?: string;
-    mockMode?: boolean;
-  }>(),
+    }>(),
   {
     polling: true,
     pollIntervalMs: 2500,
     pipelineLabelVi: 'Hoán đổi khuôn mặt',
-    mockMode: false,
-  },
+    },
 );
 
 const emit = defineEmits<{
@@ -40,7 +38,6 @@ const actionErrorVi = ref<string | null>(null);
 const pollCount = ref<number>(0);
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
-let mockTimer: ReturnType<typeof setTimeout> | null = null;
 
 watch(
   [() => props.task, () => props.polling],
@@ -98,10 +95,6 @@ function stopTimers(): void {
     clearInterval(pollTimer);
     pollTimer = null;
   }
-  if (mockTimer) {
-    clearTimeout(mockTimer);
-    mockTimer = null;
-  }
   pollCount.value = 0;
 }
 
@@ -137,61 +130,9 @@ async function fetchLatestStatus(): Promise<void> {
   }
 }
 
-function startMockProgress(): void {
-  stopTimers();
-  if (!localTask.value || isTerminal.value) return;
-
-  // Mô phỏng tiến trình hàng đợi -> đang chạy -> hoàn tất
-  if (localTask.value.status === 'queued') {
-    mockTimer = setTimeout(() => {
-      if (!localTask.value || localTask.value.status !== 'queued') return;
-      const currentPos = localTask.value.queuePosition ?? 2;
-      if (currentPos > 1) {
-        const next: Task = {
-          ...localTask.value,
-          queuePosition: currentPos - 1,
-          updatedAt: new Date().toISOString(),
-        };
-        localTask.value = next;
-        emit('update:task', next);
-        startMockProgress();
-      } else {
-        const runningTask: Task = {
-          ...localTask.value,
-          status: 'running',
-          queuePosition: null,
-          updatedAt: new Date().toISOString(),
-        };
-        localTask.value = runningTask;
-        emit('update:task', runningTask);
-        startMockProgress();
-      }
-    }, 1200);
-  } else if (localTask.value.status === 'running') {
-    mockTimer = setTimeout(() => {
-      if (!localTask.value || localTask.value.status !== 'running') return;
-      const succeededTask: Task = {
-        ...localTask.value,
-        status: 'succeeded',
-        resultKey: `out/00000000-0000-4000-8000-000000000001/${localTask.value.id}`,
-        updatedAt: new Date().toISOString(),
-      };
-      localTask.value = succeededTask;
-      emit('update:task', succeededTask);
-      emit('completed', succeededTask);
-      emit('settled', succeededTask);
-    }, 1500);
-  }
-}
-
 function checkPollingNeed(): void {
   stopTimers();
   if (!props.polling || !localTask.value || isTerminal.value) {
-    return;
-  }
-
-  if (props.mockMode) {
-    startMockProgress();
     return;
   }
 
@@ -217,22 +158,6 @@ async function handleCancel(): Promise<void> {
   actionErrorVi.value = null;
 
   try {
-    if (props.mockMode) {
-      stopTimers();
-      const cancelledTask: Task = {
-        ...localTask.value,
-        status: 'cancelled',
-        queuePosition: null,
-        reasonCode: 'USER_CANCEL',
-        updatedAt: new Date().toISOString(),
-      };
-      localTask.value = cancelledTask;
-      emit('update:task', cancelledTask);
-      emit('cancel', cancelledTask.id);
-      emit('settled', cancelledTask);
-      return;
-    }
-
     const cancelled = await client.cancelTask(localTask.value.id);
     stopTimers();
     localTask.value = cancelled;
