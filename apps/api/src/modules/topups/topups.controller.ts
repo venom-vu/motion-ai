@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
 import {
   ApiErrorCode,
   TopupCreateRequestSchema,
@@ -45,6 +45,20 @@ export class TopupsController {
       });
     }
     return this.topups.list(user.sub, parsed.data);
+  }
+
+  @Post(':id/confirm-transfer')
+  @HttpCode(200)
+  @UseGuards(TopupThrottlerGuard)
+  async confirmTransfer(@CurrentUser() user: JwtUserPayload, @Param('id') id: string): Promise<Topup> {
+    const p = TopupIdParamsSchema.safeParse({ id });
+    if (!p.success) {
+      throw new NotFoundException({
+        code: ApiErrorCode.NOT_FOUND,
+        message: getApiErrorMessageVi(ApiErrorCode.NOT_FOUND),
+      });
+    }
+    return this.topups.confirmTransfer(user.sub, p.data.id);
   }
 
   @Get(':id')

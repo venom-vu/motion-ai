@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   HttpException,
   HttpStatus,
@@ -24,6 +25,7 @@ import {
 import { PrismaService } from '../../infra/prisma.service.js';
 import { AccountLockedException } from '../auth/guards/account-locked.guard.js';
 import { PRICING_CONFIG } from '../wallet/tier.js';
+import { computeApproveBy } from './approve-by.js';
 import { buildVietQrPayload } from './vietqr.js';
 
 export const QR_TTL_MS = 15 * 60 * 1000;
@@ -172,6 +174,42 @@ export class TopupsService {
     if (!row) throw this.apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
     if (row.userId !== userId) throw this.apiError(ForbiddenException, ApiErrorCode.FORBIDDEN);
     return this.toDto(row);
+  }
+
+  /** awaiting_transfer → pending (CAS); idempotent nếu đã pending. */
+  async confirmTransfer(userId: string, id: string): Promise<Topup> {
+    const found = await this.prisma.topup.findUnique({ where: { id } });
+    if (!found) throw this.apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
+    if (found.userId !== userId) throw this.apiError(ForbiddenException, ApiErrorCode.FORBIDDEN);
+
+    const approveBy = computeApproveBy(new Date());
+    const won = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      UPDATE topups SET status = 'pending', approve_by = ${approveBy}, updated_at = now()
+      WHERE id = ${id}::uuid AND status = 'awaiting_transfer' AND qr_expires_at > now()
+      RETURNING id`;
+    if (won.length === 0) {
+      const cur = await this.prisma.topup.findUnique({ where: { id } });
+      if (!cur) throw this.apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
+      if (cur.status === 'pending') return this.toDto(cur);
+      if (cur.status === 'awaiting_transfer') {
+        // Quá hạn QR: ghi expired (CAS) rồi mới báo lỗi.
+        await this.prisma.$executeRaw`
+          UPDATE topups SET status = 'expired', updated_at = now()
+          WHERE id = ${id}::uuid AND status = 'awaiting_transfer' AND qr_expires_at <= now()`;
+        throw this.apiError(ConflictException, ApiErrorCode.TOPUP_QR_EXPIRED);
+      }
+      throw this.apiError(ConflictException, ApiErrorCode.TOPUP_STATE_INVALID);
+    }
+    const row = await this.prisma.topup.findUnique({ where: { id } });
+    if (!row) throw this.apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
+    return this.toDto(row);
+  }
+
+  /** Bộ quét: đổi mọi đơn awaiting_transfer quá hạn QR sang expired bằng một UPDATE có điều kiện. */
+  async expireOverdue(): Promise<number> {
+    return this.prisma.$executeRaw`
+      UPDATE topups SET status = 'expired', updated_at = now()
+      WHERE status = 'awaiting_transfer' AND qr_expires_at <= now()`;
   }
 
   async list(userId: string, query: TopupListQuery): Promise<TopupListResponse> {

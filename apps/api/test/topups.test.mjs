@@ -12,7 +12,7 @@ import { Redis } from 'ioredis';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../dist/generated/prisma/client.js';
 import { bootstrapApi } from '../dist/main.js';
-import { buildVietQrPayload, crc16, generateTopupCode } from '../dist/modules/topups/index.js';
+import { TopupSweeperService, buildVietQrPayload, computeApproveBy, crc16, generateTopupCode } from '../dist/modules/topups/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const apiRoot = path.resolve(__dirname, '..');
@@ -364,5 +364,203 @@ describe('Story 3.2: rate limit POST /topups', () => {
       await pool.end();
       await app.close();
     }
+  });
+});
+
+describe('Story 3.3: [BE] Xác nhận chuyển khoản, hạn QR và hạn duyệt', () => {
+  let app, baseUrl, pool, jwt, sweeper;
+  const runId = crypto.randomBytes(4).toString('hex');
+  const users = [];
+  let seq = 0;
+
+  async function newUser() {
+    const n = users.length;
+    const r = await pool.query(
+      `INSERT INTO users (id,google_id,email,tos_version,updated_at) VALUES (gen_random_uuid(),$1,$2,'tos-v7',now()) RETURNING id,email`,
+      [`tc-${runId}-${n}`, `tc-${runId}-${n}@motionai.vn`],
+    );
+    users.push(r.rows[0].id);
+    return { id: r.rows[0].id, token: jwt.sign({ sub: r.rows[0].id, email: r.rows[0].email, role: 'user' }) };
+  }
+  async function mkTopup(user, status, qrOffsetSec) {
+    const r = await pool.query(
+      `INSERT INTO topups (id,user_id,code,pack,amount_vnd,status,qr_expires_at,tos_version,updated_at)
+       VALUES (gen_random_uuid(),$1,$2,'pro',99000,$3, now() + ($4 || ' seconds')::interval,'t',now()) RETURNING id`,
+      [user.id, `C${runId}${seq++}`.slice(0, 12), status, String(qrOffsetSec)],
+    );
+    return r.rows[0].id;
+  }
+  const state = async (id) => (await pool.query('SELECT status, approve_by FROM topups WHERE id=$1', [id])).rows[0];
+  const confirm = (user, id) =>
+    fetch(`${baseUrl}/topups/${id}/confirm-transfer`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${user.token}`, 'Content-Type': 'application/json' },
+    });
+
+  before(async () => {
+    process.env.DATABASE_URL = DB_URL;
+    process.env.REDIS_URL = REDIS_URL;
+    process.env.PORT = '0';
+    process.env.JWT_SECRET = 'super-secret-test-jwt-key-with-at-least-32-chars-ok';
+    process.env.FRONTEND_URL = 'http://localhost:3000';
+    process.env.TOPUP_BANK_BIN = '970422';
+    process.env.TOPUP_BANK_ACCOUNT_NO = '0123456789';
+    process.env.TOPUP_BANK_ACCOUNT_NAME = 'CONG TY MOTION AI';
+    process.env.TOPUP_THROTTLE_LIMIT = '1000';
+    await ensureInfra();
+    const rd0 = new Redis(REDIS_URL);
+    const stale = await rd0.keys('throttle:*');
+    if (stale.length) await rd0.del(...stale);
+    rd0.disconnect();
+    pool = new pg.Pool({ connectionString: DB_URL });
+    app = await bootstrapApi();
+    baseUrl = `http://127.0.0.1:${app.getHttpServer().address().port}`;
+    jwt = app.get(JwtService);
+    sweeper = app.get(TopupSweeperService);
+  });
+
+  after(async () => {
+    if (pool) {
+      await pool.query('DELETE FROM topups WHERE user_id = ANY($1::uuid[])', [users]);
+      await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [users]);
+    }
+    await pool?.end().catch(() => {});
+    await app?.close();
+  });
+
+  it('computeApproveBy: biên khung giờ UTC+7', () => {
+    const vn = (iso) => new Date(`${iso}+07:00`);
+    const cases = [
+      ['2026-11-10T10:00:00', '2026-11-10T10:15:00'],
+      ['2026-11-10T23:30:00', '2026-11-11T08:15:00'],
+      ['2026-11-10T07:00:00', '2026-11-10T08:15:00'],
+      ['2026-11-10T22:50:00', '2026-11-10T23:05:00'],
+      ['2026-11-10T23:00:00', '2026-11-11T08:15:00'],
+      ['2026-11-10T08:00:00', '2026-11-10T08:15:00'],
+      ['2026-12-31T23:30:00', '2027-01-01T08:15:00'],
+    ];
+    for (const [input, expected] of cases) {
+      assert.equal(computeApproveBy(vn(input)).toISOString(), vn(expected).toISOString(), input);
+    }
+  });
+
+  it('xác nhận hợp lệ: pending + approveBy; gọi lặp idempotent', async () => {
+    const u = await newUser();
+    const id = await mkTopup(u, 'awaiting_transfer', 600);
+    const r1 = await confirm(u, id);
+    assert.equal(r1.status, 200);
+    const b1 = TopupSchema.parse(await r1.json());
+    assert.equal(b1.status, 'pending');
+    assert.ok(b1.approveBy);
+    const r2 = await confirm(u, id);
+    assert.equal(r2.status, 200);
+    const b2 = await r2.json();
+    assert.equal(b2.status, 'pending');
+    assert.equal(b2.approveBy, b1.approveBy);
+  });
+
+  it('id sai định dạng/không có: NOT_FOUND; của người khác: FORBIDDEN', async () => {
+    const u = await newUser();
+    const other = await newUser();
+    const id = await mkTopup(other, 'awaiting_transfer', 600);
+    let r = await confirm(u, 'abc');
+    assert.equal(r.status, 404);
+    r = await confirm(u, crypto.randomUUID());
+    assert.equal(r.status, 404);
+    r = await confirm(u, id);
+    assert.equal(r.status, 403);
+    assert.equal((await state(id)).status, 'awaiting_transfer');
+  });
+
+  it('QR hết hạn: đơn thành expired và trả TOPUP_QR_EXPIRED 409', async () => {
+    const u = await newUser();
+    const id = await mkTopup(u, 'awaiting_transfer', -5);
+    const r = await confirm(u, id);
+    assert.equal(r.status, 409);
+    assert.equal((await r.json()).code, ApiErrorCode.TOPUP_QR_EXPIRED);
+    assert.equal((await state(id)).status, 'expired');
+  });
+
+  it('trạng thái khác: TOPUP_STATE_INVALID, không đổi', async () => {
+    const u = await newUser();
+    for (const st of ['approved', 'rejected', 'needs_review', 'expired']) {
+      const id = await mkTopup(u, st, 600);
+      const r = await confirm(u, id);
+      assert.equal(r.status, 409, st);
+      assert.equal((await r.json()).code, ApiErrorCode.TOPUP_STATE_INVALID, st);
+      assert.equal((await state(id)).status, st);
+    }
+  });
+
+  it('bộ quét: expired cho awaiting quá hạn, giữ nguyên pending quá hạn', async () => {
+    const u = await newUser();
+    const a = await mkTopup(u, 'awaiting_transfer', -5);
+    const fresh = await mkTopup(u, 'awaiting_transfer', 600);
+    const p = await mkTopup(u, 'pending', -3600);
+    await pool.query(`UPDATE topups SET approve_by = now() - interval '1 hour' WHERE id=$1`, [p]);
+    await sweeper.sweepExpired();
+    assert.equal((await state(a)).status, 'expired');
+    assert.equal((await state(fresh)).status, 'awaiting_transfer');
+    assert.equal((await state(p)).status, 'pending');
+  });
+
+  it('đua xác nhận và bộ quét: mỗi đơn đúng một trạng thái cuối', async () => {
+    const u = await newUser();
+    const ids = [];
+    for (let i = 0; i < 20; i++) ids.push(await mkTopup(u, 'awaiting_transfer', 1));
+    await new Promise((r) => setTimeout(r, 900));
+    const [codes] = await Promise.all([
+      Promise.all(ids.map((id) => confirm(u, id).then((r) => r.status))),
+      sweeper.sweepExpired(),
+    ]);
+    // Bên thắng 200, bên thua 409 (QR hết hạn); không bao giờ 5xx.
+    for (const c of codes) assert.ok(c === 200 || c === 409, String(c));
+    for (let i = 0; i < ids.length; i++) {
+      const s = await state(ids[i]);
+      assert.ok(['pending', 'expired'].includes(s.status), s.status);
+      if (s.status === 'pending') {
+        assert.ok(s.approve_by);
+        assert.equal(codes[i], 200);
+      } else {
+        assert.equal(s.approve_by, null);
+        assert.equal(codes[i], 409);
+      }
+    }
+  });
+
+  it('scheduledSweep chỉ quét khi MOTION_PROCESS_ROLE=worker', async () => {
+    const u = await newUser();
+    const id = await mkTopup(u, 'awaiting_transfer', -5);
+    const prev = process.env.MOTION_PROCESS_ROLE;
+    try {
+      delete process.env.MOTION_PROCESS_ROLE;
+      await sweeper.scheduledSweep();
+      assert.equal((await state(id)).status, 'awaiting_transfer');
+      process.env.MOTION_PROCESS_ROLE = 'api';
+      await sweeper.scheduledSweep();
+      assert.equal((await state(id)).status, 'awaiting_transfer');
+      process.env.MOTION_PROCESS_ROLE = 'worker';
+      await sweeper.scheduledSweep();
+      assert.equal((await state(id)).status, 'expired');
+    } finally {
+      if (prev === undefined) delete process.env.MOTION_PROCESS_ROLE;
+      else process.env.MOTION_PROCESS_ROLE = prev;
+    }
+  });
+
+  it('giải phóng chỗ: đủ 3 đơn mở, 1 quá hạn, quét xong thì tạo được đơn mới', async () => {
+    const u = await newUser();
+    await mkTopup(u, 'awaiting_transfer', -5);
+    await mkTopup(u, 'pending', 600);
+    await mkTopup(u, 'needs_review', 600);
+    const create = () =>
+      fetch(`${baseUrl}/topups`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${u.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pack: 'pro', consent: true }),
+      });
+    assert.equal((await create()).status, 429);
+    await sweeper.sweepExpired();
+    assert.equal((await create()).status, 201);
   });
 });
