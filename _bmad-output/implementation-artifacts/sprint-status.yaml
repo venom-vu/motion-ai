@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-01-2026 14:32
-last_updated: 11-07-2026 00:30
+last_updated: 11-07-2026 01:00
 project: motion-ai
 project_key: NOKEY
 tracking_system: file-system
@@ -66,7 +66,7 @@ development_status:
   2-12-fe-trang-kết-quả-và-lịch-sử-task: done
   2-13-fe-trang-chia-sẻ-công-khai-có-open-graph: done
   2-14-integration-nối-fe-với-be-và-smoke-test-face-swap: done
-  epic-2-retrospective: optional
+  epic-2-retrospective: done
 
   epic-3: backlog
   3-1-contract-hợp-đồng-cho-nạp-tiền-và-duyệt-đơn: backlog
@@ -146,3 +146,49 @@ action_items:
     owner: "Dev"
     status: open
     ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-11-04.md"
+  - id: "epic-2-retro-item-6-thu-hồi-khóa-runninghub-đã-lộ-cấp-khóa-m"
+    epic: 2
+    action: "Thu hồi khóa RunningHub đã lộ, cấp khóa mới, chỉ để trong apps/api/.env"
+    owner: "Chủ repo"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-11-07.md"
+  - id: "epic-2-retro-item-7-chạy-một-lần-face-swap-thật-với-runningh"
+    epic: 2
+    action: "Chạy một lần Face Swap thật với RunningHub; xác nhận nodeId 137/10 rồi
+      bỏ [ASSUMPTION] ở pipeline-config.ts"
+    owner: "Dev BE"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-11-07.md"
+  - id: "epic-2-retro-item-8-xóa-nhánh-mock-mockmode-và-url-giả-khỏi"
+    epic: 2
+    action: "Xóa nhánh ?mock=/mockMode và URL giả khỏi FE, gom MOCK_* vào test"
+    owner: "Dev FE"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-11-07.md"
+  - id: "epic-2-retro-item-9-xem-kết-quả-job-smoke-ci-cho-commit-12c1"
+    epic: 2
+    action: "Xem kết quả job smoke CI cho commit 12c10b7 và xử lý test bị skip trong
+      smoke-face-swap.test.mjs"
+    owner: "Dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-11-07.md"
+  - id: "epic-2-retro-item-10-fail-fast-khi-pipeline-chưa-cấu-hình-thu"
+    epic: 2
+    action: "Fail-fast khi pipeline chưa cấu hình; thu hẹp mapRunningHubFailure và
+      điền CONTENT_BLOCKED bằng chuỗi lỗi thật"
+    owner: "Dev BE"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-11-07.md"
+  - id: "epic-2-retro-item-11-cô-lập-redis-db-của-test-khỏi-môi-trường"
+    epic: 2
+    action: "Cô lập Redis/DB của test khỏi môi trường dev để worker nền không làm
+      test fail giả"
+    owner: "Dev BE"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-11-07.md"
+  - id: "epic-2-retro-item-12-tách-apps-web-test-smoke-test-mjs-3499-d"
+    epic: 2
+    action: "Tách apps/web/test/smoke.test.mjs (3499 dòng) theo story"
+    owner: "Dev FE"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-11-07.md"
