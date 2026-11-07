@@ -548,7 +548,20 @@ describe('Story 3.3: [BE] Xác nhận chuyển khoản, hạn QR và hạn duy�
     }
   });
 
-  it('giải phóng chỗ: đủ 3 đơn mở, 1 quá hạn, quét xong thì tạo được đơn mới', async () => {
+  it('create tự loại đơn quá hạn QR khỏi giới hạn, không cần bộ quét', async () => {
+    const u = await newUser();
+    for (let i = 0; i < 3; i++) await mkTopup(u, 'awaiting_transfer', -5);
+    const r = await fetch(`${baseUrl}/topups`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${u.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pack: 'pro', consent: true }),
+    });
+    assert.equal(r.status, 201);
+    const n = await pool.query(`SELECT count(*)::int AS n FROM topups WHERE user_id=$1 AND status='expired'`, [u.id]);
+    assert.equal(n.rows[0].n, 3);
+  });
+
+  it('giải phóng chỗ: đơn quá hạn không chiếm chỗ, đủ 3 đơn mở thật vẫn bị chặn', async () => {
     const u = await newUser();
     await mkTopup(u, 'awaiting_transfer', -5);
     await mkTopup(u, 'pending', 600);
@@ -559,8 +572,12 @@ describe('Story 3.3: [BE] Xác nhận chuyển khoản, hạn QR và hạn duy�
         headers: { Authorization: `Bearer ${u.token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ pack: 'pro', consent: true }),
       });
-    assert.equal((await create()).status, 429);
-    await sweeper.sweepExpired();
+    // Đơn quá hạn QR bị loại ngay khi tạo, nên còn 2 đơn mở: tạo được đơn thứ 3.
     assert.equal((await create()).status, 201);
+    // Giờ đủ 3 đơn mở thật (pending, needs_review, awaiting_transfer mới): bị chặn.
+    assert.equal((await create()).status, 429);
+    // Bộ quét vẫn an toàn khi chạy sau đó.
+    await sweeper.sweepExpired();
+    assert.equal((await create()).status, 429);
   });
 });

@@ -141,6 +141,10 @@ export class TopupsService {
             SELECT locked_at FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
           if (users.length !== 1) throw this.apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
           if (users[0].locked_at) throw new AccountLockedException();
+          // Đơn quá hạn QR không được chiếm chỗ dù bộ quét ở worker chưa chạy tới.
+          await tx.$executeRaw`
+            UPDATE topups SET status = 'expired', updated_at = now()
+            WHERE user_id = ${userId}::uuid AND status = 'awaiting_transfer' AND qr_expires_at <= now()`;
           const open = await tx.topup.count({
             where: { userId, status: { in: [...OPEN_TOPUP_STATUSES] } },
           });
@@ -193,9 +197,17 @@ export class TopupsService {
       if (cur.status === 'pending') return this.toDto(cur);
       if (cur.status === 'awaiting_transfer') {
         // Quá hạn QR: ghi expired (CAS) rồi mới báo lỗi.
-        await this.prisma.$executeRaw`
+        const expired = await this.prisma.$executeRaw`
           UPDATE topups SET status = 'expired', updated_at = now()
           WHERE id = ${id}::uuid AND status = 'awaiting_transfer' AND qr_expires_at <= now()`;
+        if (expired === 0) {
+          // Có bên khác đổi trạng thái giữa hai lần đọc: đọc lại để báo đúng kết quả cuối.
+          const latest = await this.prisma.topup.findUnique({ where: { id } });
+          if (latest?.status === 'pending') return this.toDto(latest);
+          if (latest?.status !== 'expired') {
+            throw this.apiError(ConflictException, ApiErrorCode.TOPUP_STATE_INVALID);
+          }
+        }
         throw this.apiError(ConflictException, ApiErrorCode.TOPUP_QR_EXPIRED);
       }
       throw this.apiError(ConflictException, ApiErrorCode.TOPUP_STATE_INVALID);
