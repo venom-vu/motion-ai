@@ -778,6 +778,33 @@ describe('Story 3.4: [BE] Thông báo Discord cho Admin', () => {
     assert.equal(forId(id).filter((x) => x.body.includes('quá hạn')).length, 2);
   });
 
+  it('scheduledSweep chạy quét thông báo chỉ khi role=worker, kể cả khi sweepExpired ném lỗi', async () => {
+    mode = 'ok';
+    const u = await newUser();
+    const id = await mkTopup(u, 'pending');
+    await pool.query(`UPDATE topups SET approve_by = now() - interval '1 minute' WHERE id=$1`, [id]);
+    const prev = process.env.MOTION_PROCESS_ROLE;
+    const origSweepExpired = sweeper.sweepExpired;
+    try {
+      process.env.MOTION_PROCESS_ROLE = 'api';
+      await sweeper.scheduledSweep();
+      assert.equal(forId(id).length, 0);
+      process.env.MOTION_PROCESS_ROLE = 'worker';
+      sweeper.sweepExpired = async () => {
+        throw new Error('sweepExpired lỗi giả lập');
+      };
+      await sweeper.scheduledSweep();
+      // Đơn pending chưa thông báo + quá hạn duyệt: một tin chờ duyệt và một tin quá hạn.
+      assert.equal(forId(id).length, 2);
+      assert.ok((await row(id)).notified_at);
+      assert.ok((await row(id)).overdue_notified_at);
+    } finally {
+      sweeper.sweepExpired = origSweepExpired;
+      if (prev === undefined) delete process.env.MOTION_PROCESS_ROLE;
+      else process.env.MOTION_PROCESS_ROLE = prev;
+    }
+  });
+
   it('createNotifierPort: URL sai định dạng thì dùng adapter log', async () => {
     const prev = process.env.DISCORD_WEBHOOK_URL;
     process.env.DISCORD_WEBHOOK_URL = 'không phải url';

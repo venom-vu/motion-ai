@@ -123,3 +123,19 @@
   summary: Điều hướng mobile bottom nav tab "Lịch sử" (`AppBottomNav.vue`) trỏ về `/history` thay vì `/tasks`.
   evidence: Cần quyết định thiết kế UX/Product xem tab "Lịch sử" trên mobile nên mở `/tasks` (Lịch sử tác vụ kèm lối vào Biến động credit) hay giữ nguyên `/history` (sổ cái ví credit).
 
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-2-be-tao-don-nap-va-ma-vietqr.md`
+  summary: Đơn `awaiting_transfer` quá `qr_expires_at` vẫn tính vào giới hạn 3 đơn mở nên người dùng bỏ dở 3 đơn bị chặn `TOPUP_LIMIT`.
+  evidence: Chưa có chuyển `awaiting_transfer→expired` ở 3.2; Story 3.3 (bộ quét) phải xử lý, kiểm tra lại khi 3.3 xong.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-2-be-tao-don-nap-va-ma-vietqr.md`
+  summary: Phản hồi đơn dùng cấu hình tài khoản nhận hiện tại thay vì tài khoản lúc tạo đơn.
+  evidence: `toDto` đọc `TOPUP_BANK_*` mỗi lần; đổi tài khoản nhận thì đơn cũ hiện QR sang tài khoản mới. Cần quyết định có snapshot vào bảng `topups` hay không.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-6-fe-trang-nap-credit-va-theo-doi-don.md`
+  summary: Giao thức webhook Discord trong `DiscordNotifierAdapter` cho phép `http:` ngoài `https:`.
+  evidence: Discord webhooks chỉ hoạt động trên HTTPS; cần siết chặt kiểm tra URL chỉ chấp nhận `https:` ở Story 3.4.
+
+## Deferred from: code review of spec-3-6-fe-trang-nap-credit-va-theo-doi-don (2026-11-07)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-6-fe-trang-nap-credit-va-theo-doi-don.md`
+  summary: Polling đơn nạp dừng im lặng sau 5 lỗi liên tiếp hoặc 401/403/404; người dùng không thấy thông báo hay nút làm mới, trạng thái hiển thị bị cũ.
+  evidence: `useTopup.ts` `startPolling` gọi `stopPolling()` không đặt thông báo lỗi; cần quyết định thiết kế UX (banner "không cập nhật được" + nút làm mới).

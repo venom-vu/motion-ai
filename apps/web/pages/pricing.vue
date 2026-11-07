@@ -103,26 +103,23 @@ const {
           </div>
 
           <div class="mt-5 pt-2">
-            <button
-              type="button"
-              class="touch-target inline-flex min-h-[48px] min-w-[48px] w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition"
-              :class="
-                tierItem.packId
-                  ? 'bg-cyber-violet text-cyber-text hover:bg-cyber-violet/90'
-                  : 'border border-cyber-border bg-cyber-bg text-cyber-muted'
-              "
+            <NuxtLink
+              v-if="tierItem.packId"
+              :to="`/topup?pack=${tierItem.packId}`"
+              :data-testid="`topup-pack-button-${tierItem.packId}`"
+              class="touch-target inline-flex min-h-[48px] min-w-[48px] w-full items-center justify-center gap-2 rounded-xl bg-cyber-violet px-4 py-2.5 text-xs font-semibold text-cyber-text transition hover:bg-cyber-violet/90"
             >
-              <Icon
-                :name="tierItem.packId ? 'lucide:qr-code' : 'lucide:check'"
-                class="h-4 w-4"
-              />
-              <span>
-                {{
-                  tierItem.packId
-                    ? `Nạp gói ${tierItem.tier} qua VietQR`
-                    : 'Hạng mặc định khi đăng ký'
-                }}
-              </span>
+              <Icon name="lucide:qr-code" class="h-4 w-4" />
+              <span>Nạp gói {{ tierItem.tier }} qua VietQR</span>
+            </NuxtLink>
+            <button
+              v-else
+              type="button"
+              disabled
+              class="touch-target inline-flex min-h-[48px] min-w-[48px] w-full items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-bg px-4 py-2.5 text-xs font-semibold text-cyber-muted"
+            >
+              <Icon name="lucide:check" class="h-4 w-4" />
+              <span>Hạng mặc định khi đăng ký</span>
             </button>
           </div>
         </article>

@@ -96,8 +96,13 @@ export class TopupNotifierService {
       } catch (err) {
         this.logger.error(`Cảnh báo quá hạn đơn nạp ${r.id} lỗi: ${String(err)}`);
         // Hoàn tác phiên nhận để lần quét sau gửi lại; không để mất cảnh báo vì Discord lỗi tạm thời.
-        await this.prisma.$executeRaw`
-          UPDATE topups SET overdue_notified_at = NULL WHERE id = ${r.id}::uuid AND status = 'pending'`;
+        try {
+          await this.prisma.$executeRaw`
+            UPDATE topups SET overdue_notified_at = NULL WHERE id = ${r.id}::uuid AND status = 'pending'`;
+        } catch (revertErr) {
+          // Hoàn tác lỗi không được cắt ngang vòng lặp: các đơn còn lại vẫn phải được gửi.
+          this.logger.error(`Hoàn tác cảnh báo quá hạn đơn nạp ${r.id} lỗi: ${String(revertErr)}`);
+        }
       }
     }
   }

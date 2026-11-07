@@ -34,10 +34,16 @@ export class TopupSweeperService {
     if (this.notifying) return;
     this.notifying = true;
     try {
-      await this.notifier.retryPending();
-      await this.notifier.alertOverdue();
-    } catch (err) {
-      this.logger.error(`Bộ quét thông báo đơn nạp lỗi: ${String(err)}`);
+      try {
+        await this.notifier.retryPending();
+      } catch (err) {
+        this.logger.error(`Gửi lại thông báo đơn nạp lỗi: ${String(err)}`);
+      }
+      try {
+        await this.notifier.alertOverdue();
+      } catch (err) {
+        this.logger.error(`Cảnh báo quá hạn đơn nạp lỗi: ${String(err)}`);
+      }
     } finally {
       this.notifying = false;
     }

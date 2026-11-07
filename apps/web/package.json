@@ -16,9 +16,11 @@
     "@nuxt/icon": "2.6.2",
     "@nuxtjs/tailwindcss": "6.14.0",
     "nuxt": "4.6.3",
+    "qrcode": "1.5.4",
     "tailwindcss": "3.4.19"
   },
   "devDependencies": {
+    "@types/qrcode": "1.5.6",
     "@vue/compiler-sfc": "3.5.44",
     "@vue/server-renderer": "3.5.44",
     "eslint-plugin-vue": "10.12.0",

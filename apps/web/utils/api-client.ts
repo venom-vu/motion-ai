@@ -24,6 +24,13 @@ import {
   UploadConfirmResponseSchema,
   UploadCreateRequestSchema,
   UploadCreateResponseSchema,
+  TopupConfirmTransferResponseSchema,
+  TopupCreateRequestSchema,
+  TopupCreateResponseSchema,
+  TopupGetResponseSchema,
+  TopupIdParamsSchema,
+  TopupListQuerySchema,
+  TopupListResponseSchema,
   WalletLedgerQuerySchema,
   WalletLedgerResponseSchema,
   getApiErrorMessageVi,
@@ -47,6 +54,14 @@ import {
   type TaskResultResponse,
   type TaskShareResponse,
   type TaskShareRevokeResponse,
+  type Topup,
+  type TopupConfirmTransferResponse,
+  type TopupCreateRequest,
+  type TopupCreateResponse,
+  type TopupGetResponse,
+  type TopupListQuery,
+  type TopupListResponse,
+  type TopupStatus,
   type UploadConfirmRequest,
   type UploadConfirmResponse,
   type UploadCreateRequest,
@@ -71,6 +86,14 @@ export {
   type TaskResultResponse,
   type TaskShareResponse,
   type TaskShareRevokeResponse,
+  type Topup,
+  type TopupConfirmTransferResponse,
+  type TopupCreateRequest,
+  type TopupCreateResponse,
+  type TopupGetResponse,
+  type TopupListQuery,
+  type TopupListResponse,
+  type TopupStatus,
 };
 
 export interface MotionApiClientOptions {
@@ -606,6 +629,76 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
           signal: options?.signal,
         },
         (payload) => TaskShareRevokeResponseSchema.parse(payload),
+      );
+    },
+
+    async createTopup(
+      rawRequest: TopupCreateRequest,
+      options?: { signal?: AbortSignal },
+    ): Promise<TopupCreateResponse> {
+      const data = TopupCreateRequestSchema.parse(rawRequest);
+      return requestLive(
+        '/topups',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          signal: options?.signal,
+        },
+        (payload) => TopupCreateResponseSchema.parse(payload),
+      );
+    },
+
+    async confirmTopupTransfer(
+      id: string,
+      options?: { signal?: AbortSignal },
+    ): Promise<TopupConfirmTransferResponse> {
+      TopupIdParamsSchema.parse({ id });
+      return requestLive(
+        `/topups/${encodeURIComponent(id)}/confirm-transfer`,
+        {
+          method: 'POST',
+          signal: options?.signal,
+        },
+        (payload) => TopupConfirmTransferResponseSchema.parse(payload),
+      );
+    },
+
+    async getTopup(
+      id: string,
+      options?: { signal?: AbortSignal },
+    ): Promise<TopupGetResponse> {
+      TopupIdParamsSchema.parse({ id });
+      return requestLive(
+        `/topups/${encodeURIComponent(id)}`,
+        {
+          method: 'GET',
+          signal: options?.signal,
+        },
+        (payload) => TopupGetResponseSchema.parse(payload),
+      );
+    },
+
+    async listTopups(
+      rawQuery?: TopupListQuery,
+      options?: { signal?: AbortSignal },
+    ): Promise<TopupListResponse> {
+      const query = TopupListQuerySchema.parse(rawQuery ?? {});
+      const params = new URLSearchParams();
+      if (query.pageSize) {
+        params.set('pageSize', String(query.pageSize));
+      }
+      if (query.cursor) {
+        params.set('cursor', query.cursor);
+      }
+      const qs = params.toString();
+      return requestLive(
+        `/topups${qs ? `?${qs}` : ''}`,
+        {
+          method: 'GET',
+          signal: options?.signal,
+        },
+        (payload) => TopupListResponseSchema.parse(payload),
       );
     },
   };
