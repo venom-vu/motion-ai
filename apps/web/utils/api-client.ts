@@ -7,24 +7,71 @@ import {
   AuthGoogleResponseSchema,
   AuthLogoutResponseSchema,
   AuthRefreshResponseSchema,
+  FaceSwapCreateRequestSchema,
+  FaceSwapCreateResponseSchema,
   MeResponseSchema,
   PricingConfigResponseSchema,
+  TaskIdParamsSchema,
+  TaskGetResponseSchema,
+  TaskCancelResponseSchema,
+  TaskListQuerySchema,
+  TaskListResponseSchema,
+  TaskResultResponseSchema,
+  TaskShareResponseSchema,
+  TaskShareRevokeResponseSchema,
+  UploadConfirmParamsSchema,
+  UploadConfirmRequestSchema,
+  UploadConfirmResponseSchema,
+  UploadCreateRequestSchema,
+  UploadCreateResponseSchema,
   WalletLedgerQuerySchema,
   WalletLedgerResponseSchema,
   getApiErrorMessageVi,
+  getReasonCodeMessageVi,
   type AuthGoogleCallbackQuery,
   type AuthGoogleCallbackResponse,
   type AuthGoogleQuery,
   type AuthGoogleResponse,
   type AuthLogoutResponse,
   type AuthRefreshResponse,
+  type FaceSwapCreateRequest,
+  type FaceSwapCreateResponse,
   type MeResponse,
   type PricingConfigResponse,
+  type ReasonCode,
+  type Task,
+  type TaskCancelResponse,
+  type TaskGetResponse,
+  type TaskListQuery,
+  type TaskListResponse,
+  type TaskResultResponse,
+  type TaskShareResponse,
+  type TaskShareRevokeResponse,
+  type UploadConfirmRequest,
+  type UploadConfirmResponse,
+  type UploadCreateRequest,
+  type UploadCreateResponse,
   type WalletLedgerQuery,
   type WalletLedgerResponse,
 } from '@motion-ai/contracts';
 
-export { API_ERROR_MESSAGES_VI, ApiErrorCode, getApiErrorMessageVi };
+export {
+  API_ERROR_MESSAGES_VI,
+  ApiErrorCode,
+  getApiErrorMessageVi,
+  getReasonCodeMessageVi,
+  type FaceSwapCreateRequest,
+  type FaceSwapCreateResponse,
+  type ReasonCode,
+  type Task,
+  type TaskCancelResponse,
+  type TaskGetResponse,
+  type TaskListQuery,
+  type TaskListResponse,
+  type TaskResultResponse,
+  type TaskShareResponse,
+  type TaskShareRevokeResponse,
+};
 
 export interface MotionApiClientOptions {
   baseUrl?: string;
@@ -54,7 +101,9 @@ export class MotionApiClientError extends Error {
       typeof params.code === 'string' && params.code.trim().length > 0
         ? params.code.trim()
         : null;
-    const userMessageVi = getApiErrorMessageVi(normalizedCode);
+    const userMessageVi = normalizedCode
+      ? getApiErrorMessageVi(normalizedCode)
+      : (params.serverMessage ?? getApiErrorMessageVi(null));
     super(userMessageVi);
     this.name = 'MotionApiClientError';
     this.status = params.status;
@@ -96,6 +145,111 @@ export function resolveApiErrorMessageVi(errorOrCode: unknown): string {
   }
 
   return getApiErrorMessageVi(null);
+}
+
+export interface PresignedUploadOptions {
+  uploadUrl: string;
+  file: File | Blob;
+  headers?: Record<string, string>;
+  onProgress?: (progressPercent: number) => void;
+  signal?: AbortSignal;
+}
+
+/**
+ * Tải file trực tiếp lên presigned PUT URL với hỗ trợ tiến trình (onProgress) và hủy (AbortSignal).
+ */
+export async function uploadPresignedFile(
+  options: PresignedUploadOptions,
+): Promise<void> {
+  const { uploadUrl, file, headers = {}, onProgress, signal } = options;
+
+  if (signal?.aborted) {
+    throw new DOMException('Upload aborted', 'AbortError');
+  }
+
+  // Sử dụng XMLHttpRequest trong trình duyệt để đo chính xác tiến trình upload
+  if (typeof XMLHttpRequest !== 'undefined') {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', uploadUrl, true);
+
+      for (const [headerName, headerValue] of Object.entries(headers)) {
+        xhr.setRequestHeader(headerName, headerValue);
+      }
+
+      if (onProgress && xhr.upload) {
+        xhr.upload.onprogress = (event: ProgressEvent) => {
+          if (event.lengthComputable && event.total > 0) {
+            const percent = Math.min(
+              100,
+              Math.round((event.loaded / event.total) * 100),
+            );
+            onProgress(percent);
+          }
+        };
+      }
+
+      const onAbort = () => {
+        xhr.abort();
+        reject(new DOMException('Upload aborted', 'AbortError'));
+      };
+
+      if (signal) {
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+
+      xhr.onload = () => {
+        if (signal) {
+          signal.removeEventListener('abort', onAbort);
+        }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          onProgress?.(100);
+          resolve();
+        } else {
+          reject(
+            new MotionApiClientError({
+              status: xhr.status,
+              code: null,
+              serverMessage: `Tải tệp lên máy chủ thất bại (HTTP ${xhr.status}). Vui lòng thử lại sau.`,
+            }),
+          );
+        }
+      };
+
+      xhr.onerror = () => {
+        if (signal) {
+          signal.removeEventListener('abort', onAbort);
+        }
+        reject(
+          new MotionApiClientError({
+            status: 0,
+            code: null,
+            serverMessage:
+              'Lỗi kết nối mạng khi tải tệp lên. Vui lòng kiểm tra đường truyền và thử lại.',
+          }),
+        );
+      };
+
+      xhr.send(file);
+    });
+  }
+
+  // Fallback qua fetch trong môi trường không có XMLHttpRequest (SSR / test)
+  const response = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers,
+    body: file,
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new MotionApiClientError({
+      status: response.status,
+      code: null,
+      serverMessage: `Tải tệp lên máy chủ thất bại (HTTP ${response.status}). Vui lòng thử lại sau.`,
+    });
+  }
+  onProgress?.(100);
 }
 
 export function createMotionApiClient(options: MotionApiClientOptions = {}) {
@@ -204,7 +358,19 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
       });
     }
 
-    return parseResponse(payload);
+    const resolvedData =
+      payload &&
+      typeof payload === 'object' &&
+      'data' in payload &&
+      (payload as { data?: unknown }).data !== undefined
+        ? (payload as { data?: unknown }).data
+        : payload;
+
+    try {
+      return parseResponse(resolvedData);
+    } catch {
+      return parseResponse(payload);
+    }
   }
 
   return {
@@ -287,6 +453,159 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
       return requestLive('/auth/logout', { method: 'POST' }, (data) =>
         AuthLogoutResponseSchema.parse(data),
         { skipRefresh: true },
+      );
+    },
+
+    async createUpload(
+      rawRequest: UploadCreateRequest,
+      options?: { signal?: AbortSignal },
+    ): Promise<UploadCreateResponse> {
+      const data = UploadCreateRequestSchema.parse(rawRequest);
+      return requestLive(
+        '/uploads',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          signal: options?.signal,
+        },
+        (payload) => UploadCreateResponseSchema.parse(payload),
+      );
+    },
+
+    async confirmUpload(
+      key: string,
+      rawRequest?: UploadConfirmRequest,
+      options?: { signal?: AbortSignal },
+    ): Promise<UploadConfirmResponse> {
+      UploadConfirmParamsSchema.parse({ key });
+      const body = rawRequest
+        ? JSON.stringify(UploadConfirmRequestSchema.parse(rawRequest))
+        : undefined;
+      return requestLive(
+        `/uploads/${encodeURIComponent(key)}/confirm`,
+        {
+          method: 'POST',
+          headers: body ? { 'Content-Type': 'application/json' } : {},
+          body,
+          signal: options?.signal,
+        },
+        (payload) => UploadConfirmResponseSchema.parse(payload),
+      );
+    },
+
+    async createFaceSwapTask(
+      rawRequest: FaceSwapCreateRequest,
+      options?: { signal?: AbortSignal },
+    ): Promise<FaceSwapCreateResponse> {
+      const data = FaceSwapCreateRequestSchema.parse(rawRequest);
+      return requestLive(
+        '/tasks/face-swap',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          signal: options?.signal,
+        },
+        (payload) => FaceSwapCreateResponseSchema.parse(payload),
+      );
+    },
+
+    async getTask(
+      id: string,
+      options?: { signal?: AbortSignal },
+    ): Promise<TaskGetResponse> {
+      TaskIdParamsSchema.parse({ id });
+      return requestLive(
+        `/tasks/${encodeURIComponent(id)}`,
+        {
+          method: 'GET',
+          signal: options?.signal,
+        },
+        (payload) => TaskGetResponseSchema.parse(payload),
+      );
+    },
+
+    async cancelTask(
+      id: string,
+      options?: { signal?: AbortSignal },
+    ): Promise<TaskCancelResponse> {
+      TaskIdParamsSchema.parse({ id });
+      return requestLive(
+        `/tasks/${encodeURIComponent(id)}/cancel`,
+        {
+          method: 'POST',
+          signal: options?.signal,
+        },
+        (payload) => TaskCancelResponseSchema.parse(payload),
+      );
+    },
+
+    async listTasks(
+      rawQuery?: TaskListQuery,
+      options?: { signal?: AbortSignal },
+    ): Promise<TaskListResponse> {
+      const query = TaskListQuerySchema.parse(rawQuery ?? {});
+      const params = new URLSearchParams();
+      if (query.pageSize) {
+        params.set('pageSize', String(query.pageSize));
+      }
+      if (query.cursor) {
+        params.set('cursor', query.cursor);
+      }
+      const qs = params.toString();
+      return requestLive(
+        `/tasks${qs ? `?${qs}` : ''}`,
+        {
+          method: 'GET',
+          signal: options?.signal,
+        },
+        (payload) => TaskListResponseSchema.parse(payload),
+      );
+    },
+
+    async getTaskResult(
+      id: string,
+      options?: { signal?: AbortSignal },
+    ): Promise<TaskResultResponse> {
+      TaskIdParamsSchema.parse({ id });
+      return requestLive(
+        `/tasks/${encodeURIComponent(id)}/result`,
+        {
+          method: 'GET',
+          signal: options?.signal,
+        },
+        (payload) => TaskResultResponseSchema.parse(payload),
+      );
+    },
+
+    async shareTask(
+      id: string,
+      options?: { signal?: AbortSignal },
+    ): Promise<TaskShareResponse> {
+      TaskIdParamsSchema.parse({ id });
+      return requestLive(
+        `/tasks/${encodeURIComponent(id)}/share`,
+        {
+          method: 'POST',
+          signal: options?.signal,
+        },
+        (payload) => TaskShareResponseSchema.parse(payload),
+      );
+    },
+
+    async revokeTaskShare(
+      id: string,
+      options?: { signal?: AbortSignal },
+    ): Promise<TaskShareRevokeResponse> {
+      TaskIdParamsSchema.parse({ id });
+      return requestLive(
+        `/tasks/${encodeURIComponent(id)}/share`,
+        {
+          method: 'DELETE',
+          signal: options?.signal,
+        },
+        (payload) => TaskShareRevokeResponseSchema.parse(payload),
       );
     },
   };

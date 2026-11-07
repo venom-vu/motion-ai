@@ -11,16 +11,33 @@ import {
   API_ERROR_MESSAGES_VI,
   ApiErrorCode,
   CONTRACTS_PACKAGE_VERSION,
+  MOCK_FACE_SWAP_CREATE_REQUEST,
   MOCK_ME_PRO_RESPONSE,
   MOCK_PRICING_CONFIG_RESPONSE,
+  MOCK_TASK_CANCELLED,
+  MOCK_TASK_FAILED,
+  MOCK_TASK_QUEUED,
+  MOCK_TASK_RUNNING,
+  MOCK_TASK_SUCCEEDED,
+  MOCK_TASK_TIMED_OUT,
+  MOCK_UPLOAD_CONFIRM_RESPONSE,
+  MOCK_UPLOAD_CREATE_RESPONSE,
   MOCK_WALLET_LEDGER_ITEMS,
+  TOS_VERSION,
 } from '@motion-ai/contracts';
 import { SLATE_CYBER_COLORS } from '../tailwind.config.ts';
 import {
   MotionApiClientError,
   createMotionApiClient,
   resolveApiErrorMessageVi,
+  uploadPresignedFile,
 } from '../utils/api-client.ts';
+import {
+  formatFileSizeVi,
+  getImageDimensions,
+  normalizeImageMimeType,
+  validateImageFile,
+} from '../utils/image-upload.ts';
 import {
   createRefreshCoordinator,
   createSessionLostHandler,
@@ -1538,5 +1555,1943 @@ describe('@motion-ai/web — Header cố định, popover tài khoản và đăn
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+});
+
+describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết ToS', () => {
+  it('kiểm tra tính hợp lệ phía client: từ chối MIME không hỗ trợ, file > 10MB, cạnh ngắn < 512px, tỷ lệ sai', async () => {
+    // 1. MIME không hỗ trợ (ví dụ image/gif)
+    const gifFile = {
+      name: 'animation.gif',
+      type: 'image/gif',
+      size: 1024 * 100,
+      width: 600,
+      height: 600,
+    };
+    const resMime = await validateImageFile(gifFile);
+    assert.equal(resMime.valid, false);
+    assert.match(resMime.errorVi, /Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP/);
+
+    // 2. Dung lượng quá 10 MB
+    const largeFile = {
+      name: 'large.jpg',
+      type: 'image/jpeg',
+      size: 11 * 1024 * 1024,
+      width: 1000,
+      height: 1000,
+    };
+    const resSize = await validateImageFile(largeFile);
+    assert.equal(resSize.valid, false);
+    assert.match(resSize.errorVi, /10 MB/);
+
+    // 3. Cạnh ngắn < 512px
+    const smallFile = {
+      name: 'small.png',
+      type: 'image/png',
+      size: 1024 * 50,
+      width: 480,
+      height: 800,
+    };
+    const resSmall = await validateImageFile(smallFile);
+    assert.equal(resSmall.valid, false);
+    assert.match(resSmall.errorVi, /512px/);
+
+    // 4. Tỷ lệ vượt quá 2:1 (ví dụ 1400x600 = 2.33:1, cạnh ngắn 600 >= 512px)
+    const wideFile = {
+      name: 'wide.webp',
+      type: 'image/webp',
+      size: 1024 * 100,
+      width: 1400,
+      height: 600,
+    };
+    const resWide = await validateImageFile(wideFile);
+    assert.equal(resWide.valid, false);
+    assert.match(resWide.errorVi, /1:2 đến 2:1/);
+
+    // 5. Ảnh hợp lệ (JPG 800x1000, tỷ lệ 1.25, 2 MB)
+    const validFile = {
+      name: 'portrait.jpg',
+      type: 'image/jpeg',
+      size: 2 * 1024 * 1024,
+      width: 800,
+      height: 1000,
+    };
+    const resValid = await validateImageFile(validFile);
+    assert.equal(resValid.valid, true);
+    assert.equal(resValid.meta.width, 800);
+    assert.equal(resValid.meta.height, 1000);
+
+    const dims = await getImageDimensions(validFile);
+    assert.equal(dims.width, 800);
+    assert.equal(dims.height, 1000);
+  });
+
+  it('createMotionApiClient hỗ trợ createUpload và confirmUpload đúng schema', async () => {
+    let requestedPath = '';
+    let requestedMethod = '';
+
+    const mockFetch = async (url, init) => {
+      const u = new URL(String(url));
+      requestedPath = u.pathname;
+      requestedMethod = init.method;
+
+      if (u.pathname === '/uploads' && init.method === 'POST') {
+        return Response.json(MOCK_UPLOAD_CREATE_RESPONSE);
+      }
+      if (u.pathname.includes('/confirm') && init.method === 'POST') {
+        return Response.json(MOCK_UPLOAD_CONFIRM_RESPONSE);
+      }
+      return Response.json({ code: 'NOT_FOUND' }, { status: 404 });
+    };
+
+    const client = createMotionApiClient({
+      baseUrl: 'http://localhost:8080',
+      fetchImpl: mockFetch,
+    });
+
+    // 1. createUpload
+    const created = await client.createUpload({
+      mimeType: 'image/jpeg',
+      sizeBytes: 2 * 1024 * 1024,
+    });
+    assert.equal(requestedPath, '/uploads');
+    assert.equal(requestedMethod, 'POST');
+    assert.equal(created.key, MOCK_UPLOAD_CREATE_RESPONSE.key);
+    assert.equal(created.method, 'PUT');
+
+    // 2. confirmUpload
+    const confirmed = await client.confirmUpload(created.key);
+    assert.match(requestedPath, /\/confirm$/);
+    assert.equal(requestedMethod, 'POST');
+    assert.equal(confirmed.key, MOCK_UPLOAD_CONFIRM_RESPONSE.key);
+    assert.equal(confirmed.image.width, 1024);
+  });
+
+  it('uploadPresignedFile tải file qua PUT, đo tiến trình và hỗ trợ hủy bằng AbortSignal', async () => {
+    let headersReceived = {};
+
+    const mockFetch = async (url, init) => {
+      headersReceived = init.headers;
+      if (init.signal?.aborted) {
+        throw new DOMException('Aborted', 'AbortError');
+      }
+      return new Response('', { status: 200 });
+    };
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = mockFetch;
+    try {
+      const dummyFile = new Blob(['sample-image-content'], {
+        type: 'image/jpeg',
+      });
+      let progressReported = 0;
+
+      await uploadPresignedFile({
+        uploadUrl: 'https://r2.storage.example/presigned',
+        file: dummyFile,
+        headers: { 'Content-Type': 'image/jpeg' },
+        onProgress: (p) => {
+          progressReported = p;
+        },
+      });
+
+      assert.equal(headersReceived['Content-Type'], 'image/jpeg');
+      assert.equal(progressReported, 100);
+
+      // Thử hủy bằng controller đã abort
+      const controller = new AbortController();
+      controller.abort();
+      await assert.rejects(
+        () =>
+          uploadPresignedFile({
+            uploadUrl: 'https://r2.storage.example/presigned',
+            file: dummyFile,
+            signal: controller.signal,
+          }),
+        (err) => err.name === 'AbortError',
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('SSR render ImageUploader: đầy đủ các thành phần, input file accept, ToS checkbox phiên bản 2026-11-01 và touch target >= 48px', async () => {
+    const uploaderSfcRaw = fs.readFileSync(
+      path.join(webRoot, 'components/ImageUploader.vue'),
+      'utf8',
+    );
+    const { descriptor } = parse(uploaderSfcRaw);
+    const compiled = compileTemplate({
+      id: 'test-image-uploader',
+      filename: 'ImageUploader.vue',
+      source: descriptor.template.content,
+      ssr: true,
+      ssrCssVars: [],
+    });
+    assert.equal(compiled.errors.length, 0);
+
+    const tmpUploaderFile = path.join(
+      webRoot,
+      'test',
+      `.tmp-uploader-${Date.now()}.mjs`,
+    );
+    fs.writeFileSync(tmpUploaderFile, compiled.code, 'utf8');
+
+    try {
+      const { ssrRender } = await import(pathToFileURL(tmpUploaderFile).href);
+
+      // 1. Trạng thái idle
+      const idleApp = createSSRApp({
+        ssrRender,
+        setup() {
+          return {
+            status: 'idle',
+            labelVi: 'Tải ảnh khuôn mặt',
+            descriptionVi: 'JPG, PNG, WebP ≤ 10 MB',
+            idPrefix: 'test-uploader',
+            disabled: false,
+            showTosConsent: true,
+            isUploading: false,
+            isDragging: false,
+            localConsent: false,
+            TOS_VERSION,
+            openLibrary: () => {},
+            openCamera: () => {},
+            onFileInputChange: () => {},
+            onDrop: () => {},
+            updateConsent: () => {},
+          };
+        },
+      });
+      idleApp.component('Icon', {
+        props: ['name'],
+        ssrRender(_ctx, push) {
+          push('<span class="icon-mock"></span>');
+        },
+      });
+      idleApp.component('ApiErrorBanner', {
+        props: ['messageVi'],
+        ssrRender() {},
+      });
+
+      const idleHtml = await renderToString(idleApp);
+      assert.match(idleHtml, /data-testid="image-uploader"/);
+      assert.match(idleHtml, /data-testid="open-library-button"/);
+      assert.match(idleHtml, /data-testid="open-camera-button"/);
+      assert.match(idleHtml, /data-testid="image-uploader-tos-checkbox"/);
+      assert.match(idleHtml, /2026-11-01/);
+      assert.match(idleHtml, /accept="image\/jpeg,image\/png,image\/webp"/);
+      assert.match(idleHtml, /capture="environment"/);
+      assert.match(idleHtml, /touch-target/);
+
+      // 2. Trạng thái ready (đã tải xong)
+      const readyApp = createSSRApp({
+        ssrRender,
+        setup() {
+          return {
+            status: 'ready',
+            idPrefix: 'test-ready',
+            previewUrl: '/preview-sample.jpg',
+            currentFile: { name: 'portrait.jpg', size: 1024 * 1024 },
+            currentMeta: {
+              width: 1024,
+              height: 1280,
+              mimeType: 'image/jpeg',
+              sizeBytes: 1024 * 1024,
+            },
+            disabled: false,
+            isUploading: false,
+            showTosConsent: true,
+            localConsent: true,
+            TOS_VERSION,
+            formatFileSizeVi,
+            handleChangeImage: () => {},
+            handleCancel: () => {},
+            updateConsent: () => {},
+          };
+        },
+      });
+      readyApp.component('Icon', {
+        props: ['name'],
+        ssrRender(_ctx, push) {
+          push('<span class="icon-mock"></span>');
+        },
+      });
+      readyApp.component('ApiErrorBanner', {
+        props: ['messageVi'],
+        ssrRender() {},
+      });
+
+      const readyHtml = await renderToString(readyApp);
+      assert.match(readyHtml, /data-testid="upload-ready-state"/);
+      assert.match(readyHtml, /data-testid="image-preview"/);
+      assert.match(readyHtml, /data-testid="change-image-button"/);
+      assert.match(readyHtml, /data-testid="remove-image-button"/);
+      assert.match(readyHtml, /1024 × 1280 px/);
+
+      // 3. Trạng thái uploading: thanh tiến trình với ARIA role progressbar và nút hủy
+      const uploadingApp = createSSRApp({
+        ssrRender,
+        setup() {
+          return {
+            status: 'uploading',
+            idPrefix: 'test-uploading',
+            uploadProgress: 65,
+            currentFile: { name: 'sample.jpg', size: 1024 * 512 },
+            showTosConsent: false,
+            localConsent: false,
+            TOS_VERSION,
+            formatFileSizeVi,
+            handleCancel: () => {},
+          };
+        },
+      });
+      uploadingApp.component('Icon', {
+        props: ['name'],
+        ssrRender(_ctx, push) {
+          push('<span class="icon-mock"></span>');
+        },
+      });
+      const uploadingHtml = await renderToString(uploadingApp);
+      assert.match(uploadingHtml, /data-testid="uploading-state"/);
+      assert.match(uploadingHtml, /role="progressbar"/);
+      assert.match(uploadingHtml, /aria-valuenow="65"/);
+      assert.match(uploadingHtml, /data-testid="cancel-upload-button"/);
+
+      // 4. Trạng thái error: banner tiếng Việt kèm hai nút chọn lại (thư viện + camera)
+      const errorApp = createSSRApp({
+        ssrRender,
+        setup() {
+          return {
+            status: 'error',
+            idPrefix: 'test-error',
+            errorMessageVi: 'Tệp không hợp lệ',
+            showTosConsent: false,
+            localConsent: false,
+            TOS_VERSION,
+            handleRetry: () => {},
+            handleCancel: () => {},
+            openLibrary: () => {},
+            openCamera: () => {},
+          };
+        },
+      });
+      errorApp.component('Icon', {
+        props: ['name'],
+        ssrRender(_ctx, push) {
+          push('<span class="icon-mock"></span>');
+        },
+      });
+      errorApp.component('ApiErrorBanner', {
+        props: ['messageVi'],
+        ssrRender(ctx, push) {
+          push(`<div data-testid="api-error-banner">${ctx.messageVi}</div>`);
+        },
+      });
+      const errorHtml = await renderToString(errorApp);
+      assert.match(errorHtml, /data-testid="upload-error-state"/);
+      assert.match(errorHtml, /data-testid="reselect-image-button"/);
+      assert.match(errorHtml, /data-testid="reselect-camera-button"/);
+    } finally {
+      if (fs.existsSync(tmpUploaderFile)) {
+        fs.unlinkSync(tmpUploaderFile);
+      }
+    }
+  });
+
+  it('normalizeImageMimeType chuẩn hóa đúng MIME và đuôi tệp cho thiết bị di động', () => {
+    assert.equal(normalizeImageMimeType('', 'photo.jpg'), 'image/jpeg');
+    assert.equal(normalizeImageMimeType('image/jpg', 'photo.jpg'), 'image/jpeg');
+    assert.equal(normalizeImageMimeType('IMAGE/PNG', 'photo.png'), 'image/png');
+    assert.equal(normalizeImageMimeType('', 'avatar.webp'), 'image/webp');
+    assert.equal(normalizeImageMimeType('application/pdf', 'file.pdf'), 'application/pdf');
+  });
+
+  it('FeatureWorkspaceDialog tích hợp ImageUploader và vô hiệu hóa nút Submit khi chưa tải ảnh hoặc chưa tích ToS (FR19)', async () => {
+    const dialogRaw = fs.readFileSync(
+      path.join(webRoot, 'components/FeatureWorkspaceDialog.vue'),
+      'utf8',
+    );
+    assert.match(dialogRaw, /ImageUploader/);
+    assert.match(dialogRaw, /v-model="uploadedKey"/);
+    assert.match(dialogRaw, /v-model:consent="acceptedConsent"/);
+    assert.match(dialogRaw, /canSubmit/);
+  });
+
+  it('MotionApiClientError bảo toàn serverMessage tùy biến khi code là null và chuẩn hóa mã ApiErrorCode', () => {
+    // 1. Trường hợp code là null nhưng có serverMessage tiếng Việt tùy biến
+    const customErr = new MotionApiClientError({
+      status: 400,
+      code: null,
+      serverMessage: 'Không thể kết nối tới máy chủ tải ảnh',
+    });
+    assert.equal(customErr.status, 400);
+    assert.equal(customErr.code, null);
+    assert.equal(customErr.userMessageVi, 'Không thể kết nối tới máy chủ tải ảnh');
+    assert.equal(customErr.message, 'Không thể kết nối tới máy chủ tải ảnh');
+    assert.equal(resolveApiErrorMessageVi(customErr), 'Không thể kết nối tới máy chủ tải ảnh');
+
+    // 2. Trường hợp có mã ApiErrorCode hợp lệ
+    const codeErr = new MotionApiClientError({
+      status: 403,
+      code: ApiErrorCode.INSUFFICIENT_CREDIT,
+    });
+    assert.equal(codeErr.code, ApiErrorCode.INSUFFICIENT_CREDIT);
+    assert.equal(
+      codeErr.userMessageVi,
+      API_ERROR_MESSAGES_VI[ApiErrorCode.INSUFFICIENT_CREDIT],
+    );
+
+    // 3. Trường hợp cả code và serverMessage đều null -> fallback mặc định
+    const fallbackErr = new MotionApiClientError({
+      status: 500,
+      code: null,
+    });
+    assert.match(fallbackErr.userMessageVi, /Đã xảy ra lỗi không xác định/);
+  });
+
+  it('uploadPresignedFile hoạt động chính xác với XMLHttpRequest (tiến trình, hoàn tất, lỗi HTTP, lỗi mạng, hủy AbortSignal)', async () => {
+    const originalXHR = globalThis.XMLHttpRequest;
+
+    try {
+      // 1. Kiểm tra thành công và gọi onProgress
+      const progressValues = [];
+      let xhrHeaders = {};
+      globalThis.XMLHttpRequest = class MockXHR {
+        constructor() {
+          this.upload = {};
+          this.headers = {};
+          xhrHeaders = this.headers;
+        }
+        open(method, url) {
+          this.method = method;
+          this.url = url;
+        }
+        setRequestHeader(k, v) {
+          this.headers[k] = v;
+        }
+        send() {
+          this.upload.onprogress?.({
+            lengthComputable: true,
+            loaded: 50,
+            total: 100,
+          });
+          this.status = 200;
+          this.onload?.();
+        }
+        abort() {}
+      };
+
+      const mockFile = new Blob(['sample-content'], { type: 'image/jpeg' });
+      await uploadPresignedFile({
+        uploadUrl: 'https://r2.example.com/upload-test',
+        headers: { 'Content-Type': 'image/jpeg' },
+        file: mockFile,
+        onProgress: (p) => progressValues.push(p),
+      });
+
+      assert.equal(progressValues.includes(50), true);
+      assert.equal(progressValues[progressValues.length - 1], 100);
+      assert.equal(xhrHeaders['Content-Type'], 'image/jpeg');
+
+      // 2. Kiểm tra lỗi HTTP (status 403) ném MotionApiClientError
+      globalThis.XMLHttpRequest = class FailingXHR {
+        open() {}
+        setRequestHeader() {}
+        send() {
+          this.status = 403;
+          this.onload?.();
+        }
+        abort() {}
+      };
+
+      await assert.rejects(
+        uploadPresignedFile({
+          uploadUrl: 'https://r2.example.com/upload-fail',
+          file: mockFile,
+        }),
+        (err) => {
+          assert.ok(err instanceof MotionApiClientError);
+          assert.equal(err.status, 403);
+          assert.match(err.message, /HTTP 403/);
+          return true;
+        },
+      );
+
+      // 3. Kiểm tra lỗi kết nối mạng (onerror)
+      globalThis.XMLHttpRequest = class NetworkErrXHR {
+        open() {}
+        setRequestHeader() {}
+        send() {
+          this.status = 0;
+          this.onerror?.();
+        }
+        abort() {}
+      };
+
+      await assert.rejects(
+        uploadPresignedFile({
+          uploadUrl: 'https://r2.example.com/network-err',
+          file: mockFile,
+        }),
+        (err) => {
+          assert.ok(err instanceof MotionApiClientError);
+          assert.equal(err.status, 0);
+          assert.match(err.message, /Lỗi kết nối mạng/);
+          return true;
+        },
+      );
+
+      // 4. Kiểm tra AbortSignal hủy tải lên
+      let abortedCalled = false;
+      globalThis.XMLHttpRequest = class AbortableXHR {
+        open() {}
+        setRequestHeader() {}
+        send() {}
+        abort() {
+          abortedCalled = true;
+        }
+      };
+
+      const ac = new AbortController();
+      const abortPromise = uploadPresignedFile({
+        uploadUrl: 'https://r2.example.com/abort-test',
+        file: mockFile,
+        signal: ac.signal,
+      });
+      ac.abort();
+
+      await assert.rejects(abortPromise, (err) => {
+        assert.equal(err.name, 'AbortError');
+        return true;
+      });
+      assert.equal(abortedCalled, true);
+    } finally {
+      globalThis.XMLHttpRequest = originalXHR;
+    }
+  });
+
+  it('getImageDimensions truyền { imageOrientation: "from-image" } cho createImageBitmap', async () => {
+    const originalCreateImageBitmap = globalThis.createImageBitmap;
+    let passedOptions = null;
+    try {
+      globalThis.createImageBitmap = async (_file, options) => {
+        passedOptions = options;
+        return {
+          width: 800,
+          height: 1000,
+          close: () => {},
+        };
+      };
+
+      const dummyFile = new Blob([''], { type: 'image/jpeg' });
+      const dims = await getImageDimensions(dummyFile);
+      assert.equal(dims.width, 800);
+      assert.equal(dims.height, 1000);
+      assert.deepEqual(passedOptions, { imageOrientation: 'from-image' });
+    } finally {
+      globalThis.createImageBitmap = originalCreateImageBitmap;
+    }
+  });
+
+  it('FeatureWorkspaceDialog SSR kiểm tra trạng thái disabled của submit-task-button theo canSubmit', async () => {
+    const dialogRaw = fs.readFileSync(
+      path.join(webRoot, 'components/FeatureWorkspaceDialog.vue'),
+      'utf8',
+    );
+    const { descriptor } = parse(dialogRaw);
+    const compiled = compileTemplate({
+      id: 'test-fwd-submit-button',
+      filename: 'FeatureWorkspaceDialog.vue',
+      source: descriptor.template.content,
+      ssr: true,
+      ssrCssVars: [],
+    });
+    assert.equal(compiled.errors.length, 0);
+
+    const tmpFile = path.join(webRoot, 'test', `.tmp-fwd-test-${Date.now()}.mjs`);
+    fs.writeFileSync(tmpFile, compiled.code, 'utf8');
+
+    try {
+      const { ssrRender } = await import(pathToFileURL(tmpFile).href);
+
+      const makeDialogApp = (canSubmitValue) => {
+        const app = createSSRApp({
+          ssrRender,
+          setup() {
+            return {
+              open: true,
+              feature: {
+                id: 'face-swap',
+                titleVi: 'Thay Đổi Khuôn Mặt',
+                icon: 'lucide:sparkles',
+                category: 'face',
+                pricingMode: 'per_image',
+                credits: 100,
+                priceNoteVi: '100 credit / lượt',
+                descriptionVi: 'Mô tả test',
+                inputRequirementVi: 'Tải ảnh chân dung rõ mặt',
+              },
+              userTier: 'FREE',
+              userBalance: 500,
+              isAuthenticated: true,
+              hasEnoughBalance: true,
+              canSubmit: canSubmitValue,
+              uploadedKey: canSubmitValue ? 'in/mock/sample.jpg' : null,
+              sourceKey: null,
+              targetKey: null,
+              acceptedConsent: canSubmitValue,
+              activeTask: null,
+              isSubmitting: false,
+              submitErrorVi: null,
+              compareSplitPercent: 50,
+              TOS_VERSION,
+              estimatedCredits: 100,
+              formatNumberVi: (n) => String(n),
+              emit: () => {},
+              handleSubmit: () => {},
+            };
+          },
+        });
+        app.component('Icon', {
+          props: ['name'],
+          ssrRender(_ctx, push) {
+            push('<span class="icon-mock"></span>');
+          },
+        });
+        app.component('NuxtLink', {
+          props: ['to'],
+          ssrRender(_ctx, push) {
+            push('<a href="#">MockLink</a>');
+          },
+        });
+        app.component('ImageUploader', {
+          props: ['modelValue', 'consent'],
+          ssrRender(_ctx, push) {
+            push('<div data-testid="mock-image-uploader"></div>');
+          },
+        });
+        app.component('TaskProgressCard', {
+          props: ['task'],
+          ssrRender(_ctx, push) {
+            push('<div data-testid="mock-task-progress-card"></div>');
+          },
+        });
+        return app;
+      };
+
+      // canSubmit = false -> nút submit phải có thuộc tính disabled
+      const disabledHtml = await renderToString(makeDialogApp(false));
+      assert.match(
+        disabledHtml,
+        /<button[^>]*data-testid="submit-task-button"[^>]*\sdisabled(=|"|\s|>)/,
+      );
+
+      // canSubmit = true -> nút submit không có thuộc tính disabled (không nhầm với class disabled:...)
+      const enabledHtml = await renderToString(makeDialogApp(true));
+      assert.doesNotMatch(
+        enabledHtml,
+        /<button[^>]*data-testid="submit-task-button"[^>]*\sdisabled(=|"|\s|>)/,
+      );
+    } finally {
+      if (fs.existsSync(tmpFile)) {
+        fs.unlinkSync(tmpFile);
+      }
+    }
+  });
+
+  describe('@motion-ai/web — Story 2.11 Trang Face Swap và tiến trình xử lý', () => {
+    it('createMotionApiClient hỗ trợ createFaceSwapTask, getTask và cancelTask đúng schema hợp đồng', async () => {
+      const calls = [];
+      const mockFetch = async (input, init) => {
+        const urlStr = String(input);
+        calls.push({ url: urlStr, method: init?.method, body: init?.body });
+
+        if (urlStr.endsWith('/tasks/face-swap')) {
+          return Response.json(MOCK_TASK_QUEUED, { status: 201 });
+        }
+        if (urlStr.includes('/tasks/70000000-0000-4000-8000-000000000002')) {
+          return Response.json(MOCK_TASK_RUNNING, { status: 200 });
+        }
+        if (urlStr.includes('/cancel')) {
+          return Response.json(MOCK_TASK_CANCELLED, { status: 200 });
+        }
+        return new Response('Not found', { status: 404 });
+      };
+
+      const client = createMotionApiClient({
+        baseUrl: 'http://localhost:3001',
+        fetchImpl: mockFetch,
+      });
+
+      // 1. Tạo Task Face Swap
+      const createdTask = await client.createFaceSwapTask(
+        MOCK_FACE_SWAP_CREATE_REQUEST,
+      );
+      assert.equal(createdTask.id, MOCK_TASK_QUEUED.id);
+      assert.equal(createdTask.status, 'queued');
+      assert.equal(createdTask.queuePosition, 3);
+      assert.equal(calls[0].method, 'POST');
+      assert.match(calls[0].url, /\/tasks\/face-swap$/);
+
+      // 2. Lấy thông tin Task theo ID
+      const fetchedTask = await client.getTask(
+        '70000000-0000-4000-8000-000000000002',
+      );
+      assert.equal(fetchedTask.id, MOCK_TASK_RUNNING.id);
+      assert.equal(fetchedTask.status, 'running');
+
+      // 3. Hủy Task khi đang queued
+      const cancelledTask = await client.cancelTask(
+        '70000000-0000-4000-8000-000000000006',
+      );
+      assert.equal(cancelledTask.status, 'cancelled');
+      assert.equal(cancelledTask.reasonCode, 'USER_CANCEL');
+
+      // 4. Tự động unwrap payload bọc dạng { data: ... }
+      const wrappedClient = createMotionApiClient({
+        baseUrl: 'http://localhost:3001',
+        fetchImpl: async () => Response.json({ code: 'OK', data: MOCK_TASK_QUEUED }),
+      });
+      const unwrappedTask = await wrappedClient.getTask(
+        '70000000-0000-4000-8000-000000000001',
+      );
+      assert.equal(unwrappedTask.id, MOCK_TASK_QUEUED.id);
+      assert.equal(unwrappedTask.status, 'queued');
+    });
+
+    it('TaskProgressCard SSR render chính xác các trạng thái vòng đời Task (queued, running, succeeded, failed, timed_out, cancelled)', async () => {
+      const cardRaw = fs.readFileSync(
+        path.join(webRoot, 'components/TaskProgressCard.vue'),
+        'utf8',
+      );
+      const { descriptor } = parse(cardRaw);
+      const compiled = compileTemplate({
+        id: 'test-task-progress-card',
+        filename: 'TaskProgressCard.vue',
+        source: descriptor.template.content,
+        ssr: true,
+        ssrCssVars: [],
+      });
+      assert.equal(compiled.errors.length, 0);
+
+      const tmpCardFile = path.join(
+        webRoot,
+        'test',
+        `.tmp-card-${Date.now()}.mjs`,
+      );
+      fs.writeFileSync(tmpCardFile, compiled.code, 'utf8');
+
+      try {
+        const { ssrRender } = await import(pathToFileURL(tmpCardFile).href);
+
+        const makeCardApp = (taskData) => {
+          const app = createSSRApp({
+            ssrRender,
+            setup() {
+              return {
+                localTask: taskData,
+                isQueued: taskData.status === 'queued',
+                isRunning: taskData.status === 'running',
+                isSucceeded: taskData.status === 'succeeded',
+                isFailed:
+                  taskData.status === 'failed' ||
+                  taskData.status === 'timed_out' ||
+                  taskData.status === 'cancelled',
+                reasonMessageVi:
+                  taskData.status === 'cancelled'
+                    ? 'Tác vụ đã được hủy theo yêu cầu của bạn.'
+                    : taskData.reasonCode === 'NO_FACE'
+                      ? 'Không tìm thấy khuôn mặt rõ ràng trong ảnh nguồn.'
+                      : taskData.reasonCode === 'FREE_WAIT_EXPIRED'
+                        ? 'Hết hạn thời gian chờ trong hàng đợi miễn phí.'
+                        : 'Lỗi không xác định',
+                actionErrorVi: null,
+                isCancelling: false,
+                pipelineLabelVi: 'Hoán đổi khuôn mặt',
+                handleCancel: () => {},
+                handleRetry: () => {},
+              };
+            },
+          });
+          app.component('Icon', {
+            props: ['name'],
+            ssrRender(_ctx, push) {
+              push('<span class="icon-mock"></span>');
+            },
+          });
+          app.component('NuxtLink', {
+            props: ['to'],
+            ssrRender(ctx, push, _parent, attrs) {
+              const testIdAttr = attrs?.['data-testid']
+                ? ` data-testid="${attrs['data-testid']}"`
+                : '';
+              push(`<a href="${ctx.to || '#'}"${testIdAttr}>MockLink</a>`);
+            },
+          });
+          return app;
+        };
+
+        // 1. Queued: Vị trí hàng đợi #3 + Nút hủy
+        const queuedHtml = await renderToString(
+          makeCardApp(MOCK_TASK_QUEUED),
+        );
+        assert.match(queuedHtml, /data-testid="task-queued-state"/);
+        assert.match(queuedHtml, /data-testid="queue-position-badge"/);
+        assert.match(queuedHtml, /#3/);
+        assert.match(queuedHtml, /data-testid="cancel-task-button"/);
+
+        // 2. Running: Trạng thái thực thi + Thanh tiến trình nhịp xung + KHÔNG CÓ nút hủy
+        const runningHtml = await renderToString(
+          makeCardApp(MOCK_TASK_RUNNING),
+        );
+        assert.match(runningHtml, /data-testid="task-running-state"/);
+        assert.match(runningHtml, /data-testid="running-status-badge"/);
+        assert.match(runningHtml, /role="progressbar"/);
+        assert.doesNotMatch(runningHtml, /data-testid="cancel-task-button"/);
+
+        // 3. Succeeded: Hoàn tất + Nút xem kết quả
+        const succeededHtml = await renderToString(
+          makeCardApp(MOCK_TASK_SUCCEEDED),
+        );
+        assert.match(succeededHtml, /data-testid="task-succeeded-state"/);
+        assert.match(succeededHtml, /data-testid="succeeded-status-badge"/);
+        assert.match(succeededHtml, /data-testid="view-result-button"/);
+        assert.match(succeededHtml, /href="\/tasks\/70000000-0000-4000-8000-000000000003"/);
+        assert.match(cardRaw, /Xem Kết Quả/);
+        assert.match(succeededHtml, /data-testid="create-new-button"/);
+
+        // 4. Failed với NO_FACE: Thông báo lý do + Hoàn 100% credit + Nút thử lại
+        const failedHtml = await renderToString(
+          makeCardApp(MOCK_TASK_FAILED),
+        );
+        assert.match(failedHtml, /data-testid="task-failed-state"/);
+        assert.match(failedHtml, /data-testid="credit-refund-note"/);
+        assert.match(failedHtml, /100% credit \(100 CR\)/);
+        assert.match(failedHtml, /data-testid="retry-task-button"/);
+
+        // 5. Timed out với FREE_WAIT_EXPIRED: Gợi ý nạp credit nâng hạng
+        const timedOutHtml = await renderToString(
+          makeCardApp(MOCK_TASK_TIMED_OUT),
+        );
+        assert.match(timedOutHtml, /data-testid="task-failed-state"/);
+        assert.match(timedOutHtml, /data-testid="free-wait-expired-hint"/);
+        assert.match(timedOutHtml, /data-testid="upgrade-tier-button"/);
+        assert.match(timedOutHtml, /data-testid="credit-refund-note"/);
+
+        // 6. Cancelled: Thông báo đã hủy
+        const cancelledHtml = await renderToString(
+          makeCardApp(MOCK_TASK_CANCELLED),
+        );
+        assert.match(cancelledHtml, /data-testid="task-failed-state"/);
+        assert.match(cancelledHtml, /Tác vụ đã được hủy/);
+      } finally {
+        if (fs.existsSync(tmpCardFile)) {
+          fs.unlinkSync(tmpCardFile);
+        }
+      }
+    });
+
+    it('pages/face-swap.vue SSR render đầy đủ 2 uploader, giá 100 credit, ToS checkbox và nút Tạo Face Swap', async () => {
+      const pageRaw = fs.readFileSync(
+        path.join(webRoot, 'pages/face-swap.vue'),
+        'utf8',
+      );
+      const { descriptor } = parse(pageRaw);
+      const compiled = compileTemplate({
+        id: 'test-page-face-swap',
+        filename: 'pages/face-swap.vue',
+        source: descriptor.template.content,
+        ssr: true,
+        ssrCssVars: [],
+      });
+      assert.equal(compiled.errors.length, 0);
+
+      const tmpPageFile = path.join(
+        webRoot,
+        'test',
+        `.tmp-page-fs-${Date.now()}.mjs`,
+      );
+      fs.writeFileSync(tmpPageFile, compiled.code, 'utf8');
+
+      try {
+        const { ssrRender } = await import(pathToFileURL(tmpPageFile).href);
+
+        const makePageApp = ({
+          hasBalance = true,
+          canSubmitVal = false,
+          hasTask = false,
+          isAuth = true,
+        }) => {
+          const app = createSSRApp({
+            ssrRender,
+            setup() {
+              return {
+                faceSwapCreditCost: 100,
+                userBalance: hasBalance ? 500 : 50,
+                hasEnoughBalance: hasBalance,
+                isAuthenticated: isAuth,
+                canSubmit: canSubmitVal,
+                isSubmitting: false,
+                submitErrorVi: null,
+                sourceKey: canSubmitVal ? 'in/mock/source.jpg' : null,
+                targetKey: canSubmitVal ? 'in/mock/target.jpg' : null,
+                acceptedConsent: canSubmitVal,
+                activeTask: hasTask ? MOCK_TASK_QUEUED : null,
+                isMockMode: false,
+                TOS_VERSION,
+                handleSubmit: () => {},
+                handleReset: () => {},
+                openAuthDialog: () => {},
+              };
+            },
+          });
+          app.component('Icon', {
+            props: ['name'],
+            ssrRender(_ctx, push) {
+              push('<span class="icon-mock"></span>');
+            },
+          });
+          app.component('NuxtLink', {
+            props: ['to'],
+            ssrRender(ctx, push, _parent, attrs) {
+              const testIdAttr = attrs?.['data-testid']
+                ? ` data-testid="${attrs['data-testid']}"`
+                : '';
+              push(`<a href="${ctx.to || '#'}"${testIdAttr}>MockLink</a>`);
+            },
+          });
+          app.component('ImageUploader', {
+            props: ['modelValue', 'idPrefix', 'labelVi'],
+            ssrRender(_ctx, push) {
+              push('<div data-testid="mock-uploader"></div>');
+            },
+          });
+          app.component('TaskProgressCard', {
+            props: ['task'],
+            ssrRender(_ctx, push) {
+              push('<div data-testid="mock-task-progress-card"></div>');
+            },
+          });
+          return app;
+        };
+
+        // 1. Trạng thái form ban đầu (chưa đủ điều kiện submit)
+        const initialHtml = await renderToString(
+          makePageApp({ hasBalance: true, canSubmitVal: false, hasTask: false }),
+        );
+        assert.match(initialHtml, /data-testid="page-face-swap"/);
+        assert.match(initialHtml, /data-testid="source-image-section"/);
+        assert.match(initialHtml, /data-testid="target-image-section"/);
+        assert.match(initialHtml, /data-testid="face-swap-tos-checkbox"/);
+        assert.match(initialHtml, /100 Credit/);
+        assert.match(initialHtml, /500 Credit/);
+        assert.match(
+          initialHtml,
+          /<button[^>]*data-testid="create-face-swap-button"[^>]*\sdisabled(=|"|\s|>)/,
+        );
+
+        // 2. Trạng thái số dư dưới 100: hiện ghi chú và nút nạp credit
+        const outOfCreditHtml = await renderToString(
+          makePageApp({ hasBalance: false, canSubmitVal: false, hasTask: false }),
+        );
+        assert.match(outOfCreditHtml, /data-testid="insufficient-credit-note"/);
+        assert.match(outOfCreditHtml, /data-testid="topup-credit-button"/);
+
+        // 3. Trạng thái đủ điều kiện: nút submit bật
+        const readyHtml = await renderToString(
+          makePageApp({ hasBalance: true, canSubmitVal: true, hasTask: false }),
+        );
+        assert.doesNotMatch(
+          readyHtml,
+          /<button[^>]*data-testid="create-face-swap-button"[^>]*\sdisabled(=|"|\s|>)/,
+        );
+
+        // 4. Trạng thái đã có Task: render TaskProgressCard
+        const taskActiveHtml = await renderToString(
+          makePageApp({ hasBalance: true, canSubmitVal: false, hasTask: true }),
+        );
+        assert.match(taskActiveHtml, /data-testid="mock-task-progress-card"/);
+
+        // 5. Trạng thái khách chưa đăng nhập: hiển thị banner yêu cầu đăng nhập
+        const guestHtml = await renderToString(
+          makePageApp({ hasBalance: true, canSubmitVal: false, hasTask: false, isAuth: false }),
+        );
+        assert.match(guestHtml, /data-testid="guest-login-notice"/);
+        assert.match(guestHtml, /data-testid="face-swap-login-button"/);
+      } finally {
+        if (fs.existsSync(tmpPageFile)) {
+          fs.unlinkSync(tmpPageFile);
+        }
+      }
+    });
+
+    it('FeatureWorkspaceDialog SSR render hỗ trợ 2 uploader cho Face Swap, nút mở trang riêng /face-swap và nút đăng nhập cho khách', async () => {
+      const dialogRaw = fs.readFileSync(
+        path.join(webRoot, 'components/FeatureWorkspaceDialog.vue'),
+        'utf8',
+      );
+      const { descriptor } = parse(dialogRaw);
+      const compiled = compileTemplate({
+        id: 'test-fwd-face-swap-dual',
+        filename: 'FeatureWorkspaceDialog.vue',
+        source: descriptor.template.content,
+        ssr: true,
+        ssrCssVars: [],
+      });
+      assert.equal(compiled.errors.length, 0);
+
+      const tmpFwdFile = path.join(
+        webRoot,
+        'test',
+        `.tmp-fwd-fs-${Date.now()}.mjs`,
+      );
+      fs.writeFileSync(tmpFwdFile, compiled.code, 'utf8');
+
+      try {
+        const { ssrRender } = await import(pathToFileURL(tmpFwdFile).href);
+
+        const makeFwdApp = ({ isGuest = false }) => {
+          const app = createSSRApp({
+            ssrRender,
+            setup() {
+              return {
+                open: true,
+                feature: {
+                  id: 'face-swap',
+                  titleVi: 'Hoán Đổi Khuôn Mặt',
+                  icon: 'lucide:sparkles',
+                  category: 'face',
+                  categoryLabelVi: 'Khuôn mặt',
+                  pricingMode: 'per_image',
+                  credits: 100,
+                  priceBadgeVi: '100 CR / lượt',
+                  descriptionVi: 'Mô tả test',
+                  inputRequirementVi: 'Tải 2 ảnh',
+                  beforeLabelVi: 'Ảnh gốc',
+                  afterLabelVi: 'Ảnh sau swap',
+                  outputFormatVi: 'JPEG',
+                },
+                userTier: 'FREE',
+                userBalance: isGuest ? null : 500,
+                isAuthenticated: !isGuest,
+                hasEnoughBalance: !isGuest,
+                canSubmit: false,
+                uploadedKey: null,
+                sourceKey: null,
+                targetKey: null,
+                acceptedConsent: false,
+                activeTask: null,
+                isSubmitting: false,
+                submitErrorVi: null,
+                compareSplitPercent: 50,
+                TOS_VERSION,
+                estimatedCredits: 100,
+                formatNumberVi: (n) => String(n),
+                emit: () => {},
+                handleSubmit: () => {},
+                openAuthDialog: () => {},
+              };
+            },
+          });
+          app.component('Icon', {
+            props: ['name'],
+            ssrRender(_ctx, push) {
+              push('<span class="icon-mock"></span>');
+            },
+          });
+          app.component('NuxtLink', {
+            props: ['to'],
+            ssrRender(ctx, push, _parent, attrs) {
+              const testIdAttr = attrs?.['data-testid']
+                ? ` data-testid="${attrs['data-testid']}"`
+                : '';
+              push(`<a href="${ctx.to || '#'}"${testIdAttr}>MockLink</a>`);
+            },
+          });
+          app.component('ImageUploader', {
+            props: ['modelValue', 'idPrefix', 'labelVi'],
+            ssrRender(ctx, push) {
+              push(`<div data-testid="mock-uploader-${ctx.idPrefix || 'default'}"></div>`);
+            },
+          });
+          app.component('TaskProgressCard', {
+            props: ['task'],
+            ssrRender(_ctx, push) {
+              push('<div data-testid="mock-task-progress-card"></div>');
+            },
+          });
+          return app;
+        };
+
+        // 1. Kiểm tra SSR render 2 uploader và liên kết /face-swap
+        const authHtml = await renderToString(makeFwdApp({ isGuest: false }));
+        assert.match(authHtml, /data-testid="workspace-face-swap-inputs"/);
+        assert.match(authHtml, /workspace-source-face/);
+        assert.match(authHtml, /workspace-target-face/);
+        assert.match(authHtml, /href="\/face-swap"/);
+        assert.match(authHtml, /id="workspace-face-swap-tos"/);
+
+        // 2. Kiểm tra khách chưa đăng nhập: hiển thị nút workspace-login-button
+        const guestHtml = await renderToString(makeFwdApp({ isGuest: true }));
+        assert.match(guestHtml, /data-testid="workspace-login-button"/);
+        assert.match(
+          guestHtml,
+          /<button[^>]*data-testid="submit-task-button"[^>]*\sdisabled(=|"|\s|>)/,
+        );
+      } finally {
+        if (fs.existsSync(tmpFwdFile)) {
+          fs.unlinkSync(tmpFwdFile);
+        }
+      }
+    });
+
+    it('Tuân thủ Slate Cyber tokens, vùng chạm tối thiểu 48px và không có emoji UTF-8 trong UI chrome', () => {
+      const faceSwapPageRaw = fs.readFileSync(
+        path.join(webRoot, 'pages/face-swap.vue'),
+        'utf8',
+      );
+      const cardComponentRaw = fs.readFileSync(
+        path.join(webRoot, 'components/TaskProgressCard.vue'),
+        'utf8',
+      );
+
+      // 1. Vùng chạm tối thiểu 48px
+      assert.match(faceSwapPageRaw, /min-h-\[48px\]/);
+      assert.match(cardComponentRaw, /min-h-\[48px\]/);
+      assert.match(faceSwapPageRaw, /touch-target/);
+      assert.match(cardComponentRaw, /touch-target/);
+
+      // 2. Không chứa emoji UTF-8 trong UI chrome
+      const emojiRegex =
+        /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}]/u;
+      assert.equal(
+        emojiRegex.test(faceSwapPageRaw),
+        false,
+        'pages/face-swap.vue không được chứa emoji UTF-8',
+      );
+      assert.equal(
+        emojiRegex.test(cardComponentRaw),
+        false,
+        'components/TaskProgressCard.vue không được chứa emoji UTF-8',
+      );
+    });
+  });
+
+  describe('@motion-ai/web — Story 2.12 Trang kết quả và lịch sử Task', () => {
+    it('createMotionApiClient hỗ trợ listTasks, getTaskResult, shareTask và revokeTaskShare đúng schema', async () => {
+      const calls = [];
+      const fakeFetch = async (url, init) => {
+        calls.push({ url: String(url), method: init?.method || 'GET' });
+        if (url.includes('/tasks/12345678-1234-1234-1234-123456789abc/result')) {
+          return new Response(
+            JSON.stringify({
+              resultUrl: 'https://cdn.example.com/res.png',
+              sourceUrl: 'https://cdn.example.com/src.png',
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          );
+        }
+        if (
+          url.includes('/tasks/12345678-1234-1234-1234-123456789abc/share') &&
+          init?.method === 'POST'
+        ) {
+          return new Response(
+            JSON.stringify({
+              token: 'tok-abc',
+              shareUrl: 'https://motion-ai.vn/share/tok-abc',
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          );
+        }
+        if (
+          url.includes('/tasks/12345678-1234-1234-1234-123456789abc/share') &&
+          init?.method === 'DELETE'
+        ) {
+          return new Response(
+            JSON.stringify({ revoked: true }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          );
+        }
+        if (url.includes('/tasks')) {
+          return new Response(
+            JSON.stringify({
+              items: [
+                {
+                  id: 'a0000000-0000-0000-0000-000000000001',
+                  pipeline: 'face_swap',
+                  status: 'queued',
+                  queuePosition: 1,
+                  resultKey: null,
+                  reasonCode: null,
+                  creditCost: 100,
+                  createdAt: '2026-11-06T12:00:00.000Z',
+                  updatedAt: '2026-11-06T12:00:00.000Z',
+                },
+              ],
+              pageSize: 20,
+              hasMore: false,
+              nextCursor: null,
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          );
+        }
+        return new Response('{}', { status: 200 });
+      };
+
+      const { createMotionApiClient } = await import(
+        pathToFileURL(path.join(webRoot, 'utils/api-client.ts')).href
+      );
+      const client = createMotionApiClient({
+        baseUrl: 'http://api.local',
+        fetchImpl: fakeFetch,
+        getAccessToken: () => 'fake-token',
+      });
+
+      // listTasks
+      const list = await client.listTasks({ pageSize: 10 });
+      assert.equal(list.items.length, 1);
+      assert.equal(list.items[0].status, 'queued');
+      assert.equal(list.items[0].queuePosition, 1);
+      assert.ok(calls.some((c) => c.url.includes('/tasks?pageSize=10')));
+
+      // getTaskResult
+      const res = await client.getTaskResult('12345678-1234-1234-1234-123456789abc');
+      assert.equal(res.resultUrl, 'https://cdn.example.com/res.png');
+      assert.equal(res.sourceUrl, 'https://cdn.example.com/src.png');
+
+      // shareTask
+      const share = await client.shareTask('12345678-1234-1234-1234-123456789abc');
+      assert.equal(share.token, 'tok-abc');
+      assert.equal(share.shareUrl, 'https://motion-ai.vn/share/tok-abc');
+
+      // revokeTaskShare
+      const revoke = await client.revokeTaskShare('12345678-1234-1234-1234-123456789abc');
+      assert.equal(revoke.revoked, true);
+    });
+
+    it('BeforeAfterSplitSlider SSR render chính xác cho cả 2 chế độ (so sánh 2 ảnh và 1 ảnh đơn)', async () => {
+      const sfcCode = fs.readFileSync(
+        path.join(webRoot, 'components/BeforeAfterSplitSlider.vue'),
+        'utf8',
+      );
+      const { descriptor } = parse(sfcCode, { filename: 'BeforeAfterSplitSlider.vue' });
+      const compiled = compileTemplate({
+        id: 'test-before-after-slider',
+        filename: 'components/BeforeAfterSplitSlider.vue',
+        source: descriptor.template.content,
+        ssr: true,
+        ssrCssVars: [],
+      });
+      assert.equal(compiled.errors.length, 0);
+
+      const tmpSliderFile = path.join(
+        webRoot,
+        'test',
+        `.tmp-slider-${Date.now()}.mjs`,
+      );
+      fs.writeFileSync(tmpSliderFile, compiled.code, 'utf8');
+
+      try {
+        const { ssrRender } = await import(pathToFileURL(tmpSliderFile).href);
+
+        const makeSliderApp = (props) => {
+          const app = createSSRApp({
+            ssrRender,
+            setup() {
+              const hasSource = Boolean(props.sourceUrl);
+              return {
+                sourceUrl: props.sourceUrl ?? null,
+                resultUrl: props.resultUrl,
+                alt: 'Ảnh kết quả',
+                disabled: false,
+                sliderPosition: 50,
+                hasSource,
+                handlePointerDown: () => {},
+                handlePointerMove: () => {},
+                handlePointerUp: () => {},
+                handleKeydown: () => {},
+                onSourceError: () => {},
+                onResultError: () => {},
+              };
+            },
+          });
+          app.component('Icon', {
+            props: ['name'],
+            ssrRender(_ctx, push) {
+              push('<span class="icon-mock"></span>');
+            },
+          });
+          return app;
+        };
+
+        // 1. Chế độ 2 ảnh (có sourceUrl): có before-layer, after-layer, núm trượt 36px và thanh chỉ dẫn
+        const dualHtml = await renderToString(
+          makeSliderApp({
+            sourceUrl: 'https://cdn.example.com/src.png',
+            resultUrl: 'https://cdn.example.com/res.png',
+          }),
+        );
+        assert.match(dualHtml, /data-testid="before-layer"/);
+        assert.match(dualHtml, /data-testid="after-layer"/);
+        assert.match(dualHtml, /data-testid="tag-before"/);
+        assert.match(dualHtml, /Ảnh Gốc/);
+        assert.match(dualHtml, /data-testid="tag-after"/);
+        assert.match(dualHtml, /Kết Quả AI/);
+        assert.match(dualHtml, /data-testid="slider-divider"/);
+        assert.match(dualHtml, /data-testid="slider-knob"/);
+        assert.match(dualHtml, /role="slider"/);
+        assert.match(dualHtml, /aria-label="Thanh trượt so sánh trước sau"/);
+        assert.match(dualHtml, /aria-valuenow="50"/);
+        assert.match(dualHtml, /h-9 w-9/); // 36px knob
+        assert.match(dualHtml, /data-testid="slider-hint-bar"/);
+
+        // 2. Chế độ 1 ảnh (sourceUrl null): chỉ có single-result-image, không có slider-knob
+        const singleHtml = await renderToString(
+          makeSliderApp({
+            sourceUrl: null,
+            resultUrl: 'https://cdn.example.com/res.png',
+          }),
+        );
+        assert.match(singleHtml, /data-testid="single-result-image"/);
+        assert.match(singleHtml, /data-testid="single-result-tag"/);
+        assert.doesNotMatch(singleHtml, /data-testid="slider-knob"/);
+        assert.doesNotMatch(singleHtml, /data-testid="before-layer"/);
+      } finally {
+        if (fs.existsSync(tmpSliderFile)) {
+          fs.unlinkSync(tmpSliderFile);
+        }
+      }
+    });
+
+    it('pages/tasks/index.vue và TaskHistoryCard SSR render danh sách, trạng thái tiếng Việt và nút hủy', async () => {
+      const cardSfc = fs.readFileSync(
+        path.join(webRoot, 'components/TaskHistoryCard.vue'),
+        'utf8',
+      );
+      const { descriptor } = parse(cardSfc, { filename: 'TaskHistoryCard.vue' });
+      const compiled = compileTemplate({
+        id: 'test-task-history-card',
+        filename: 'components/TaskHistoryCard.vue',
+        source: descriptor.template.content,
+        ssr: true,
+        ssrCssVars: [],
+      });
+      assert.equal(compiled.errors.length, 0);
+
+      const tmpCardFile = path.join(
+        webRoot,
+        'test',
+        `.tmp-card-${Date.now()}.mjs`,
+      );
+      fs.writeFileSync(tmpCardFile, compiled.code, 'utf8');
+
+      try {
+        const { ssrRender } = await import(pathToFileURL(tmpCardFile).href);
+
+        const makeCardApp = (task) => {
+          const app = createSSRApp({
+            ssrRender,
+            setup() {
+              return {
+                task,
+                cancelling: false,
+                isQueued: task.status === 'queued',
+                isRunning: task.status === 'running',
+                isSucceeded: task.status === 'succeeded',
+                isFailed: ['failed', 'timed_out', 'cancelled'].includes(task.status),
+                isExpired: task.id === 'expired-task',
+                statusLabel: task.status === 'queued' ? 'Đang chờ (#1)' : 'Hoàn thành',
+                pipelineLabel: 'Hoán đổi khuôn mặt',
+                formattedTime: '06/11/2026 19:30',
+                reasonMessage: task.reasonCode ? 'Lỗi hệ thống' : null,
+                handleCancel: () => {},
+              };
+            },
+          });
+          app.component('Icon', {
+            props: ['name'],
+            ssrRender(_ctx, push) {
+              push('<span class="icon-mock"></span>');
+            },
+          });
+          app.component('NuxtLink', {
+            props: ['to'],
+            ssrRender(ctx, push, _parent, attrs) {
+              const testIdAttr = attrs?.['data-testid']
+                ? ` data-testid="${attrs['data-testid']}"`
+                : '';
+              push(`<a href="${ctx.to || '#'}"${testIdAttr}>MockLink</a>`);
+            },
+          });
+          return app;
+        };
+
+        // Task queued: có nút Hủy tác vụ
+        const queuedHtml = await renderToString(
+          makeCardApp({
+            id: 'task-queued-1',
+            pipeline: 'face_swap',
+            status: 'queued',
+            creditCost: 100,
+          }),
+        );
+        assert.match(queuedHtml, /data-testid="status-queued"/);
+        assert.match(queuedHtml, /data-testid="cancel-task-button-task-queued-1"/);
+        assert.match(queuedHtml, /Hủy tác vụ/);
+        assert.doesNotMatch(queuedHtml, /data-testid="view-result-link"/);
+
+        // Task succeeded: có link Xem kết quả, không có nút Hủy tác vụ
+        const succHtml = await renderToString(
+          makeCardApp({
+            id: 'task-succ-1',
+            pipeline: 'face_swap',
+            status: 'succeeded',
+            creditCost: 100,
+          }),
+        );
+        assert.match(succHtml, /data-testid="status-succeeded"/);
+        assert.match(succHtml, /href="\/tasks\/task-succ-1"/);
+        assert.doesNotMatch(succHtml, /data-testid="cancel-task-button"/);
+
+        // Task expired: có badge Hết hạn lưu 30 ngày
+        const expHtml = await renderToString(
+          makeCardApp({
+            id: 'expired-task',
+            pipeline: 'face_swap',
+            status: 'succeeded',
+            creditCost: 100,
+          }),
+        );
+        assert.match(expHtml, /data-testid="retention-expired-badge"/);
+        assert.match(expHtml, /Hết hạn lưu 30 ngày/);
+      } finally {
+        if (fs.existsSync(tmpCardFile)) {
+          fs.unlinkSync(tmpCardFile);
+        }
+      }
+
+      // 2. pages/tasks/index.vue SSR rendering & states
+      const indexSfc = fs.readFileSync(
+        path.join(webRoot, 'pages/tasks/index.vue'),
+        'utf8',
+      );
+      const { descriptor: indexDesc } = parse(indexSfc, {
+        filename: 'pages/tasks/index.vue',
+      });
+      const indexCompiled = compileTemplate({
+        id: 'test-page-tasks-index',
+        filename: 'pages/tasks/index.vue',
+        source: indexDesc.template.content,
+        ssr: true,
+        ssrCssVars: [],
+      });
+      assert.equal(indexCompiled.errors.length, 0);
+
+      const tmpIndexFile = path.join(
+        webRoot,
+        'test',
+        `.tmp-page-index-${Date.now()}.mjs`,
+      );
+      fs.writeFileSync(tmpIndexFile, indexCompiled.code, 'utf8');
+
+      try {
+        const { ssrRender: ssrRenderIndex } = await import(
+          pathToFileURL(tmpIndexFile).href
+        );
+
+        const makeIndexApp = ({
+          unauthenticated = false,
+          pending = false,
+          error = null,
+          items = [],
+          hasMore = false,
+        }) => {
+          const app = createSSRApp({
+            ssrRender: ssrRenderIndex,
+            setup() {
+              return {
+                isUnauthenticated: unauthenticated,
+                initialErrorVi: error,
+                tasksAsync: { pending: { value: pending }, refresh: () => {} },
+                items,
+                hasMore,
+                loadingMore: false,
+                loadMoreErrorVi: null,
+                actionMessageVi: null,
+                actionErrorVi: null,
+                cancellingTaskId: null,
+                handleCancelTask: () => {},
+                loadMore: () => {},
+                openAuthDialog: () => {},
+                sentinelRef: null,
+              };
+            },
+          });
+          app.component('Icon', {
+            props: ['name'],
+            ssrRender(_ctx, push) {
+              push('<span class="icon-mock"></span>');
+            },
+          });
+          app.component('NuxtLink', {
+            props: ['to'],
+            ssrRender(ctx, push, _parent, attrs) {
+              const testIdAttr = attrs?.['data-testid']
+                ? ` data-testid="${attrs['data-testid']}"`
+                : '';
+              push(`<a href="${ctx.to || '#'}"${testIdAttr}>MockLink</a>`);
+            },
+          });
+          app.component('TaskHistoryCard', {
+            props: ['task', 'cancelling'],
+            ssrRender(ctx, push) {
+              push(`<div data-testid="task-card-${ctx.task.id}">MockTaskCard</div>`);
+            },
+          });
+          return app;
+        };
+
+        // Trạng thái chưa đăng nhập
+        const unauthHtml = await renderToString(makeIndexApp({ unauthenticated: true }));
+        assert.match(unauthHtml, /data-testid="tasks-unauthenticated"/);
+        assert.match(unauthHtml, /Yêu Cầu Đăng Nhập/);
+
+        // Trạng thái đang tải lần đầu
+        const pendingHtml = await renderToString(makeIndexApp({ pending: true }));
+        assert.match(pendingHtml, /data-testid="tasks-skeleton"/);
+
+        // Trạng thái lỗi tải
+        const errorHtml = await renderToString(
+          makeIndexApp({ error: 'Không thể kết nối máy chủ' }),
+        );
+        assert.match(errorHtml, /data-testid="tasks-error"/);
+        assert.match(errorHtml, /Không thể kết nối máy chủ/);
+
+        // Trạng thái danh sách rỗng
+        const emptyHtml = await renderToString(makeIndexApp({ items: [] }));
+        assert.match(emptyHtml, /data-testid="tasks-empty"/);
+        assert.match(emptyHtml, /Chưa Có Tác Vụ Nào/);
+
+        // Trạng thái có danh sách tác vụ + nút phân trang
+        const populatedHtml = await renderToString(
+          makeIndexApp({
+            items: [
+              { id: 'task-1', pipeline: 'face_swap', status: 'succeeded' },
+              { id: 'task-2', pipeline: 'face_swap', status: 'queued' },
+            ],
+            hasMore: true,
+          }),
+        );
+        assert.match(populatedHtml, /data-testid="tasks-list"/);
+        assert.match(populatedHtml, /data-testid="task-card-task-1"/);
+        assert.match(populatedHtml, /data-testid="task-card-task-2"/);
+        assert.match(populatedHtml, /data-testid="load-more-button"/);
+        assert.match(populatedHtml, /data-testid="refresh-tasks-button"/);
+      } finally {
+        if (fs.existsSync(tmpIndexFile)) {
+          fs.unlinkSync(tmpIndexFile);
+        }
+      }
+    });
+
+    it('pages/tasks/[id].vue SSR render trạng thái thành công (nút tải HD, chia sẻ) và trạng thái hết hạn lưu 30 ngày', async () => {
+      const pageSfc = fs.readFileSync(
+        path.join(webRoot, 'pages/tasks/[id].vue'),
+        'utf8',
+      );
+      const { descriptor } = parse(pageSfc, { filename: 'pages/tasks/[id].vue' });
+      const compiled = compileTemplate({
+        id: 'test-page-task-result',
+        filename: 'pages/tasks/[id].vue',
+        source: descriptor.template.content,
+        ssr: true,
+        ssrCssVars: [],
+      });
+      assert.equal(compiled.errors.length, 0);
+
+      const tmpResultPageFile = path.join(
+        webRoot,
+        'test',
+        `.tmp-page-result-${Date.now()}.mjs`,
+      );
+      fs.writeFileSync(tmpResultPageFile, compiled.code, 'utf8');
+
+      try {
+        const { ssrRender } = await import(pathToFileURL(tmpResultPageFile).href);
+
+        const makeResultApp = ({ isSucceeded = true, isExpiredVal = false }) => {
+          const app = createSSRApp({
+            ssrRender,
+            setup() {
+              const currentTask = {
+                id: '12345678-1234-1234-1234-123456789abc',
+                pipeline: 'face_swap',
+                status: isSucceeded ? 'succeeded' : 'failed',
+                createdAt: '2026-11-06T12:00:00.000Z',
+              };
+              return {
+                currentTask,
+                isExpired: isExpiredVal,
+                isUnauthenticated: false,
+                taskAsync: { pending: { value: false } },
+                resultAsync: {
+                  pending: { value: false },
+                  data: {
+                    value:
+                      isSucceeded && !isExpiredVal
+                        ? {
+                            resultUrl: 'https://cdn.example.com/res.png',
+                            sourceUrl: 'https://cdn.example.com/src.png',
+                          }
+                        : null,
+                  },
+                },
+                taskErrorVi: null,
+                resultErrorVi: null,
+                shareData: null,
+                isSharing: false,
+                isRevokingShare: false,
+                shareToastMessage: null,
+                shareErrorVi: null,
+                getPipelineLabelVi: () => 'Hoán đổi khuôn mặt',
+                formatTaskTimestampVi: () => '06/11/2026 19:30',
+                getTaskStatusLabelVi: () => (isSucceeded ? 'Hoàn thành' : 'Thất bại'),
+                handleGoBack: () => {},
+                handleRefreshResult: () => {},
+                handleImageError: () => {},
+                handleDownloadImage: () => {},
+                handleShare: () => {},
+                handleRevokeShare: () => {},
+                handleCopyShareLink: () => {},
+                openAuthDialog: () => {},
+              };
+            },
+          });
+          app.component('Icon', {
+            props: ['name'],
+            ssrRender(_ctx, push) {
+              push('<span class="icon-mock"></span>');
+            },
+          });
+          app.component('NuxtLink', {
+            props: ['to'],
+            ssrRender(ctx, push, _parent, attrs) {
+              const testIdAttr = attrs?.['data-testid']
+                ? ` data-testid="${attrs['data-testid']}"`
+                : '';
+              push(`<a href="${ctx.to || '#'}"${testIdAttr}>MockLink</a>`);
+            },
+          });
+          app.component('BeforeAfterSplitSlider', {
+            props: ['resultUrl', 'sourceUrl', 'alt'],
+            ssrRender(_ctx, push) {
+              push('<div data-testid="mock-before-after-slider"></div>');
+            },
+          });
+          app.component('TaskProgressCard', {
+            props: ['task'],
+            ssrRender(_ctx, push) {
+              push('<div data-testid="mock-task-progress-card"></div>');
+            },
+          });
+          return app;
+        };
+
+        // 1. Succeeded: có Trước/Sau slider, nút tải HD và nút chia sẻ
+        const succHtml = await renderToString(
+          makeResultApp({ isSucceeded: true, isExpiredVal: false }),
+        );
+        assert.match(succHtml, /data-testid="result-success-view"/);
+        assert.match(succHtml, /data-testid="mock-before-after-slider"/);
+        assert.match(succHtml, /data-testid="download-result-button"/);
+        assert.match(succHtml, /Tải Ảnh HD \(Không Watermark\)/);
+        assert.match(succHtml, /data-testid="share-task-button"/);
+        assert.match(succHtml, /Chia sẻ kết quả/);
+
+        // 2. Expired: có thông báo hết hạn lưu 30 ngày, không có slider
+        const expHtml = await renderToString(
+          makeResultApp({ isSucceeded: true, isExpiredVal: true }),
+        );
+        assert.match(expHtml, /data-testid="retention-expired-view"/);
+        assert.match(expHtml, /Kết Quả Đã Hết Hạn Lưu Trữ/);
+        assert.match(expHtml, /30 ngày/);
+        assert.doesNotMatch(expHtml, /data-testid="mock-before-after-slider"/);
+      } finally {
+        if (fs.existsSync(tmpResultPageFile)) {
+          fs.unlinkSync(tmpResultPageFile);
+        }
+      }
+    });
+
+    it('Tuân thủ Slate Cyber tokens, vùng chạm tối thiểu 48px và không có emoji UTF-8 trong UI chrome', () => {
+      const sliderComponentRaw = fs.readFileSync(
+        path.join(webRoot, 'components/BeforeAfterSplitSlider.vue'),
+        'utf8',
+      );
+      const cardComponentRaw = fs.readFileSync(
+        path.join(webRoot, 'components/TaskHistoryCard.vue'),
+        'utf8',
+      );
+      const tasksIndexPageRaw = fs.readFileSync(
+        path.join(webRoot, 'pages/tasks/index.vue'),
+        'utf8',
+      );
+      const tasksResultPageRaw = fs.readFileSync(
+        path.join(webRoot, 'pages/tasks/[id].vue'),
+        'utf8',
+      );
+
+      // 1. Vùng chạm tối thiểu 48px
+      assert.match(sliderComponentRaw, /touch-target/);
+      assert.match(cardComponentRaw, /touch-target/);
+      assert.match(cardComponentRaw, /min-h-\[48px\]/);
+      assert.match(tasksIndexPageRaw, /touch-target/);
+      assert.match(tasksIndexPageRaw, /min-h-\[48px\]/);
+      assert.match(tasksResultPageRaw, /touch-target/);
+      assert.match(tasksResultPageRaw, /min-h-\[48px\]/);
+      assert.match(tasksResultPageRaw, /min-h-\[50px\]/);
+
+      // 2. Không chứa emoji UTF-8 trong UI chrome
+      const emojiRegex =
+        /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}]/u;
+      assert.equal(
+        emojiRegex.test(sliderComponentRaw),
+        false,
+        'components/BeforeAfterSplitSlider.vue không được chứa emoji UTF-8',
+      );
+      assert.equal(
+        emojiRegex.test(cardComponentRaw),
+        false,
+        'components/TaskHistoryCard.vue không được chứa emoji UTF-8',
+      );
+      assert.equal(
+        emojiRegex.test(tasksIndexPageRaw),
+        false,
+        'pages/tasks/index.vue không được chứa emoji UTF-8',
+      );
+      assert.equal(
+        emojiRegex.test(tasksResultPageRaw),
+        false,
+        'pages/tasks/[id].vue không được chứa emoji UTF-8',
+      );
+    });
+  });
+
+  describe('Story 2.13: [FE] Trang chia sẻ công khai có Open Graph', () => {
+    it('pages/share/[token].vue SSR render trạng thái thành công với token hợp lệ, hiển thị ảnh và nút kêu gọi dùng thử, không lộ thông tin riêng của chủ Task', async () => {
+      const sharePageSfc = fs.readFileSync(
+        path.join(webRoot, 'pages/share/[token].vue'),
+        'utf8',
+      );
+      const { descriptor } = parse(sharePageSfc, {
+        filename: 'pages/share/[token].vue',
+      });
+      const compiled = compileTemplate({
+        id: 'test-page-share-token',
+        filename: 'pages/share/[token].vue',
+        source: descriptor.template.content,
+        ssr: true,
+        ssrCssVars: [],
+      });
+      assert.equal(compiled.errors.length, 0);
+
+      const tmpShareFile = path.join(
+        webRoot,
+        'test',
+        `.tmp-share-page-${Date.now()}.mjs`,
+      );
+      fs.writeFileSync(tmpShareFile, compiled.code, 'utf8');
+
+      try {
+        const { ssrRender } = await import(pathToFileURL(tmpShareFile).href);
+
+        const makeShareApp = ({ isNotFound, isRateLimited = false, imageUrl }) => {
+          const app = createSSRApp({
+            ssrRender,
+            setup() {
+              return {
+                isNotFound,
+                isRateLimited,
+                currentImageUrl: imageUrl,
+                toastMessage: null,
+                isDownloading: false,
+                handleImageError: () => {},
+                handleDownload: () => {},
+                handleShareLink: () => {},
+                route: { path: '/share/mock-token' },
+              };
+            },
+          });
+          app.component('Icon', {
+            props: ['name'],
+            ssrRender(_ctx, push) {
+              push('<span class="icon-mock"></span>');
+            },
+          });
+          app.component('NuxtLink', {
+            props: ['to'],
+            ssrRender(ctx, push, _parent, attrs) {
+              const testIdAttr = attrs?.['data-testid']
+                ? ` data-testid="${attrs['data-testid']}"`
+                : '';
+              push(`<a href="${ctx.to || '#'}"${testIdAttr}>MockLink</a>`);
+            },
+          });
+          return app;
+        };
+
+        // 1. Token hợp lệ: hiển thị ảnh, nút CTA dùng thử, nút tải ảnh HD, nút chia sẻ
+        const successHtml = await renderToString(
+          makeShareApp({
+            isNotFound: false,
+            imageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb',
+          }),
+        );
+        assert.match(successHtml, /data-testid="share-success-view"/);
+        assert.match(successHtml, /data-testid="share-result-image"/);
+        assert.match(successHtml, /data-testid="try-motion-ai-button"/);
+        assert.match(successHtml, /href="\/"/);
+        assert.match(successHtml, /data-testid="download-share-image-button"/);
+        assert.match(successHtml, /Tải ảnh HD/);
+        assert.match(successHtml, /data-testid="re-share-button"/);
+        assert.match(successHtml, /Chia sẻ/);
+        assert.match(successHtml, /data-testid="share-tag"/);
+        assert.match(successHtml, /Công khai/);
+        // Kiểm tra template có nhãn CTA dùng thử
+        assert.match(sharePageSfc, /Thử tạo ảnh tương tự miễn phí/);
+        // Không chứa thông tin riêng tư của chủ Task
+        assert.doesNotMatch(successHtml, /data-testid="share-not-found-view"/);
+        assert.doesNotMatch(successHtml, /userId/i);
+        assert.doesNotMatch(successHtml, /@example/i);
+        assert.doesNotMatch(successHtml, /Số dư/i);
+
+        // 2. Token không tồn tại hoặc đã thu hồi: hiển thị 404 "Liên kết không còn tồn tại"
+        const notFoundHtml = await renderToString(
+          makeShareApp({
+            isNotFound: true,
+            imageUrl: null,
+          }),
+        );
+        assert.match(notFoundHtml, /data-testid="share-not-found-view"/);
+        assert.match(notFoundHtml, /Liên kết không còn tồn tại/);
+        assert.match(notFoundHtml, /data-testid="back-home-button"/);
+        assert.match(sharePageSfc, /Về trang chủ Motion AI/);
+        assert.doesNotMatch(notFoundHtml, /data-testid="share-success-view"/);
+        assert.doesNotMatch(notFoundHtml, /data-testid="share-result-image"/);
+
+        // 3. Trạng thái Rate limited (429)
+        const rateLimitHtml = await renderToString(
+          makeShareApp({
+            isNotFound: false,
+            isRateLimited: true,
+            imageUrl: null,
+          }),
+        );
+        assert.match(rateLimitHtml, /data-testid="share-rate-limit-view"/);
+        assert.match(rateLimitHtml, /Hệ thống đang bận/);
+        assert.match(rateLimitHtml, /data-testid="retry-share-button"/);
+      } finally {
+        if (fs.existsSync(tmpShareFile)) {
+          fs.unlinkSync(tmpShareFile);
+        }
+      }
+    });
+
+    it('Thẻ Open Graph và Twitter card SSR có og:title, og:description, og:image và og:url ổn định', () => {
+      const sharePageRaw = fs.readFileSync(
+        path.join(webRoot, 'pages/share/[token].vue'),
+        'utf8',
+      );
+
+      // Thẻ og:image trỏ tới GET /s/<token>
+      assert.match(
+        sharePageRaw,
+        /property:\s*['"]og:image['"]/,
+        'Bắt buộc có thẻ og:image cho crawler',
+      );
+      assert.match(
+        sharePageRaw,
+        /\/s\/\${encodeURIComponent\(token\.value\)\}/,
+        'og:image phải trỏ tới GET /s/<token> để crawler thấy URL ổn định',
+      );
+
+      // Thẻ og:title, og:description, og:url, og:site_name, og:type
+      assert.match(
+        sharePageRaw,
+        /property:\s*['"]og:title['"]/,
+        'Bắt buộc có thẻ og:title',
+      );
+      assert.match(
+        sharePageRaw,
+        /property:\s*['"]og:description['"]/,
+        'Bắt buộc có thẻ og:description',
+      );
+      assert.match(
+        sharePageRaw,
+        /property:\s*['"]og:url['"]/,
+        'Bắt buộc có thẻ og:url',
+      );
+      assert.match(
+        sharePageRaw,
+        /property:\s*['"]og:site_name['"]/,
+        'Bắt buộc có thẻ og:site_name',
+      );
+      assert.match(
+        sharePageRaw,
+        /property:\s*['"]og:type['"]/,
+        'Bắt buộc có thẻ og:type',
+      );
+
+      // Thẻ Twitter Card
+      assert.match(
+        sharePageRaw,
+        /name:\s*['"]twitter:card['"],\s*content:\s*['"]summary_large_image['"]/,
+        'Bắt buộc cấu hình twitter:card dạng summary_large_image',
+      );
+
+      // Thiết lập mã HTTP 404 cho SSR khi token không tồn tại hoặc đã thu hồi
+      assert.match(
+        sharePageRaw,
+        /setResponseStatus\(event,\s*404/,
+        'Phải gọi setResponseStatus(event, 404) khi token không tồn tại',
+      );
+      assert.match(
+        sharePageRaw,
+        /name:\s*['"]robots['"],\s*content:\s*\(\)\s*=>\s*\(isNotFound\.value\s*\?\s*['"]noindex,\s*nofollow['"]/,
+        'Phải gắn thẻ robots noindex cho trang 404',
+      );
+    });
+
+    it('Tuân thủ Slate Cyber tokens, responsive 360px và không có emoji UTF-8 trong UI chrome', () => {
+      const sharePageRaw = fs.readFileSync(
+        path.join(webRoot, 'pages/share/[token].vue'),
+        'utf8',
+      );
+
+      // 1. Vùng chạm tối thiểu 48px
+      assert.match(sharePageRaw, /touch-target/);
+      assert.match(sharePageRaw, /min-h-\[48px\]/);
+
+      // 2. Không chứa emoji UTF-8 trong UI chrome
+      const emojiRegex =
+        /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}]/u;
+      assert.equal(
+        emojiRegex.test(sharePageRaw),
+        false,
+        'pages/share/[token].vue không được chứa emoji UTF-8',
+      );
+
+      // 3. Responsive di động 360px: không có thanh cuộn ngang, ảnh vừa khung
+      assert.match(sharePageRaw, /max-w-full/);
+      assert.match(sharePageRaw, /object-contain/);
+
+      // 4. Tuân thủ Slate Cyber tokens
+      assert.match(sharePageRaw, /cyber-cyan/);
+      assert.match(sharePageRaw, /cyber-surface/);
+      assert.match(sharePageRaw, /cyber-border/);
+      assert.match(sharePageRaw, /cyber-text/);
+      assert.match(sharePageRaw, /cyber-muted/);
+    });
   });
 });

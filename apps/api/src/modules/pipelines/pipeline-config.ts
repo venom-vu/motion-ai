@@ -22,10 +22,10 @@ export const PIPELINE_CONFIGS: Readonly<Record<string, PipelineConfig>> = {
   face_swap: {
     pipeline: 'face_swap',
     workflowEnvVar: 'RUNNINGHUB_WORKFLOW_FACESWAP',
-    // [ASSUMPTION] nodeId/fieldName dưới đây là giả định, phải đối chiếu với workflow thật trên RunningHub.
+    // [ASSUMPTION] nodeId/fieldName (137 = nguồn, 10 = đích) chưa được xác nhận bằng một lần chạy thật; phải đối chiếu với AI App trên RunningHub.
     inputs: [
-      { inputKey: 'sourceKey', nodeId: '10', fieldName: 'image' },
-      { inputKey: 'targetKey', nodeId: '11', fieldName: 'image' },
+      { inputKey: 'sourceKey', nodeId: '137', fieldName: 'image' },
+      { inputKey: 'targetKey', nodeId: '10', fieldName: 'image' },
     ],
     referenceInputKey: 'targetKey',
   },
