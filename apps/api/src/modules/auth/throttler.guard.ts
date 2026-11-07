@@ -65,6 +65,12 @@ export function getTopupThrottleOptions(): { limit: number; ttl: number } {
 /** Giới hạn riêng cho route ghi `POST /topups`; không dùng chung bộ đếm với auth. */
 @Injectable()
 export class TopupThrottlerGuard extends AuthThrottlerGuard {
+  /** Theo người dùng đã xác thực (JwtAuthGuard chạy trước); người dùng sau cùng NAT không dùng chung bộ đếm. */
+  protected override async getTracker(req: Record<string, unknown>): Promise<string> {
+    const sub = (req.user as { sub?: unknown } | undefined)?.sub;
+    return typeof sub === 'string' && sub ? `user:${sub}` : super.getTracker(req);
+  }
+
   protected override async handleRequest(props: ThrottlerRequest): Promise<boolean> {
     const { limit, ttl } = getTopupThrottleOptions();
     return super.handleRequest({

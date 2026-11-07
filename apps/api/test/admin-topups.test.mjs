@@ -292,6 +292,53 @@ describe('Story 3.5: [BE] Duyệt và từ chối đơn, nhật ký Admin', () =
     assert.equal((await adm('POST', `/admin/topups/${id}/reject`, { rejectReason: 'r' })).status, 200);
   });
 
+  it('approve-expired: audit ghi các đơn cùng gói đã approved để đối soát trùng', async () => {
+    const u = await mkUser();
+    const old = await mkTopup(u, { status: 'expired', pack: 'pro' });
+    const newer = await mkTopup(u, { pack: 'pro' });
+    assert.equal((await adm('POST', `/admin/topups/${newer}/approve`, { bankRef: ref() })).status, 200);
+    assert.equal((await adm('POST', `/admin/topups/${old}/approve-expired`, { bankRef: ref() })).status, 200);
+    const [entry] = await audits(old);
+    assert.equal(entry.action, 'topup.approve_expired');
+    assert.deepEqual(entry.before_after.relatedApproved.map((r) => r.id), [newer]);
+    // Không có đơn liên quan thì không thêm trường.
+    const lone = await mkTopup(await mkUser(), { status: 'expired', pack: 'starter' });
+    assert.equal((await adm('POST', `/admin/topups/${lone}/approve-expired`, { bankRef: ref() })).status, 200);
+    assert.equal((await audits(lone))[0].before_after.relatedApproved, undefined);
+  });
+
+  it('return-to-pending tính lại approveBy, không để đơn quá hạn ngay', async () => {
+    const u = await mkUser();
+    const id = await mkTopup(u, { approveBy: new Date(Date.now() - 3 * 3600e3) });
+    assert.equal((await adm('POST', `/admin/topups/${id}/needs-review`, { note: 'n' })).status, 200);
+    const res = await adm('POST', `/admin/topups/${id}/return-to-pending`);
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.ok(new Date(body.approveBy).getTime() > Date.now(), 'approveBy phải ở tương lai');
+    assert.equal(body.isOverdue, false);
+    AdminTopupSchema.parse(body);
+  });
+
+  it('thiếu cấu hình ngân hàng: đơn đã kết thúc vẫn đọc và xử lý được', async () => {
+    const u = await mkUser();
+    const toApprove = await mkTopup(u);
+    const toReject = await mkTopup(u);
+    const saved = process.env.TOPUP_BANK_BIN;
+    delete process.env.TOPUP_BANK_BIN;
+    try {
+      // Duyệt/từ chối đã commit thì không được trả 500 chỉ vì thiếu cấu hình khi dựng DTO.
+      const approved = await adm('POST', `/admin/topups/${toApprove}/approve`, { bankRef: ref() });
+      assert.equal(approved.status, 200);
+      const rejected = await adm('POST', `/admin/topups/${toReject}/reject`, { rejectReason: 'x' });
+      assert.equal(rejected.status, 200);
+      const list = await adm('GET', '/admin/topups?status=approved&pageSize=100');
+      assert.equal(list.status, 200);
+    } finally {
+      process.env.TOPUP_BANK_BIN = saved;
+    }
+    assert.equal((await ledger(u.id)).length, 1);
+  });
+
   it('danh sách: lọc, isOverdue, phân trang, cursor sai', async () => {
     const u = await mkUser();
     const overdue = await mkTopup(u, { approveBy: new Date(Date.now() - 3600e3) });

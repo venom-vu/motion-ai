@@ -469,7 +469,7 @@ export const useApiClient = () => ({
       topup.closeModal();
     });
 
-    for (const terminal of ['rejected', 'expired', 'needs_review']) {
+    for (const terminal of ['rejected', 'expired']) {
       it(`polling dừng khi server trả trạng thái cuối "${terminal}"`, async (t) => {
         t.mock.timers.enable({ apis: ['setInterval'] });
         let pollCount = 0;
@@ -493,6 +493,35 @@ export const useApiClient = () => ({
         topup.closeModal();
       });
     }
+
+    it('needs_review không phải trạng thái cuối: polling tiếp tục và cập nhật khi Admin duyệt', async (t) => {
+      t.mock.timers.enable({ apis: ['setInterval'] });
+      let pollCount = 0;
+      mockContextModule.setMockClient({
+        getTopup: async () => {
+          pollCount++;
+          return pollCount === 1
+            ? { ...MOCK_TOPUPS_BY_STATUS.needs_review }
+            : { ...MOCK_TOPUPS_BY_STATUS.approved };
+        },
+      });
+
+      const topup = useTopupModule.useTopup();
+      topup.openModal({ ...MOCK_TOPUPS_BY_STATUS.pending });
+      t.mock.timers.tick(4000);
+      await flushMicrotasks();
+      assert.equal(topup.activeTopup.value?.status, 'needs_review');
+
+      t.mock.timers.tick(4000);
+      await flushMicrotasks();
+      assert.equal(pollCount, 2, 'needs_review vẫn phải poll tiếp');
+      assert.equal(topup.activeTopup.value?.status, 'approved');
+
+      t.mock.timers.tick(12000);
+      await flushMicrotasks();
+      assert.equal(pollCount, 2, 'approved thì dừng poll');
+      topup.closeModal();
+    });
 
     it('polling dừng sau 5 lỗi liên tiếp', async (t) => {
       t.mock.timers.enable({ apis: ['setInterval'] });
@@ -544,7 +573,12 @@ export const useApiClient = () => ({
 
     it('isOutsideHours của đơn pending dựa vào approveBy do server tính', () => {
       const now = Date.parse('2026-11-07T10:00:00.000Z');
-      const base = { ...MOCK_TOPUPS_BY_STATUS.pending, createdAt: '2026-11-07T20:00:00.000Z' };
+      // updatedAt = mốc xác nhận chuyển khoản của đơn pending
+      const base = {
+        ...MOCK_TOPUPS_BY_STATUS.pending,
+        createdAt: '2026-11-07T20:00:00.000Z',
+        updatedAt: new Date(now).toISOString(),
+      };
       // Hạn duyệt còn trong 15 phút: đơn đang được duyệt bình thường, không hiện banner
       assert.equal(
         isApprovalDeferred({ ...base, approveBy: new Date(now + 10 * 60_000).toISOString() }, now),
@@ -553,6 +587,11 @@ export const useApiClient = () => ({
       // Hạn duyệt lùi sang sáng hôm sau: hiện banner
       assert.equal(
         isApprovalDeferred({ ...base, approveBy: new Date(now + 9 * 3600_000).toISOString() }, now),
+        true,
+      );
+      // Banner không tự biến mất khi gần tới hạn duyệt (so với mốc xác nhận, không so với "bây giờ")
+      assert.equal(
+        isApprovalDeferred({ ...base, approveBy: new Date(now + 9 * 3600_000).toISOString() }, now + 9 * 3600_000 - 60_000),
         true,
       );
       // Đơn tạo ngoài giờ nhưng xem lúc trong giờ vẫn pending: banner theo approveBy, không theo giờ hiện tại

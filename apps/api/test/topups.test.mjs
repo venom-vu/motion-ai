@@ -15,6 +15,7 @@ import { PrismaClient } from '../dist/generated/prisma/client.js';
 import { bootstrapApi } from '../dist/main.js';
 import { NOTIFIER_PORT } from '../dist/ports/index.js';
 import { DiscordNotifierAdapter, createNotifierPort } from '../dist/modules/ops/discord-notifier.adapter.js';
+import { PrismaService } from '../dist/infra/prisma.service.js';
 import { TopupNotifierService, TopupSweeperService, buildVietQrPayload, computeApproveBy, crc16, generateTopupCode } from '../dist/modules/topups/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -365,6 +366,60 @@ describe('Story 3.2: rate limit POST /topups', () => {
       await prisma.user.delete({ where: { id: u.id } });
       await prisma.$disconnect();
       await pool.end();
+      await app.close();
+    }
+  });
+});
+
+describe('Story 3.2: rate limit POST /topups theo người dùng', () => {
+  it('hai người dùng cùng IP không dùng chung bộ đếm', async () => {
+    process.env.DATABASE_URL = DB_URL;
+    process.env.REDIS_URL = REDIS_URL;
+    process.env.PORT = '0';
+    process.env.JWT_SECRET = 'super-secret-test-jwt-key-with-at-least-32-chars-ok';
+    process.env.FRONTEND_URL = 'http://localhost:3000';
+    process.env.TOPUP_BANK_BIN = '970422';
+    process.env.TOPUP_BANK_ACCOUNT_NO = '0123456789';
+    process.env.TOPUP_BANK_ACCOUNT_NAME = 'X';
+    process.env.TOPUP_THROTTLE_LIMIT = '2';
+    process.env.TOPUP_THROTTLE_TTL_MS = '60000';
+    const app = await bootstrapApi();
+    const pool = new pg.Pool({ connectionString: DB_URL });
+    const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+    const baseUrl = `http://127.0.0.1:${app.getHttpServer().address().port}`;
+    const jwt = app.get(JwtService);
+    const mk = async () => {
+      const tag = crypto.randomBytes(4).toString('hex');
+      const u = await prisma.user.create({ data: { googleId: `tpu-${tag}`, email: `tpu-${tag}@motionai.vn`, tosVersion: 'tos-v7' } });
+      return { u, token: jwt.sign({ sub: u.id, email: u.email, role: 'user' }) };
+    };
+    const a = await mk();
+    const b = await mk();
+    const post = (who) =>
+      fetch(`${baseUrl}/topups`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${who.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pack: 'pro', consent: true }),
+      });
+    try {
+      for (let i = 0; i < 2; i++) await post(a);
+      const blocked = await post(a);
+      assert.equal(blocked.status, 429);
+      assert.equal((await blocked.json()).code, ApiErrorCode.RATE_LIMITED);
+      // Cùng IP nhưng người dùng khác: không bị chặn bởi bộ đếm của A.
+      const other = await post(b);
+      assert.equal(other.status, 201);
+    } finally {
+      const rd = new Redis(REDIS_URL);
+      const keys = await rd.keys('throttle:*');
+      if (keys.length) await rd.del(...keys);
+      rd.disconnect();
+      for (const x of [a, b]) {
+        await pool.query('DELETE FROM topups WHERE user_id=$1', [x.u.id]);
+        await prisma.user.delete({ where: { id: x.u.id } });
+      }
+      await prisma.$disconnect();
+      await pool.end().catch(() => {});
       await app.close();
     }
   });
@@ -803,6 +858,63 @@ describe('Story 3.4: [BE] Thông báo Discord cho Admin', () => {
       if (prev === undefined) delete process.env.MOTION_PROCESS_ROLE;
       else process.env.MOTION_PROCESS_ROLE = prev;
     }
+  });
+
+  it('đã gửi Discord nhưng ghi notified_at lỗi thoáng qua: thử lại, không gửi trùng', async () => {
+    mode = 'ok';
+    const u = await newUser();
+    const id = await mkTopup(u, 'pending');
+    await pool.query(`UPDATE topups SET approve_by = now() + interval '1 hour' WHERE id=$1`, [id]);
+    const prisma = app.get(PrismaService);
+    const orig = prisma.$executeRaw;
+    let failed = 0;
+    prisma.$executeRaw = function (strings, ...values) {
+      if (failed < 2 && strings.join('?').includes('SET notified_at')) {
+        failed++;
+        return Promise.reject(new Error('DB lỗi thoáng qua'));
+      }
+      return orig.call(this, strings, ...values);
+    };
+    try {
+      assert.equal(await app.get(TopupNotifierService).notifyPending(id), true);
+    } finally {
+      prisma.$executeRaw = orig;
+    }
+    assert.equal(failed, 2);
+    assert.ok((await row(id)).notified_at, 'notified_at phải được ghi sau khi thử lại');
+    await ageAttempt(id);
+    await sweeper.sweepNotifications();
+    assert.equal(forId(id).length, 1, 'không được gửi trùng');
+  });
+
+  it('quá hạn duyệt: nhận từng đơn một, lỗi nhận một đơn không mất cảnh báo các đơn khác', async () => {
+    mode = 'ok';
+    const u = await newUser();
+    const first = await mkTopup(u, 'pending');
+    const second = await mkTopup(u, 'pending');
+    await pool.query(
+      `UPDATE topups SET approve_by = now() - interval '2 hours', notified_at = now() WHERE id=$1`, [first]);
+    await pool.query(
+      `UPDATE topups SET approve_by = now() - interval '1 hour', notified_at = now() WHERE id=$1`, [second]);
+    const prisma = app.get(PrismaService);
+    const orig = prisma.$queryRaw;
+    prisma.$queryRaw = function (strings, ...values) {
+      if (strings.join('?').includes('SET overdue_notified_at = now()') && values[0] === second) {
+        return Promise.reject(new Error('DB lỗi khi nhận đơn'));
+      }
+      return orig.call(this, strings, ...values);
+    };
+    try {
+      await app.get(TopupNotifierService).alertOverdue();
+    } finally {
+      prisma.$queryRaw = orig;
+    }
+    assert.ok((await row(first)).overdue_notified_at);
+    assert.equal((await row(second)).overdue_notified_at, null, 'đơn chưa nhận thì chưa bị đánh dấu');
+    assert.equal(forId(second).length, 0);
+    await app.get(TopupNotifierService).alertOverdue();
+    assert.equal(forId(second).filter((x) => x.body.includes('quá hạn')).length, 1);
+    assert.equal(forId(first).filter((x) => x.body.includes('quá hạn')).length, 1);
   });
 
   it('createNotifierPort: URL sai định dạng thì dùng adapter log', async () => {

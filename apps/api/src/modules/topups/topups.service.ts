@@ -110,7 +110,22 @@ export class TopupsService {
     return new Ex({ code, message: getApiErrorMessageVi(code) });
   }
 
-  toDto(row: TopupRow, bank: BankAccountConfig = readBankAccountConfig()): Topup {
+  /**
+   * Đơn đang mở cần thông tin tài khoản thật để hiển thị QR. Đơn đã kết thúc không cần,
+   * nên thiếu cấu hình không được làm hỏng lịch sử và thao tác Admin.
+   */
+  private resolveBank(status: string, bank?: BankAccountConfig | null): BankAccountConfig {
+    if (bank) return bank;
+    if ((OPEN_TOPUP_STATUSES as readonly string[]).includes(status)) return readBankAccountConfig();
+    try {
+      return readBankAccountConfig();
+    } catch {
+      return { bin: '-', accountNo: '-', accountName: '-' };
+    }
+  }
+
+  toDto(row: TopupRow, bankInput?: BankAccountConfig | null): Topup {
+    const bank = this.resolveBank(row.status, bankInput);
     const pack = PRICING_CONFIG.topupPacks.find((p) => p.id === row.pack);
     if (!pack) throw new Error(`Gói nạp không hợp lệ: ${row.pack}`);
     const transferContent = `NAP ${row.code}`;
@@ -122,12 +137,15 @@ export class TopupsService {
       amountVnd: row.amountVnd,
       credits: pack.credits,
       transferContent,
-      qrPayload: buildVietQrPayload({
-        bin: bank.bin,
-        accountNo: bank.accountNo,
-        amountVnd: row.amountVnd,
-        content: transferContent,
-      }),
+      qrPayload:
+        bank.bin === '-'
+          ? '-'
+          : buildVietQrPayload({
+              bin: bank.bin,
+              accountNo: bank.accountNo,
+              amountVnd: row.amountVnd,
+              content: transferContent,
+            }),
       bankCode: bank.bin,
       accountNumber: bank.accountNo,
       accountName: bank.accountName,
@@ -217,7 +235,10 @@ export class TopupsService {
           // Có bên khác đổi trạng thái giữa hai lần đọc: đọc lại để báo đúng kết quả cuối.
           const latest = await this.prisma.topup.findUnique({ where: { id } });
           if (latest?.status === 'pending') return this.toDto(latest);
-          if (latest?.status !== 'expired') {
+          const lapsed =
+            latest?.status === 'expired' ||
+            (latest?.status === 'awaiting_transfer' && latest.qrExpiresAt.getTime() <= Date.now());
+          if (!lapsed) {
             throw this.apiError(ConflictException, ApiErrorCode.TOPUP_STATE_INVALID);
           }
         }
@@ -258,9 +279,8 @@ export class TopupsService {
     });
     const hasMore = rows.length > pageSize;
     const items = hasMore ? rows.slice(0, pageSize) : rows;
-    const bank = items.length > 0 ? readBankAccountConfig() : undefined;
     return {
-      items: items.map((r) => this.toDto(r, bank)),
+      items: items.map((r) => this.toDto(r)),
       pageSize,
       hasMore,
       nextCursor: hasMore && items.length > 0 ? items[items.length - 1].id : null,
@@ -268,7 +288,7 @@ export class TopupsService {
   }
   // ---------------------------------------------------------------- Admin
 
-  toAdminDto(row: TopupRow & { userId: string }, bank: BankAccountConfig = readBankAccountConfig()): AdminTopup {
+  toAdminDto(row: TopupRow & { userId: string }, bank?: BankAccountConfig | null): AdminTopup {
     return {
       ...this.toDto(row, bank),
       userId: row.userId,
@@ -293,9 +313,8 @@ export class TopupsService {
     });
     const hasMore = rows.length > pageSize;
     const items = hasMore ? rows.slice(0, pageSize) : rows;
-    const bank = items.length > 0 ? readBankAccountConfig() : undefined;
     return {
-      items: items.map((r) => this.toAdminDto(r, bank)),
+      items: items.map((r) => this.toAdminDto(r)),
       pageSize,
       hasMore,
       nextCursor: hasMore && items.length > 0 ? items[items.length - 1].id : null,
@@ -307,7 +326,7 @@ export class TopupsService {
     tx: PrismaTransactionClient,
     id: string,
     from: readonly string[],
-    data: { status: string; bankRef?: string; rejectReason?: string; note?: string | null },
+    data: { status: string; bankRef?: string; rejectReason?: string; note?: string | null; approveBy?: Date },
   ) {
     // Khóa dòng để `before` của audit đúng là trạng thái nguồn mà CAS chuyển đi (READ COMMITTED).
     const locked = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM topups WHERE id = ${id}::uuid FOR UPDATE`;
@@ -358,11 +377,25 @@ export class TopupsService {
       const pack = PRICING_CONFIG.topupPacks.find((p) => p.id === before.pack);
       if (!pack) throw new Error(`Gói nạp không hợp lệ: ${before.pack}`);
       await this.wallet.topup(tx, before.userId, id, pack.credits, pack.id as TopupPackId);
+      // Duyệt đơn hết hạn QR có thể trùng một lần chuyển khoản đã được duyệt ở đơn mới hơn: ghi vết để đối soát.
+      const relatedApproved =
+        from === 'expired'
+          ? await tx.topup.findMany({
+              where: {
+                userId: before.userId,
+                id: { not: id },
+                status: 'approved',
+                pack: before.pack,
+                createdAt: { gte: before.createdAt },
+              },
+              select: { id: true, bankRef: true },
+            })
+          : [];
       await this.audit.record(tx, {
         adminId,
         action: from === 'expired' ? 'topup.approve_expired' : 'topup.approve',
         target: `topup:${id}`,
-        beforeAfter: { before: { status: before.status, bankRef: before.bankRef }, after: { status: 'approved', bankRef }, credits: pack.credits },
+        beforeAfter: { before: { status: before.status, bankRef: before.bankRef }, after: { status: 'approved', bankRef }, credits: pack.credits, ...(relatedApproved.length > 0 ? { relatedApproved } : {}) },
       });
     });
   }
@@ -401,12 +434,14 @@ export class TopupsService {
 
   returnToPending(adminId: string, id: string): Promise<AdminTopup> {
     return this.adminTransition(id, async (tx) => {
-      const before = await this.casTransition(tx, id, ['needs_review'], { status: 'pending', note: null });
+      // Hạn duyệt tính lại từ lúc quay về hàng chờ; giữ giá trị cũ sẽ khiến đơn quá hạn ngay.
+      const approveBy = computeApproveBy(new Date());
+      const before = await this.casTransition(tx, id, ['needs_review'], { status: 'pending', note: null, approveBy });
       await this.audit.record(tx, {
         adminId,
         action: 'topup.return_to_pending',
         target: `topup:${id}`,
-        beforeAfter: { before: { status: before.status, note: before.note }, after: { status: 'pending' } },
+        beforeAfter: { before: { status: before.status, note: before.note }, after: { status: 'pending', approveBy: approveBy.toISOString() } },
       });
     });
   }

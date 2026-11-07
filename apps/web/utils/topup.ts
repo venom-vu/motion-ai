@@ -47,7 +47,7 @@ export function isOutsideWorkingHoursVn(
  * - trạng thái khác: dựa vào thời điểm tạo đơn.
  */
 export function isApprovalDeferred(
-  topup: { status: string; createdAt: string; approveBy?: string | null },
+  topup: { status: string; createdAt: string; updatedAt?: string; approveBy?: string | null },
   now: number = Date.now(),
 ): boolean {
   if (topup.status === 'pending') {
@@ -55,7 +55,16 @@ export function isApprovalDeferred(
       return false;
     }
     const approveMs = Date.parse(topup.approveBy);
-    return Number.isFinite(approveMs) && approveMs - now > 15 * 60 * 1000;
+    // So với mốc xác nhận (updatedAt của đơn pending), không so với "bây giờ" để banner không tự biến mất.
+    const sinceMs = Date.parse(topup.updatedAt ?? topup.createdAt);
+    if (!Number.isFinite(approveMs) || !Number.isFinite(sinceMs)) {
+      return false;
+    }
+    return approveMs - sinceMs > 15 * 60 * 1000 + 1000;
+  }
+  if (topup.status === 'awaiting_transfer') {
+    // Việc xác nhận chuyển khoản diễn ra sau khi tạo đơn: tính cả thời điểm hiện tại.
+    return isOutsideWorkingHoursVn(topup.createdAt) || isOutsideWorkingHoursVn(now);
   }
   return isOutsideWorkingHoursVn(topup.createdAt);
 }

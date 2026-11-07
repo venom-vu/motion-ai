@@ -106,7 +106,11 @@ export function useTopup() {
       return;
     }
     const targetStatus = activeTopup.value.status;
-    if (targetStatus !== 'awaiting_transfer' && targetStatus !== 'pending') {
+    if (
+      targetStatus !== 'awaiting_transfer' &&
+      targetStatus !== 'pending' &&
+      targetStatus !== 'needs_review'
+    ) {
       return;
     }
     const currentId = activeTopup.value.id;
@@ -144,8 +148,7 @@ export function useTopup() {
           }
         } else if (
           updated.status === 'rejected' ||
-          updated.status === 'expired' ||
-          updated.status === 'needs_review'
+          updated.status === 'expired'
         ) {
           stopPolling();
         } else if (prevStatus !== updated.status) {
@@ -327,7 +330,7 @@ export function useTopup() {
       if (newStatus === 'awaiting_transfer') {
         startCountdown();
         startPolling();
-      } else if (newStatus === 'pending') {
+      } else if (newStatus === 'pending' || newStatus === 'needs_review') {
         stopCountdown();
         startPolling();
       } else {
