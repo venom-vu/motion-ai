@@ -197,577 +197,651 @@ function handleRecreate(): void {
   <div
     v-if="open && topup"
     data-testid="vietqr-modal-backdrop"
-    class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-cyber-bg/80 p-4 backdrop-blur-sm"
+    class="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-cyber-bg/80 p-3 backdrop-blur-sm sm:p-6"
     @click.self="emit('close')"
   >
-    <!-- Centered Dialog Modal trên cả mobile và desktop -->
+    <!-- Centered Dialog Modal trên cả mobile và desktop (bố cục ngang rộng rãi, tránh cuộn dọc) -->
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="vietqr-modal-title"
       data-testid="vietqr-modal"
-      class="relative my-auto w-full max-w-[440px] space-y-4 rounded-2xl border border-cyber-border bg-cyber-surface p-5 shadow-2xl shadow-cyber-violet/20"
+      class="relative max-h-[92dvh] w-full max-w-[740px] overflow-y-auto rounded-2xl border border-cyber-border bg-cyber-surface text-cyber-text shadow-2xl"
     >
-      <!-- Modal Header -->
-      <div class="flex items-start justify-between gap-3">
-        <div class="space-y-0.5">
-          <h2
-            id="vietqr-modal-title"
-            data-testid="vietqr-modal-title"
-            class="font-display text-lg font-bold text-cyber-text"
+      <!-- Modal Header chuẩn Slate Cyber -->
+      <div
+        class="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-cyber-border bg-cyber-surface/95 px-5 py-3.5 backdrop-blur"
+      >
+        <div class="flex min-w-0 items-center gap-3">
+          <span
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyber-violet/40 bg-cyber-violet/15 text-cyber-violet"
           >
-            Nạp Credit Qua VietQR
-          </h2>
-          <p class="text-xs text-cyber-muted">
-            Gói {{ packName }} {{ formatVndVi(topup.amountVnd) }} • Nhận ngay
-            {{ formatNumberVi(topup.credits) }} Credit
-          </p>
+            <Icon name="lucide:qr-code" class="h-5 w-5" />
+          </span>
+          <div class="min-w-0">
+            <h2
+              id="vietqr-modal-title"
+              data-testid="vietqr-modal-title"
+              class="font-display text-base font-bold text-cyber-text sm:text-lg"
+            >
+              Nạp Credit Qua VietQR
+            </h2>
+            <p class="truncate text-xs text-cyber-muted">
+              Gói {{ packName }} •
+              <span class="font-mono font-semibold text-cyber-cyan">{{
+                formatVndVi(topup.amountVnd)
+              }}</span>
+              •
+              <span class="font-mono font-semibold text-cyber-text">+{{ formatNumberVi(topup.credits) }} CR</span>
+            </p>
+          </div>
         </div>
 
         <button
           type="button"
           data-testid="vietqr-modal-close-button"
           aria-label="Đóng"
-          class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-xl border border-cyber-border bg-cyber-bg text-cyber-muted transition hover:bg-cyber-surface hover:text-cyber-text"
+          class="touch-target inline-flex min-h-[48px] min-w-[48px] shrink-0 items-center justify-center rounded-xl border border-cyber-border bg-cyber-bg/80 p-2.5 text-cyber-muted transition hover:border-cyber-violet hover:text-cyber-text"
           @click="emit('close')"
         >
-          <Icon name="lucide:x" class="h-4 w-4" />
+          <Icon name="lucide:x" class="h-5 w-5" />
         </button>
       </div>
 
-      <!-- Lỗi xác nhận chuyển khoản -->
-      <div
-        v-if="confirmErrorVi"
-        data-testid="vietqr-confirm-error"
-        aria-live="polite"
-        class="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-300"
-      >
-        {{ confirmErrorVi }}
+      <div class="space-y-3.5 p-4 sm:p-5">
+        <!-- Lỗi xác nhận chuyển khoản -->
+        <div
+          v-if="confirmErrorVi"
+          data-testid="vietqr-confirm-error"
+          aria-live="polite"
+          class="flex items-start gap-2.5 rounded-xl border border-cyber-danger/40 bg-cyber-danger/10 p-3 text-xs text-cyber-danger"
+        >
+          <Icon name="lucide:alert-circle" class="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{{ confirmErrorVi }}</span>
+        </div>
+
+        <!-- Trạng thái 1: awaiting_transfer (Chờ chuyển khoản - Bố cục 2 cột ngang) -->
+        <template v-if="topup.status === 'awaiting_transfer'">
+          <div
+            data-testid="vietqr-card"
+            class="grid grid-cols-1 gap-4 sm:grid-cols-[236px_minmax(0,1fr)] sm:items-stretch"
+          >
+            <!-- Cột trái: Đếm ngược + Mã QR + Hướng dẫn quét -->
+            <div
+              class="flex flex-col items-center justify-between gap-3 rounded-2xl border border-cyber-border bg-cyber-bg/70 p-4"
+            >
+              <!-- Đếm ngược thời gian thanh toán -->
+              <div
+                v-if="!resolvedIsExpired"
+                data-testid="vietqr-timer-pill"
+                aria-live="polite"
+                class="inline-flex items-center gap-1.5 rounded-full border border-cyber-warning/40 bg-cyber-warning/15 px-3 py-1 text-xs font-semibold text-cyber-warning"
+              >
+                <Icon name="lucide:clock" class="h-3.5 w-3.5" />
+                <span>
+                  Hết hạn sau:
+                  <strong class="font-mono text-cyber-text">{{
+                    resolvedCountdown
+                  }}</strong>
+                </span>
+              </div>
+
+              <div
+                v-else
+                data-testid="vietqr-expired-pill"
+                aria-live="polite"
+                class="inline-flex items-center gap-1.5 rounded-full border border-cyber-danger/40 bg-cyber-danger/15 px-3 py-1 text-xs font-bold text-cyber-danger"
+              >
+                <Icon name="lucide:alert-circle" class="h-3.5 w-3.5" />
+                <span>Mã đã hết hạn</span>
+              </div>
+
+              <!-- Khung QR SVG -->
+              <div
+                data-testid="vietqr-box"
+                class="relative flex h-[196px] w-[196px] shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-cyber-border bg-white p-2.5 shadow-lg"
+              >
+                <!-- eslint-disable-next-line vue/no-v-html -->
+                <div
+                  v-if="qrSvg"
+                  data-testid="vietqr-svg-container"
+                  class="flex h-full w-full items-center justify-center transition [&>svg]:h-full [&>svg]:w-full"
+                  :class="{ 'opacity-25 blur-[2px]': resolvedIsExpired }"
+                  v-html="qrSvg"
+                />
+                <div
+                  v-else
+                  class="flex h-full w-full items-center justify-center text-xs text-cyber-muted"
+                >
+                  Đang tạo mã QR...
+                </div>
+                <div
+                  v-if="resolvedIsExpired"
+                  data-testid="vietqr-expired-overlay"
+                  class="absolute inset-0 flex flex-col items-center justify-center bg-cyber-bg/85 p-3 text-center text-cyber-text"
+                >
+                  <Icon
+                    name="lucide:alert-circle"
+                    class="mb-1.5 h-6 w-6 text-cyber-danger"
+                  />
+                  <span class="text-xs font-bold text-cyber-danger">Mã đã hết hạn</span>
+                </div>
+              </div>
+
+              <!-- Hướng dẫn thanh toán gọn dưới mã QR -->
+              <p class="text-center text-[11px] leading-relaxed text-cyber-muted">
+                Quét mã bằng ứng dụng ngân hàng để tự động điền số tiền &amp; nội dung chính xác 100%.
+              </p>
+            </div>
+
+            <!-- Cột phải: Bảng chi tiết chuyển khoản + Cảnh báo + Nút hành động -->
+            <div class="flex min-w-0 flex-col justify-between gap-3">
+              <!-- Bảng chi tiết chuyển khoản chuẩn Slate Cyber -->
+              <div
+                class="w-full divide-y divide-cyber-border overflow-hidden rounded-2xl border border-cyber-border bg-cyber-bg/70 text-xs"
+              >
+                <div class="grid grid-cols-2 divide-x divide-cyber-border">
+                  <div class="px-3.5 py-2.5">
+                    <span class="block text-[11px] text-cyber-muted">Số tiền cần chuyển</span>
+                    <span
+                      data-testid="vietqr-amount"
+                      class="mt-0.5 block font-mono text-sm font-bold text-cyber-cyan"
+                    >
+                      {{ formatVndVi(topup.amountVnd) }}
+                    </span>
+                  </div>
+
+                  <div class="px-3.5 py-2.5">
+                    <span class="block text-[11px] text-cyber-muted">Credit nhận được</span>
+                    <span
+                      class="mt-0.5 block font-mono text-sm font-bold text-cyber-success"
+                    >
+                      +{{ formatNumberVi(topup.credits) }} CR
+                    </span>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 divide-x divide-cyber-border">
+                  <div class="px-3.5 py-2.5">
+                    <span class="block text-[11px] text-cyber-muted">Ngân hàng</span>
+                    <span
+                      data-testid="vietqr-bank"
+                      class="mt-0.5 block font-mono font-semibold text-cyber-text"
+                    >
+                      {{ topup.bankCode }}
+                    </span>
+                  </div>
+
+                  <div class="px-3.5 py-2.5">
+                    <span class="block text-[11px] text-cyber-muted">Chủ tài khoản</span>
+                    <span
+                      data-testid="vietqr-account-name"
+                      class="mt-0.5 block truncate font-mono font-semibold uppercase text-cyber-text"
+                    >
+                      {{ topup.accountName }}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="flex items-center justify-between gap-3 px-3.5 py-2">
+                  <div class="min-w-0 space-y-0.5">
+                    <span class="block text-[11px] text-cyber-muted">Số tài khoản nhận</span>
+                    <span
+                      data-testid="vietqr-account-number"
+                      class="block break-all font-mono text-sm font-bold text-cyber-text"
+                    >
+                      {{ topup.accountNumber }}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    data-testid="copy-account-button"
+                    class="touch-target inline-flex min-h-[48px] min-w-[48px] shrink-0 items-center justify-center gap-1.5 rounded-xl border border-cyber-border bg-cyber-surface px-3 py-2 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet"
+                    @click="copyText(topup.accountNumber, 'account')"
+                  >
+                    <Icon
+                      :name="
+                        copiedField === 'account'
+                          ? 'lucide:check'
+                          : 'lucide:copy'
+                      "
+                      class="h-3.5 w-3.5"
+                      :class="
+                        copiedField === 'account'
+                          ? 'text-cyber-success'
+                          : 'text-cyber-cyan'
+                      "
+                    />
+                    <span>{{
+                      copiedField === 'account' ? 'Đã chép' : 'Sao chép'
+                    }}</span>
+                  </button>
+                </div>
+
+                <div class="flex items-center justify-between gap-3 px-3.5 py-2">
+                  <div class="min-w-0 space-y-0.5">
+                    <span class="block text-[11px] text-cyber-muted">Nội dung chuyển khoản (bắt buộc)</span>
+                    <span
+                      data-testid="vietqr-content"
+                      class="block break-all font-mono text-sm font-bold text-cyber-violet"
+                    >
+                      {{ topup.transferContent }}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    data-testid="copy-content-button"
+                    class="touch-target inline-flex min-h-[48px] min-w-[48px] shrink-0 items-center justify-center gap-1.5 rounded-xl border border-cyber-border bg-cyber-surface px-3 py-2 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet"
+                    @click="copyText(topup.transferContent, 'content')"
+                  >
+                    <Icon
+                      :name="
+                        copiedField === 'content'
+                          ? 'lucide:check'
+                          : 'lucide:copy'
+                      "
+                      class="h-3.5 w-3.5"
+                      :class="
+                        copiedField === 'content'
+                          ? 'text-cyber-success'
+                          : 'text-cyber-cyan'
+                      "
+                    />
+                    <span>{{
+                      copiedField === 'content' ? 'Đã chép' : 'Sao chép'
+                    }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Banner giải thích ngoài khung giờ (08:00 - 23:00 UTC+7) -->
+              <div
+                v-if="resolvedIsOutsideHours"
+                data-testid="vietqr-off-hours-banner"
+                aria-live="polite"
+                class="flex items-start gap-2 rounded-xl border border-cyber-cyan/40 bg-cyber-cyan/10 px-3 py-2.5 text-xs leading-relaxed text-cyber-cyan"
+              >
+                <Icon name="lucide:info" class="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{{ OFF_HOURS_MESSAGE_VI }}</span>
+              </div>
+
+              <!-- Hướng dẫn liên hệ nếu đã chuyển khoản khi mã hết hạn -->
+              <div
+                v-if="resolvedIsExpired"
+                data-testid="vietqr-expired-contact-hint"
+                aria-live="polite"
+                class="flex items-start gap-2 rounded-xl border border-cyber-danger/40 bg-cyber-danger/10 px-3 py-2.5 text-xs leading-relaxed text-cyber-danger"
+              >
+                <Icon name="lucide:alert-circle" class="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  Nếu bạn đã lỡ chuyển khoản sau khi mã hết hạn, vui lòng liên hệ bộ
+                  phận hỗ trợ kèm mã giao dịch ngân hàng để được hỗ trợ cộng credit
+                  thủ công.
+                </span>
+              </div>
+
+              <!-- Các nút thao tác -->
+              <div>
+                <button
+                  v-if="!resolvedIsExpired"
+                  type="button"
+                  data-testid="confirm-transfer-button"
+                  :disabled="isConfirming"
+                  class="touch-target inline-flex min-h-[48px] min-w-[48px] w-full items-center justify-center gap-2 rounded-xl bg-cyber-violet px-5 py-3 text-sm font-semibold text-cyber-text transition hover:bg-cyber-violet/90 disabled:cursor-not-allowed disabled:opacity-50"
+                  @click="emit('confirm')"
+                >
+                  <Icon
+                    :name="isConfirming ? 'lucide:loader-2' : 'lucide:check'"
+                    class="h-4 w-4"
+                    :class="{ 'animate-spin': isConfirming }"
+                  />
+                  <span>{{
+                    isConfirming
+                      ? 'Đang gửi xác nhận...'
+                      : 'Tôi Đã Chuyển Khoản Xong'
+                  }}</span>
+                </button>
+
+                <div v-else class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    disabled
+                    class="touch-target inline-flex min-h-[48px] min-w-[48px] w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-bg px-3.5 py-2.5 text-xs font-semibold text-cyber-muted opacity-50"
+                  >
+                    <Icon name="lucide:check" class="h-4 w-4" />
+                    <span>Tôi Đã Chuyển Khoản Xong</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="recreate-order-button"
+                    :disabled="isCreating"
+                    class="touch-target inline-flex min-h-[48px] min-w-[48px] w-full items-center justify-center gap-2 rounded-xl bg-cyber-violet px-3.5 py-2.5 text-xs font-semibold text-cyber-text transition hover:bg-cyber-violet/90 disabled:opacity-50"
+                    @click="handleRecreate"
+                  >
+                    <Icon
+                      :name="isCreating ? 'lucide:loader-2' : 'lucide:refresh-cw'"
+                      class="h-4 w-4"
+                      :class="{ 'animate-spin': isCreating }"
+                    />
+                    <span>{{
+                      isCreating ? 'Đang tạo mã mới...' : 'Tạo mã mới'
+                    }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- Trạng thái 2: pending (Đang chờ duyệt) -->
+        <template v-else-if="topup.status === 'pending'">
+          <div
+            data-testid="vietqr-pending-card"
+            aria-live="polite"
+            class="space-y-4 rounded-2xl border border-cyber-border bg-cyber-bg/70 p-5"
+          >
+            <div class="flex flex-col items-center gap-3 text-center sm:flex-row sm:text-left">
+              <div
+                class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyber-cyan/40 bg-cyber-cyan/15 text-cyber-cyan"
+              >
+                <Icon name="lucide:clock" class="h-6 w-6" />
+              </div>
+
+              <div class="min-w-0 flex-1 space-y-1">
+                <div class="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                  <h3 class="font-display text-base font-bold text-cyber-text">
+                    Đã ghi nhận xác nhận chuyển khoản
+                  </h3>
+                  <span
+                    class="inline-block rounded-full border px-3 py-0.5 font-mono text-xs font-semibold"
+                    :class="getTopupStatusBadgeClass(topup.status)"
+                  >
+                    {{ getTopupStatusLabelVi(topup.status) }}
+                  </span>
+                </div>
+                <p class="text-xs leading-relaxed text-cyber-muted">
+                  Hệ thống sẽ đối chiếu với giao dịch ngân hàng và tự động cộng
+                  credit vào tài khoản của bạn.
+                </p>
+              </div>
+            </div>
+
+            <div
+              v-if="resolvedIsOutsideHours"
+              data-testid="vietqr-pending-off-hours-banner"
+              aria-live="polite"
+              class="rounded-xl border border-cyber-cyan/40 bg-cyber-cyan/10 p-3 text-left text-xs leading-relaxed text-cyber-cyan"
+            >
+              <div class="flex items-start gap-2">
+                <Icon name="lucide:info" class="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{{ OFF_HOURS_MESSAGE_VI }}</span>
+              </div>
+            </div>
+
+            <div
+              class="grid grid-cols-1 divide-y divide-cyber-border overflow-hidden rounded-xl border border-cyber-border bg-cyber-surface text-left text-xs sm:grid-cols-3 sm:divide-x sm:divide-y-0"
+            >
+              <div class="px-3.5 py-2.5">
+                <span class="block text-[11px] text-cyber-muted">Mã đơn</span>
+                <span class="mt-0.5 block font-mono font-bold text-cyber-text">NAP {{ topup.code }}</span>
+              </div>
+              <div class="px-3.5 py-2.5">
+                <span class="block text-[11px] text-cyber-muted">Số tiền</span>
+                <span class="mt-0.5 block font-mono font-bold text-cyber-cyan">{{
+                  formatVndVi(topup.amountVnd)
+                }}</span>
+              </div>
+              <div class="px-3.5 py-2.5">
+                <span class="block text-[11px] text-cyber-muted">Credit nhận được</span>
+                <span class="mt-0.5 block font-mono font-bold text-cyber-success">+{{ formatNumberVi(topup.credits) }} CR</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              data-testid="vietqr-close-pending-button"
+              class="touch-target inline-flex min-h-[48px] min-w-[48px] w-full items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-surface px-4 py-2.5 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet"
+              @click="emit('close')"
+            >
+              <span>Đóng cửa sổ</span>
+            </button>
+          </div>
+        </template>
+
+        <!-- Trạng thái 3: approved (Đã duyệt) -->
+        <template v-else-if="topup.status === 'approved'">
+          <div
+            data-testid="vietqr-approved-card"
+            aria-live="polite"
+            class="space-y-4 rounded-2xl border border-cyber-success/40 bg-cyber-success/10 p-5"
+          >
+            <div class="flex flex-col items-center gap-3 text-center sm:flex-row sm:text-left">
+              <div
+                class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyber-success/40 bg-cyber-success/20 text-cyber-success"
+              >
+                <Icon name="lucide:check-circle-2" class="h-6 w-6" />
+              </div>
+
+              <div class="min-w-0 flex-1 space-y-1">
+                <div class="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                  <h3 class="font-display text-base font-bold text-cyber-text">
+                    Nạp credit thành công!
+                  </h3>
+                  <span
+                    class="inline-block rounded-full border px-3 py-0.5 font-mono text-xs font-semibold"
+                    :class="getTopupStatusBadgeClass(topup.status)"
+                  >
+                    {{ getTopupStatusLabelVi(topup.status) }}
+                  </span>
+                </div>
+                <p class="text-xs leading-relaxed text-cyber-muted">
+                  Đã cộng
+                  <strong class="font-mono text-cyber-success">+{{ formatNumberVi(topup.credits) }} credit</strong>
+                  vào tài khoản. Hạng tài khoản đã được nâng cấp theo gói.
+                </p>
+              </div>
+            </div>
+
+            <div
+              v-if="topup.bankRef"
+              class="rounded-xl border border-cyber-border bg-cyber-surface px-3.5 py-2.5 text-left text-xs"
+            >
+              <div class="flex justify-between">
+                <span class="text-cyber-muted">Mã GD Ngân Hàng</span>
+                <span class="font-mono font-bold text-cyber-text">{{
+                  topup.bankRef
+                }}</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              data-testid="vietqr-finish-approved-button"
+              class="touch-target inline-flex min-h-[48px] min-w-[48px] w-full items-center justify-center gap-2 rounded-xl bg-cyber-violet px-4 py-3 text-sm font-semibold text-cyber-text transition hover:bg-cyber-violet/90"
+              @click="emit('close')"
+            >
+              <Icon name="lucide:sparkles" class="h-4 w-4" />
+              <span>Bắt đầu sáng tạo</span>
+            </button>
+          </div>
+        </template>
+
+        <!-- Trạng thái 4: rejected (Bị từ chối) -->
+        <template v-else-if="topup.status === 'rejected'">
+          <div
+            data-testid="vietqr-rejected-card"
+            aria-live="polite"
+            class="space-y-4 rounded-2xl border border-cyber-danger/40 bg-cyber-danger/10 p-5"
+          >
+            <div class="flex flex-col items-center gap-3 text-center sm:flex-row sm:text-left">
+              <div
+                class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyber-danger/40 bg-cyber-danger/20 text-cyber-danger"
+              >
+                <Icon name="lucide:alert-circle" class="h-6 w-6" />
+              </div>
+
+              <div class="min-w-0 flex-1 space-y-1">
+                <div class="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                  <h3 class="font-display text-base font-bold text-cyber-text">
+                    Đơn nạp bị từ chối
+                  </h3>
+                  <span
+                    class="inline-block rounded-full border px-3 py-0.5 font-mono text-xs font-semibold"
+                    :class="getTopupStatusBadgeClass(topup.status)"
+                  >
+                    {{ getTopupStatusLabelVi(topup.status) }}
+                  </span>
+                </div>
+                <p
+                  v-if="topup.rejectReason"
+                  data-testid="vietqr-reject-reason"
+                  class="text-xs font-medium text-cyber-danger"
+                >
+                  Lý do: {{ topup.rejectReason }}
+                </p>
+                <p class="text-xs leading-relaxed text-cyber-muted">
+                  Vui lòng kiểm tra lại sao kê hoặc liên hệ bộ phận hỗ trợ để được
+                  trợ giúp.
+                </p>
+              </div>
+            </div>
+
+            <div class="flex gap-2.5">
+              <button
+                type="button"
+                class="touch-target inline-flex min-h-[48px] min-w-[48px] flex-1 items-center justify-center rounded-xl border border-cyber-border bg-cyber-surface px-4 py-2.5 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet"
+                @click="emit('close')"
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                data-testid="vietqr-recreate-rejected-button"
+                :disabled="isCreating"
+                class="touch-target inline-flex min-h-[48px] min-w-[48px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-cyber-violet px-4 py-2.5 text-xs font-semibold text-cyber-text transition hover:bg-cyber-violet/90 disabled:opacity-50"
+                @click="handleRecreate"
+              >
+                <Icon
+                  :name="isCreating ? 'lucide:loader-2' : 'lucide:refresh-cw'"
+                  class="h-4 w-4"
+                  :class="{ 'animate-spin': isCreating }"
+                />
+                <span>{{ isCreating ? 'Đang tạo...' : 'Tạo đơn mới' }}</span>
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <!-- Trạng thái 5: needs_review (Cần xem xét) -->
+        <template v-else-if="topup.status === 'needs_review'">
+          <div
+            data-testid="vietqr-needs-review-card"
+            aria-live="polite"
+            class="space-y-4 rounded-2xl border border-cyber-warning/40 bg-cyber-warning/10 p-5"
+          >
+            <div class="flex flex-col items-center gap-3 text-center sm:flex-row sm:text-left">
+              <div
+                class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyber-warning/40 bg-cyber-warning/20 text-cyber-warning"
+              >
+                <Icon name="lucide:alert-circle" class="h-6 w-6" />
+              </div>
+
+              <div class="min-w-0 flex-1 space-y-1">
+                <div class="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                  <h3 class="font-display text-base font-bold text-cyber-text">
+                    Đơn nạp cần xem xét
+                  </h3>
+                  <span
+                    class="inline-block rounded-full border px-3 py-0.5 font-mono text-xs font-semibold"
+                    :class="getTopupStatusBadgeClass(topup.status)"
+                  >
+                    {{ getTopupStatusLabelVi(topup.status) }}
+                  </span>
+                </div>
+                <p
+                  v-if="topup.note"
+                  data-testid="vietqr-review-note"
+                  class="text-xs font-medium text-cyber-warning"
+                >
+                  Ghi chú: {{ topup.note }}
+                </p>
+                <p class="text-xs leading-relaxed text-cyber-muted">
+                  Đơn nạp đang được Admin đối chiếu thủ công. Bạn có thể liên hệ
+                  bộ phận hỗ trợ để xử lý nhanh hơn.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              class="touch-target inline-flex min-h-[48px] min-w-[48px] w-full items-center justify-center rounded-xl border border-cyber-border bg-cyber-surface px-4 py-2.5 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet"
+              @click="emit('close')"
+            >
+              Đóng
+            </button>
+          </div>
+        </template>
+
+        <!-- Trạng thái 6: expired (Đã hết hạn) -->
+        <template v-else-if="topup.status === 'expired'">
+          <div
+            data-testid="vietqr-expired-card"
+            aria-live="polite"
+            class="space-y-4 rounded-2xl border border-cyber-border bg-cyber-bg/70 p-5"
+          >
+            <div class="flex flex-col items-center gap-3 text-center sm:flex-row sm:text-left">
+              <div
+                class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyber-border bg-cyber-surface text-cyber-muted"
+              >
+                <Icon name="lucide:clock" class="h-6 w-6" />
+              </div>
+
+              <div class="min-w-0 flex-1 space-y-1">
+                <div class="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                  <h3 class="font-display text-base font-bold text-cyber-text">
+                    Mã QR đã hết hạn
+                  </h3>
+                  <span
+                    class="inline-block rounded-full border px-3 py-0.5 font-mono text-xs font-semibold"
+                    :class="getTopupStatusBadgeClass(topup.status)"
+                  >
+                    {{ getTopupStatusLabelVi(topup.status) }}
+                  </span>
+                </div>
+                <p class="text-xs leading-relaxed text-cyber-muted">
+                  Thời gian giữ phiên thanh toán đã kết thúc. Vui lòng tạo mã QR
+                  mới để nạp credit.
+                </p>
+              </div>
+            </div>
+
+            <div class="flex gap-2.5">
+              <button
+                type="button"
+                class="touch-target inline-flex min-h-[48px] min-w-[48px] flex-1 items-center justify-center rounded-xl border border-cyber-border bg-cyber-surface px-4 py-2.5 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet"
+                @click="emit('close')"
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                data-testid="vietqr-recreate-expired-button"
+                :disabled="isCreating"
+                class="touch-target inline-flex min-h-[48px] min-w-[48px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-cyber-violet px-4 py-2.5 text-xs font-semibold text-cyber-text transition hover:bg-cyber-violet/90 disabled:opacity-50"
+                @click="handleRecreate"
+              >
+                <Icon
+                  :name="isCreating ? 'lucide:loader-2' : 'lucide:refresh-cw'"
+                  class="h-4 w-4"
+                  :class="{ 'animate-spin': isCreating }"
+                />
+                <span>{{ isCreating ? 'Đang tạo...' : 'Tạo mã mới' }}</span>
+              </button>
+            </div>
+          </div>
+        </template>
       </div>
-
-      <!-- Trạng thái 1: awaiting_transfer (Chờ chuyển khoản) -->
-      <template v-if="topup.status === 'awaiting_transfer'">
-        <!-- Thẻ hiển thị mã QR và thông tin thanh toán -->
-        <div
-          data-testid="vietqr-card"
-          class="flex flex-col items-center gap-3 rounded-2xl border border-cyber-border bg-cyber-bg p-4"
-        >
-          <!-- Đếm ngược thời gian thanh toán -->
-          <div
-            v-if="!resolvedIsExpired"
-            data-testid="vietqr-timer-pill"
-            aria-live="polite"
-            class="inline-flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-3.5 py-1 text-xs font-semibold text-rose-400"
-          >
-            <Icon name="lucide:clock" class="h-3.5 w-3.5" />
-            <span>
-              Phiên thanh toán hết hạn sau:
-              <strong class="font-mono text-rose-300">{{
-                resolvedCountdown
-              }}</strong>
-            </span>
-          </div>
-
-          <div
-            v-else
-            data-testid="vietqr-expired-pill"
-            aria-live="polite"
-            class="inline-flex items-center gap-1.5 rounded-full border border-rose-500/40 bg-rose-500/20 px-3.5 py-1 text-xs font-bold text-rose-300"
-          >
-            <Icon name="lucide:alert-circle" class="h-3.5 w-3.5" />
-            <span>Mã đã hết hạn</span>
-          </div>
-
-          <!-- Khung QR SVG -->
-          <div
-            data-testid="vietqr-box"
-            class="relative flex h-[190px] w-[190px] items-center justify-center overflow-hidden rounded-xl bg-white p-2 shadow-lg"
-          >
-            <!-- eslint-disable-next-line vue/no-v-html -->
-            <div
-              v-if="qrSvg"
-              data-testid="vietqr-svg-container"
-              class="flex h-full w-full items-center justify-center [&>svg]:h-full [&>svg]:w-full transition"
-              :class="{ 'opacity-25 blur-[2px]': resolvedIsExpired }"
-              v-html="qrSvg"
-            />
-            <div
-              v-else
-              class="flex h-full w-full items-center justify-center text-xs text-slate-400"
-            >
-              Đang tạo mã QR...
-            </div>
-            <div
-              v-if="resolvedIsExpired"
-              data-testid="vietqr-expired-overlay"
-              class="absolute inset-0 flex flex-col items-center justify-center bg-black/60 p-2 text-center text-white"
-            >
-              <Icon name="lucide:alert-circle" class="mb-1 h-6 w-6 text-rose-400" />
-              <span class="text-xs font-bold text-rose-300">Mã đã hết hạn</span>
-            </div>
-          </div>
-
-          <!-- Bảng chi tiết chuyển khoản -->
-          <div
-            class="w-full space-y-2 rounded-xl border border-cyber-border bg-cyber-surface p-3 text-xs"
-          >
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <span class="text-cyber-muted">Số tiền:</span>
-              <span
-                data-testid="vietqr-amount"
-                class="font-mono text-sm font-bold text-cyber-cyan"
-              >
-                {{ formatVndVi(topup.amountVnd) }}
-              </span>
-            </div>
-
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <span class="text-cyber-muted">Nội dung CK:</span>
-              <div class="flex flex-wrap items-center gap-2">
-                <span
-                  data-testid="vietqr-content"
-                  class="break-all font-mono font-bold text-cyber-text"
-                >
-                  {{ topup.transferContent }}
-                </span>
-                <button
-                  type="button"
-                  data-testid="copy-content-button"
-                  class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-1 rounded-lg border border-cyber-border bg-cyber-bg px-2.5 py-1 text-[11px] font-medium text-cyber-cyan transition hover:border-cyber-cyan"
-                  @click="copyText(topup.transferContent, 'content')"
-                >
-                  <Icon
-                    :name="
-                      copiedField === 'content'
-                        ? 'lucide:check'
-                        : 'lucide:copy'
-                    "
-                    class="h-3 w-3"
-                  />
-                  <span>{{
-                    copiedField === 'content' ? 'Đã chép' : 'Sao chép'
-                  }}</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <span class="text-cyber-muted">Số tài khoản:</span>
-              <div class="flex flex-wrap items-center gap-2">
-                <span
-                  data-testid="vietqr-account-number"
-                  class="break-all font-mono font-bold text-cyber-text"
-                >
-                  {{ topup.accountNumber }}
-                </span>
-                <button
-                  type="button"
-                  data-testid="copy-account-button"
-                  class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-1 rounded-lg border border-cyber-border bg-cyber-bg px-2.5 py-1 text-[11px] font-medium text-cyber-cyan transition hover:border-cyber-cyan"
-                  @click="copyText(topup.accountNumber, 'account')"
-                >
-                  <Icon
-                    :name="
-                      copiedField === 'account'
-                        ? 'lucide:check'
-                        : 'lucide:copy'
-                    "
-                    class="h-3 w-3"
-                  />
-                  <span>{{
-                    copiedField === 'account' ? 'Đã chép' : 'Sao chép'
-                  }}</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <span class="text-cyber-muted">Ngân hàng:</span>
-              <span
-                data-testid="vietqr-bank"
-                class="font-medium text-cyber-text"
-              >
-                {{ topup.bankCode }}
-              </span>
-            </div>
-
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <span class="text-cyber-muted">Chủ tài khoản:</span>
-              <span
-                data-testid="vietqr-account-name"
-                class="font-medium uppercase text-cyber-text"
-              >
-                {{ topup.accountName }}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Banner giải thích ngoài khung giờ (08:00 - 23:00 UTC+7) -->
-        <div
-          v-if="resolvedIsOutsideHours"
-          data-testid="vietqr-off-hours-banner"
-          aria-live="polite"
-          class="flex items-start gap-2.5 rounded-xl border border-cyber-cyan/40 bg-cyber-cyan/10 p-3 text-xs leading-relaxed text-cyber-cyan"
-        >
-          <Icon name="lucide:info" class="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{{ OFF_HOURS_MESSAGE_VI }}</span>
-        </div>
-
-        <!-- Hướng dẫn liên hệ nếu đã chuyển khoản khi mã hết hạn -->
-        <div
-          v-if="resolvedIsExpired"
-          data-testid="vietqr-expired-contact-hint"
-          aria-live="polite"
-          class="flex items-start gap-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs leading-relaxed text-rose-300"
-        >
-          <Icon name="lucide:alert-circle" class="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
-          <span>
-            Nếu bạn đã lỡ chuyển khoản sau khi mã hết hạn, vui lòng liên hệ bộ phận hỗ trợ kèm mã giao dịch ngân hàng để được hỗ trợ cộng credit thủ công.
-          </span>
-        </div>
-
-        <!-- Hướng dẫn thanh toán mặc định -->
-        <div
-          class="flex items-start gap-2.5 rounded-xl border border-cyber-border bg-cyber-bg/50 p-3 text-xs leading-relaxed text-cyber-muted"
-        >
-          <Icon name="lucide:info" class="mt-0.5 h-4 w-4 shrink-0 text-cyber-cyan" />
-          <span>
-            Mở app ngân hàng bất kỳ, quét mã QR để điền tự động số tiền &amp; nội dung chuyển khoản chính xác 100%.
-          </span>
-        </div>
-
-        <!-- Các nút thao tác -->
-        <div class="space-y-2 pt-1">
-          <button
-            v-if="!resolvedIsExpired"
-            type="button"
-            data-testid="confirm-transfer-button"
-            :disabled="isConfirming"
-            class="touch-target inline-flex min-h-[48px] min-w-[48px] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyber-violet to-cyber-cyan px-4 py-3 font-semibold text-white shadow-lg shadow-cyber-violet/30 transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
-            @click="emit('confirm')"
-          >
-            <Icon
-              :name="isConfirming ? 'lucide:loader-2' : 'lucide:check'"
-              class="h-4 w-4"
-              :class="{ 'animate-spin': isConfirming }"
-            />
-            <span>{{
-              isConfirming ? 'Đang gửi xác nhận...' : 'Tôi Đã Chuyển Khoản Xong'
-            }}</span>
-          </button>
-
-          <template v-else>
-            <button
-              type="button"
-              disabled
-              class="touch-target inline-flex min-h-[48px] min-w-[48px] w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-bg px-4 py-3 text-xs font-semibold text-cyber-muted opacity-50"
-            >
-              <Icon name="lucide:check" class="h-4 w-4" />
-              <span>Tôi Đã Chuyển Khoản Xong</span>
-            </button>
-
-            <button
-              type="button"
-              data-testid="recreate-order-button"
-              :disabled="isCreating"
-              class="touch-target inline-flex min-h-[48px] min-w-[48px] w-full items-center justify-center gap-2 rounded-xl bg-cyber-violet px-4 py-3 text-xs font-semibold text-cyber-text transition hover:bg-cyber-violet/90 disabled:opacity-50"
-              @click="handleRecreate"
-            >
-              <Icon
-                :name="isCreating ? 'lucide:loader-2' : 'lucide:refresh-cw'"
-                class="h-4 w-4"
-                :class="{ 'animate-spin': isCreating }"
-              />
-              <span>{{ isCreating ? 'Đang tạo mã mới...' : 'Tạo mã mới' }}</span>
-            </button>
-          </template>
-        </div>
-      </template>
-
-      <!-- Trạng thái 2: pending (Đang chờ duyệt) -->
-      <template v-else-if="topup.status === 'pending'">
-        <div
-          data-testid="vietqr-pending-card"
-          aria-live="polite"
-          class="space-y-4 rounded-2xl border border-cyber-border bg-cyber-bg p-5 text-center"
-        >
-          <div
-            class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-500/40 bg-cyan-500/15 text-cyan-300"
-          >
-            <Icon name="lucide:clock" class="h-6 w-6" />
-          </div>
-
-          <div class="space-y-1">
-            <span
-              class="inline-block rounded-full border px-3 py-0.5 text-xs font-semibold"
-              :class="getTopupStatusBadgeClass(topup.status)"
-            >
-              {{ getTopupStatusLabelVi(topup.status) }}
-            </span>
-            <h3 class="font-display text-base font-bold text-cyber-text">
-              Đã ghi nhận xác nhận chuyển khoản
-            </h3>
-            <p class="text-xs text-cyber-muted">
-              Hệ thống sẽ đối chiếu với giao dịch ngân hàng và tự động cộng
-              credit vào tài khoản của bạn.
-            </p>
-          </div>
-
-          <div
-            v-if="resolvedIsOutsideHours"
-            data-testid="vietqr-pending-off-hours-banner"
-            aria-live="polite"
-            class="rounded-xl border border-cyber-cyan/40 bg-cyber-cyan/10 p-3 text-left text-xs leading-relaxed text-cyber-cyan"
-          >
-            <div class="flex items-start gap-2">
-              <Icon name="lucide:info" class="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{{ OFF_HOURS_MESSAGE_VI }}</span>
-            </div>
-          </div>
-
-          <div
-            class="rounded-xl border border-cyber-border bg-cyber-surface p-3 text-left text-xs space-y-1.5"
-          >
-            <div class="flex justify-between">
-              <span class="text-cyber-muted">Mã đơn:</span>
-              <span class="font-mono font-bold text-cyber-text">{{
-                topup.code
-              }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-cyber-muted">Số tiền:</span>
-              <span class="font-mono font-bold text-cyber-cyan">{{
-                formatVndVi(topup.amountVnd)
-              }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-cyber-muted">Credit nhận được:</span>
-              <span class="font-mono font-bold text-cyber-text">+{{ formatNumberVi(topup.credits) }}</span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            data-testid="vietqr-close-pending-button"
-            class="touch-target inline-flex min-h-[48px] min-w-[48px] w-full items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-surface px-4 py-2.5 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet"
-            @click="emit('close')"
-          >
-            Đóng cửa sổ
-          </button>
-        </div>
-      </template>
-
-      <!-- Trạng thái 3: approved (Đã duyệt) -->
-      <template v-else-if="topup.status === 'approved'">
-        <div
-          data-testid="vietqr-approved-card"
-          aria-live="polite"
-          class="space-y-4 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-5 text-center"
-        >
-          <div
-            class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-500/40 bg-emerald-500/20 text-emerald-300"
-          >
-            <Icon name="lucide:check" class="h-6 w-6" />
-          </div>
-
-          <div class="space-y-1">
-            <span
-              class="inline-block rounded-full border px-3 py-0.5 text-xs font-semibold"
-              :class="getTopupStatusBadgeClass(topup.status)"
-            >
-              {{ getTopupStatusLabelVi(topup.status) }}
-            </span>
-            <h3 class="font-display text-base font-bold text-cyber-text">
-              Nạp credit thành công!
-            </h3>
-            <p class="text-xs text-cyber-muted">
-              Đã cộng <strong class="font-mono text-emerald-400">+{{ formatNumberVi(topup.credits) }} credit</strong> vào tài khoản. Hạng tài khoản đã được nâng cấp theo gói.
-            </p>
-          </div>
-
-          <div
-            v-if="topup.bankRef"
-            class="rounded-xl border border-cyber-border bg-cyber-bg/80 p-3 text-left text-xs"
-          >
-            <div class="flex justify-between">
-              <span class="text-cyber-muted">Mã GD Ngân Hàng:</span>
-              <span class="font-mono font-bold text-cyber-text">{{
-                topup.bankRef
-              }}</span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            data-testid="vietqr-finish-approved-button"
-            class="touch-target inline-flex min-h-[48px] min-w-[48px] w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white shadow-lg shadow-emerald-600/30 transition hover:bg-emerald-500"
-            @click="emit('close')"
-          >
-            <span>Bắt đầu sáng tạo</span>
-          </button>
-        </div>
-      </template>
-
-      <!-- Trạng thái 4: rejected (Bị từ chối) -->
-      <template v-else-if="topup.status === 'rejected'">
-        <div
-          data-testid="vietqr-rejected-card"
-          aria-live="polite"
-          class="space-y-4 rounded-2xl border border-rose-500/40 bg-rose-500/10 p-5 text-center"
-        >
-          <div
-            class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-500/40 bg-rose-500/20 text-rose-300"
-          >
-            <Icon name="lucide:alert-circle" class="h-6 w-6" />
-          </div>
-
-          <div class="space-y-1">
-            <span
-              class="inline-block rounded-full border px-3 py-0.5 text-xs font-semibold"
-              :class="getTopupStatusBadgeClass(topup.status)"
-            >
-              {{ getTopupStatusLabelVi(topup.status) }}
-            </span>
-            <h3 class="font-display text-base font-bold text-cyber-text">
-              Đơn nạp bị từ chối
-            </h3>
-            <p
-              v-if="topup.rejectReason"
-              data-testid="vietqr-reject-reason"
-              class="text-xs text-rose-300"
-            >
-              Lý do: {{ topup.rejectReason }}
-            </p>
-            <p class="text-xs text-cyber-muted">
-              Vui lòng kiểm tra lại sao kê hoặc liên hệ bộ phận hỗ trợ để được trợ giúp.
-            </p>
-          </div>
-
-          <div class="flex gap-2">
-            <button
-              type="button"
-              class="touch-target inline-flex min-h-[48px] min-w-[48px] flex-1 items-center justify-center rounded-xl border border-cyber-border bg-cyber-surface px-4 py-2.5 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet"
-              @click="emit('close')"
-            >
-              Đóng
-            </button>
-            <button
-              type="button"
-              data-testid="vietqr-recreate-rejected-button"
-              :disabled="isCreating"
-              class="touch-target inline-flex min-h-[48px] min-w-[48px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-cyber-violet px-4 py-2.5 text-xs font-semibold text-cyber-text transition hover:bg-cyber-violet/90 disabled:opacity-50"
-              @click="handleRecreate"
-            >
-              <Icon
-                :name="isCreating ? 'lucide:loader-2' : 'lucide:refresh-cw'"
-                class="h-4 w-4"
-                :class="{ 'animate-spin': isCreating }"
-              />
-              <span>{{ isCreating ? 'Đang tạo...' : 'Tạo đơn mới' }}</span>
-            </button>
-          </div>
-        </div>
-      </template>
-
-      <!-- Trạng thái 5: needs_review (Cần xem xét) -->
-      <template v-else-if="topup.status === 'needs_review'">
-        <div
-          data-testid="vietqr-needs-review-card"
-          aria-live="polite"
-          class="space-y-4 rounded-2xl border border-orange-500/40 bg-orange-500/10 p-5 text-center"
-        >
-          <div
-            class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-orange-500/40 bg-orange-500/20 text-orange-300"
-          >
-            <Icon name="lucide:alert-circle" class="h-6 w-6" />
-          </div>
-
-          <div class="space-y-1">
-            <span
-              class="inline-block rounded-full border px-3 py-0.5 text-xs font-semibold"
-              :class="getTopupStatusBadgeClass(topup.status)"
-            >
-              {{ getTopupStatusLabelVi(topup.status) }}
-            </span>
-            <h3 class="font-display text-base font-bold text-cyber-text">
-              Đơn nạp cần xem xét
-            </h3>
-            <p
-              v-if="topup.note"
-              data-testid="vietqr-review-note"
-              class="text-xs text-orange-300"
-            >
-              Ghi chú: {{ topup.note }}
-            </p>
-            <p class="text-xs text-cyber-muted">
-              Đơn nạp đang được Admin đối chiếu thủ công. Bạn có thể liên hệ bộ phận hỗ trợ để xử lý nhanh hơn.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            class="touch-target inline-flex min-h-[48px] min-w-[48px] w-full items-center justify-center rounded-xl border border-cyber-border bg-cyber-surface px-4 py-2.5 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet"
-            @click="emit('close')"
-          >
-            Đóng
-          </button>
-        </div>
-      </template>
-
-      <!-- Trạng thái 6: expired (Đã hết hạn) -->
-      <template v-else-if="topup.status === 'expired'">
-        <div
-          data-testid="vietqr-expired-card"
-          aria-live="polite"
-          class="space-y-4 rounded-2xl border border-cyber-border bg-cyber-bg p-5 text-center"
-        >
-          <div
-            class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-500/40 bg-slate-500/20 text-slate-400"
-          >
-            <Icon name="lucide:clock" class="h-6 w-6" />
-          </div>
-
-          <div class="space-y-1">
-            <span
-              class="inline-block rounded-full border px-3 py-0.5 text-xs font-semibold"
-              :class="getTopupStatusBadgeClass(topup.status)"
-            >
-              {{ getTopupStatusLabelVi(topup.status) }}
-            </span>
-            <h3 class="font-display text-base font-bold text-cyber-text">
-              Mã QR đã hết hạn
-            </h3>
-            <p class="text-xs text-cyber-muted">
-              Thời gian giữ phiên thanh toán đã kết thúc. Vui lòng tạo mã QR mới để nạp credit.
-            </p>
-          </div>
-
-          <div class="flex gap-2">
-            <button
-              type="button"
-              class="touch-target inline-flex min-h-[48px] min-w-[48px] flex-1 items-center justify-center rounded-xl border border-cyber-border bg-cyber-surface px-4 py-2.5 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet"
-              @click="emit('close')"
-            >
-              Đóng
-            </button>
-            <button
-              type="button"
-              data-testid="vietqr-recreate-expired-button"
-              :disabled="isCreating"
-              class="touch-target inline-flex min-h-[48px] min-w-[48px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-cyber-violet px-4 py-2.5 text-xs font-semibold text-cyber-text transition hover:bg-cyber-violet/90 disabled:opacity-50"
-              @click="handleRecreate"
-            >
-              <Icon
-                :name="isCreating ? 'lucide:loader-2' : 'lucide:refresh-cw'"
-                class="h-4 w-4"
-                :class="{ 'animate-spin': isCreating }"
-              />
-              <span>{{ isCreating ? 'Đang tạo...' : 'Tạo mã mới' }}</span>
-            </button>
-          </div>
-        </div>
-      </template>
     </div>
   </div>
 </template>

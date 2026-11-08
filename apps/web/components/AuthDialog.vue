@@ -47,7 +47,7 @@ onBeforeUnmount(() => {
     aria-modal="true"
     aria-labelledby="auth-dialog-title"
     data-testid="auth-dialog"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-cyber-bg/80 p-3 backdrop-blur-sm sm:p-6"
+    class="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-cyber-bg/80 p-3 backdrop-blur-sm sm:p-6"
     @click.self="close"
   >
     <div

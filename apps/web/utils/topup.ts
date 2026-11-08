@@ -1,24 +1,22 @@
-import QRCode from 'qrcode';
+// @ts-expect-error qrcode/lib/browser.js không có khai báo kiểu riêng nhưng an toàn cho cả SSR Worker (không kéo pngjs/stream) và Browser
+import QRCode from "qrcode/lib/browser.js";
+import type QRCodeTypes from "qrcode";
 import {
   TOPUP_STATUS_LABELS_VI,
   getTopupStatusLabelVi,
   type TopupStatus,
-} from '@motion-ai/contracts';
+} from "@motion-ai/contracts";
 
-export {
-  TOPUP_STATUS_LABELS_VI,
-  getTopupStatusLabelVi,
-  type TopupStatus,
-};
+export { TOPUP_STATUS_LABELS_VI, getTopupStatusLabelVi, type TopupStatus };
 
 const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 const WINDOW_START_MS = 8 * HOUR_MS; // 08:00 UTC+7
-const WINDOW_END_MS = 23 * HOUR_MS;   // 23:00 UTC+7
+const WINDOW_END_MS = 23 * HOUR_MS; // 23:00 UTC+7
 
 export const OFF_HOURS_MESSAGE_VI =
-  'Đơn nạp được tạo ngoài khung giờ hỗ trợ (08:00 – 23:00). Đơn sẽ được duyệt từ 08:00 sáng hôm sau.';
+  "Đơn nạp được tạo ngoài khung giờ hỗ trợ (08:00 – 23:00). Đơn sẽ được duyệt từ 08:00 sáng hôm sau.";
 
 /**
  * Kiểm tra xem một thời điểm có nằm ngoài khung làm việc [08:00, 23:00) giờ Việt Nam (UTC+7, không DST) hay không.
@@ -27,7 +25,7 @@ export function isOutsideWorkingHoursVn(
   date: Date | string | number = new Date(),
 ): boolean {
   const ms =
-    typeof date === 'string'
+    typeof date === "string"
       ? Date.parse(date)
       : date instanceof Date
         ? date.getTime()
@@ -47,10 +45,15 @@ export function isOutsideWorkingHoursVn(
  * - trạng thái khác: dựa vào thời điểm tạo đơn.
  */
 export function isApprovalDeferred(
-  topup: { status: string; createdAt: string; updatedAt?: string; approveBy?: string | null },
+  topup: {
+    status: string;
+    createdAt: string;
+    updatedAt?: string;
+    approveBy?: string | null;
+  },
   now: number = Date.now(),
 ): boolean {
-  if (topup.status === 'pending') {
+  if (topup.status === "pending") {
     if (!topup.approveBy) {
       return false;
     }
@@ -62,9 +65,11 @@ export function isApprovalDeferred(
     }
     return approveMs - sinceMs > 15 * 60 * 1000 + 1000;
   }
-  if (topup.status === 'awaiting_transfer') {
+  if (topup.status === "awaiting_transfer") {
     // Việc xác nhận chuyển khoản diễn ra sau khi tạo đơn: tính cả thời điểm hiện tại.
-    return isOutsideWorkingHoursVn(topup.createdAt) || isOutsideWorkingHoursVn(now);
+    return (
+      isOutsideWorkingHoursVn(topup.createdAt) || isOutsideWorkingHoursVn(now)
+    );
   }
   return isOutsideWorkingHoursVn(topup.createdAt);
 }
@@ -105,7 +110,7 @@ export function formatCountdown(totalSeconds: number): string {
   const clamped = Math.max(0, Math.floor(totalSeconds));
   const minutes = Math.floor(clamped / 60);
   const seconds = clamped % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 /**
@@ -113,20 +118,20 @@ export function formatCountdown(totalSeconds: number): string {
  */
 export async function generateQrSvg(
   qrPayload: string,
-  options?: QRCode.QRCodeToStringOptions,
+  options?: QRCodeTypes.QRCodeToStringOptions,
 ): Promise<string> {
   return QRCode.toString(qrPayload, {
-    type: 'svg',
+    type: "svg",
     margin: 1,
-    errorCorrectionLevel: 'M',
+    errorCorrectionLevel: "M",
     ...options,
   });
 }
 
-const VIETNAM_TIMESTAMP_FORMATTER = new Intl.DateTimeFormat('vi-VN', {
-  dateStyle: 'short',
-  timeStyle: 'short',
-  timeZone: 'Asia/Ho_Chi_Minh',
+const VIETNAM_TIMESTAMP_FORMATTER = new Intl.DateTimeFormat("vi-VN", {
+  dateStyle: "short",
+  timeStyle: "short",
+  timeZone: "Asia/Ho_Chi_Minh",
 });
 
 /**
@@ -134,11 +139,11 @@ const VIETNAM_TIMESTAMP_FORMATTER = new Intl.DateTimeFormat('vi-VN', {
  */
 export function formatTopupTimestampVi(isoString: string): string {
   if (!isoString) {
-    return '-';
+    return "-";
   }
   const d = new Date(isoString);
   if (Number.isNaN(d.getTime())) {
-    return '-';
+    return "-";
   }
   return VIETNAM_TIMESTAMP_FORMATTER.format(d);
 }
@@ -148,20 +153,20 @@ export function formatTopupTimestampVi(isoString: string): string {
  */
 export function getTopupStatusBadgeClass(status: TopupStatus): string {
   switch (status) {
-    case 'awaiting_transfer':
-      return 'border-amber-500/40 bg-amber-500/10 text-amber-300';
-    case 'pending':
-      return 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300';
-    case 'approved':
-      return 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300';
-    case 'rejected':
-      return 'border-rose-500/40 bg-rose-500/10 text-rose-300';
-    case 'needs_review':
-      return 'border-orange-500/40 bg-orange-500/10 text-orange-300';
-    case 'expired':
-      return 'border-slate-500/40 bg-slate-500/10 text-slate-400';
+    case "awaiting_transfer":
+      return "border-cyber-warning/50 bg-cyber-warning/15 text-cyber-warning";
+    case "pending":
+      return "border-cyber-cyan/50 bg-cyber-cyan/15 text-cyber-cyan";
+    case "approved":
+      return "border-cyber-success/50 bg-cyber-success/15 text-cyber-success";
+    case "rejected":
+      return "border-cyber-danger/50 bg-cyber-danger/15 text-cyber-danger";
+    case "needs_review":
+      return "border-cyber-warning/50 bg-cyber-warning/15 text-cyber-warning";
+    case "expired":
+      return "border-cyber-border bg-cyber-bg text-cyber-muted";
     default:
-      return 'border-cyber-border bg-cyber-bg text-cyber-muted';
+      return "border-cyber-border bg-cyber-bg text-cyber-muted";
   }
 }
 
@@ -173,7 +178,7 @@ export function isOverdue(
   order: { status: string; isOverdue?: boolean; approveBy?: string | null },
   nowMs: number = Date.now(),
 ): boolean {
-  if (order.status !== 'pending') {
+  if (order.status !== "pending") {
     return false;
   }
   if (order.isOverdue) {
@@ -185,5 +190,3 @@ export function isOverdue(
   }
   return false;
 }
-
-

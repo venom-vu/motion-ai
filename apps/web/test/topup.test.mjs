@@ -652,7 +652,8 @@ export const useApiClient = () => ({
     it('VietQRModal tuân thủ Centered Dialog, không dùng Drawer/Bottom Sheet, vùng chạm >= 48px và không có emoji', () => {
       assert.match(rawModalVue, /role="dialog"/);
       assert.match(rawModalVue, /aria-modal="true"/);
-      assert.match(rawModalVue, /max-w-\[440px\]/);
+      assert.match(rawModalVue, /max-w-\[740px\]/);
+      assert.match(rawModalVue, /sm:grid-cols-\[236px_minmax\(0,1fr\)\]/);
       assert.match(rawModalVue, /items-center justify-center/);
 
       // Tuyệt đối không dùng Drawer hoặc Bottom Sheet
@@ -897,143 +898,40 @@ export const useApiClient = () => ({
     });
   });
 
-  describe('Page pages/topup.vue & Pricing Integration', () => {
-    const rawTopupPage = fs.readFileSync(
-      path.join(webRoot, 'pages/topup.vue'),
+  describe('Page pages/pricing.vue (Gói nạp, VietQR trực tiếp & Lịch sử đơn nạp)', () => {
+    const rawPricingPage = fs.readFileSync(
+      path.join(webRoot, 'pages/pricing.vue'),
       'utf8',
     );
 
-    it('pages/topup.vue tuân thủ vùng chạm >= 48px, không emoji UTF-8 và hỗ trợ màn hình 360px', () => {
-      assert.match(rawTopupPage, /data-testid="page-topup"/);
-      assert.match(rawTopupPage, /data-testid="topup-packs-grid"/);
-      assert.match(rawTopupPage, /data-testid="topup-consent-checkbox"/);
-      assert.match(rawTopupPage, /data-testid="create-topup-button"/);
-
-      // Nút tạo đơn phải bị disabled nếu chưa tích ToS
-      assert.match(rawTopupPage, /:disabled="!consent\s*\|\|\s*isCreating"/);
+    it('pages/pricing.vue tuân thủ vùng chạm >= 48px, không emoji UTF-8, hỗ trợ màn hình 360px và không còn pages/topup.vue', () => {
+      assert.equal(
+        fs.existsSync(path.join(webRoot, 'pages/topup.vue')),
+        false,
+        'Trang pages/topup.vue dư thừa phải được xoá vì đã tích hợp vào pages/pricing.vue',
+      );
+      assert.match(rawPricingPage, /data-testid="page-pricing"/);
+      assert.match(rawPricingPage, /data-testid="pricing-tiers-grid"/);
+      assert.match(rawPricingPage, /data-testid="pricing-topup-history"/);
 
       // Không chứa emoji trong UI chrome
       const emojiRegex =
         /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
       assert.equal(
-        emojiRegex.test(rawTopupPage),
+        emojiRegex.test(rawPricingPage),
         false,
-        'pages/topup.vue không được chứa emoji trong UI chrome',
+        'pages/pricing.vue không được chứa emoji trong UI chrome',
       );
 
       // Touch target >= 48px
-      const touchMatches = rawTopupPage.match(/min-h-\[48px\]\s+min-w-\[48px\]/g);
+      const touchMatches = rawPricingPage.match(/min-h-\[48px\]\s+min-w-\[48px\]/g);
       assert.ok(
         touchMatches && touchMatches.length >= 4,
-        'Các nút trên trang topup phải có vùng chạm tối thiểu 48px',
+        'Các nút trên trang pricing phải có vùng chạm tối thiểu 48px',
       );
     });
 
-    it('SSR render pages/topup.vue hiển thị 3 gói từ pricing config, ToS checkbox và danh sách đơn nạp', async () => {
-      const { descriptor } = parse(rawTopupPage);
-      const compiled = compileTemplate({
-        id: `test-page-topup-${Date.now()}`,
-        filename: 'topup.vue',
-        source: descriptor.template.content,
-        ssr: true,
-        ssrCssVars: [],
-      });
-      assert.equal(compiled.errors.length, 0);
-
-      const tmpFile = path.join(
-        webRoot,
-        'test',
-        `.tmp-page-topup-${Date.now()}.mjs`,
-      );
-      fs.writeFileSync(tmpFile, compiled.code, 'utf8');
-
-      try {
-        const { ssrRender } = await import(pathToFileURL(tmpFile).href);
-        const app = createSSRApp({
-          ssrRender,
-          setup() {
-            return {
-              pricing: MOCK_PRICING_CONFIG_RESPONSE,
-              currentTier: 'Pro',
-              isPricingLoading: false,
-              pricingErrorVi: null,
-              topupPacks: MOCK_PRICING_CONFIG_RESPONSE.topupPacks,
-              selectedPack: 'pro',
-              consent: false,
-              isCreating: false,
-              currentSelectedPackData:
-                MOCK_PRICING_CONFIG_RESPONSE.topupPacks[1],
-              createErrorVi: null,
-              isAuthenticated: true,
-              listErrorVi: null,
-              isLoadingList: false,
-              isLoadingMore: false,
-              topups: MOCK_TOPUP_LIST_RESPONSE.items,
-              hasMore: false,
-              isModalOpen: false,
-              activeTopup: null,
-              isConfirming: false,
-              confirmErrorVi: null,
-              remainingSeconds: 0,
-              formattedCountdown: '00:00',
-              isExpired: false,
-              isOutsideHours: false,
-              refreshPricing: () => {},
-              closeModal: () => {},
-              confirmTransfer: () => {},
-              handleRecreateOrder: () => {},
-              formatVndVi: (val) => `${val?.toLocaleString('vi-VN')} VNĐ`,
-              formatNumberVi: (val) => val?.toLocaleString('vi-VN'),
-              formatTopupTimestampVi: () => '07/11/2026 10:00',
-              getTopupStatusBadgeClass,
-              getTopupStatusLabelVi,
-              emit: () => {},
-            };
-          },
-        });
-        app.component('Icon', {
-          props: ['name'],
-          ssrRender(_ctx, _push) {
-            _push('<span class="mock-lucide-icon"></span>');
-          },
-        });
-        app.component('NuxtLink', {
-          props: ['to'],
-          setup(props, { slots }) {
-            return () => h('a', { href: props.to }, slots.default?.());
-          },
-        });
-        app.component('ApiErrorBanner', {
-          props: ['messageVi'],
-          ssrRender() {},
-        });
-        app.component('VietQRModal', {
-          props: ['open'],
-          ssrRender() {},
-        });
-
-        const html = await renderToString(app);
-        assert.match(html, /data-testid="page-topup"/);
-        assert.match(html, /Gói Starter/);
-        assert.match(html, /49\.000 VNĐ/);
-        assert.match(html, /Gói Pro/);
-        assert.match(html, /99\.000 VNĐ/);
-        assert.match(html, /Gói Creator/);
-        assert.match(html, /199\.000 VNĐ/);
-        assert.match(html, /data-testid="topup-consent-checkbox"/);
-        assert.match(html, /data-testid="create-topup-button"/);
-        // Chỉ nút tạo đơn (không phải phần tử nào khác) bị disabled vì consent = false
-        assert.match(html, /data-testid="create-topup-button"[^>]*\sdisabled/);
-        assert.match(html, /data-testid="topup-orders-list"/);
-        assert.match(html, /NAP P4N8T2WD/);
-      } finally {
-        if (fs.existsSync(tmpFile)) {
-          fs.unlinkSync(tmpFile);
-        }
-      }
-    });
-
-    it('SSR render pages/pricing.vue tạo thẻ <a> NuxtLink liên kết chính xác tới /topup?pack=...', async () => {
+    it('SSR render pages/pricing.vue: hiển thị nút tạo VietQR trực tiếp; ẩn lịch sử đơn nạp khi chưa đăng nhập và hiển thị khi đã đăng nhập', async () => {
       const rawPricing = fs.readFileSync(
         path.join(webRoot, 'pages/pricing.vue'),
         'utf8',
@@ -1057,46 +955,95 @@ export const useApiClient = () => ({
 
       try {
         const { ssrRender } = await import(pathToFileURL(tmpFile).href);
-        const app = createSSRApp({
-          ssrRender,
-          setup() {
-            return {
-              pricing: MOCK_PRICING_CONFIG_RESPONSE,
-              currentTier: 'FREE',
-              isLoading: false,
-              errorMessageVi: null,
-              refreshAll: () => {},
-              clearError: () => {},
-              formatNumberVi: (n) => String(n),
-              formatVndVi: (n) => `${n?.toLocaleString('vi-VN')} VNĐ`,
-            };
-          },
-        });
-        app.component('Icon', {
-          props: ['name'],
-          ssrRender(_ctx, _push) {
-            _push('<span class="mock-lucide-icon"></span>');
-          },
-        });
-        app.component('NuxtLink', {
-          props: ['to'],
-          setup(props, { slots }) {
-            return () => h('a', { href: props.to }, slots.default?.());
-          },
-        });
-        app.component('ApiErrorBanner', {
-          props: ['messageVi'],
-          ssrRender() {},
-        });
+        async function renderPricing(isAuthenticated, topups = []) {
+          const app = createSSRApp({
+            ssrRender,
+            setup() {
+              return {
+                isAuthenticated,
+                pricing: MOCK_PRICING_CONFIG_RESPONSE,
+                currentTier: 'FREE',
+                isLoading: false,
+                errorMessageVi: null,
+                isCreating: false,
+                creatingPackId: null,
+                createErrorVi: null,
+                isModalOpen: false,
+                activeTopup: null,
+                isConfirming: false,
+                confirmErrorVi: null,
+                remainingSeconds: 0,
+                formattedCountdown: '00:00',
+                isExpired: false,
+                isOutsideHours: false,
+                topups,
+                isLoadingList: false,
+                isLoadingMore: false,
+                listErrorVi: null,
+                hasMore: false,
+                refreshAll: () => {},
+                clearError: () => {},
+                dismissCreateError: () => {},
+                handleSelectPack: () => {},
+                handleOpenOrder: () => {},
+                handleRecreateOrder: () => {},
+                closeModal: () => {},
+                confirmTransfer: () => {},
+                fetchTopups: () => {},
+                loadMore: () => {},
+                formatNumberVi: (n) => String(n),
+                formatVndVi: (n) => `${n?.toLocaleString('vi-VN')} VNĐ`,
+                formatTopupTimestampVi: () => '07/11/2026 10:00',
+                getTopupStatusBadgeClass,
+                getTopupStatusLabelVi,
+              };
+            },
+          });
+          app.component('Icon', {
+            props: ['name'],
+            ssrRender(_ctx, _push) {
+              _push('<span class="mock-lucide-icon"></span>');
+            },
+          });
+          app.component('NuxtLink', {
+            props: ['to'],
+            setup(props, { slots }) {
+              return () => h('a', { href: props.to }, slots.default?.());
+            },
+          });
+          app.component('ApiErrorBanner', {
+            props: ['messageVi'],
+            ssrRender() {},
+          });
+          app.component('VietQRModal', {
+            props: ['open'],
+            ssrRender() {},
+          });
 
-        const html = await renderToString(app);
-        assert.match(html, /<a href="\/topup\?pack=starter"/);
-        assert.match(html, /<a href="\/topup\?pack=pro"/);
-        assert.match(html, /<a href="\/topup\?pack=creator"/);
-        assert.match(html, /Nạp gói Starter qua VietQR/);
-        assert.match(html, /Nạp gói Pro qua VietQR/);
-        assert.match(html, /Nạp gói Creator qua VietQR/);
-        assert.match(html, /Hạng mặc định khi đăng ký/);
+          return renderToString(app);
+        }
+
+        // 1. Khi chưa đăng nhập: hiển thị các gói với button tạo QR trực tiếp, KHÔNG hiển thị lịch sử đơn nạp
+        const guestHtml = await renderPricing(false);
+        assert.match(guestHtml, /data-testid="topup-pack-button-starter"/);
+        assert.match(guestHtml, /data-testid="topup-pack-button-pro"/);
+        assert.match(guestHtml, /data-testid="topup-pack-button-creator"/);
+        assert.doesNotMatch(guestHtml, /\/topup\?pack=/);
+        assert.match(guestHtml, /Nạp gói Starter qua VietQR/);
+        assert.match(guestHtml, /Nạp gói Pro qua VietQR/);
+        assert.match(guestHtml, /Nạp gói Creator qua VietQR/);
+        assert.match(guestHtml, /Hạng mặc định khi đăng ký/);
+        assert.doesNotMatch(guestHtml, /data-testid="pricing-topup-history"/);
+
+        // 2. Khi đã đăng nhập: hiển thị thêm Lịch Sử Đơn Nạp Credit ngay trên trang pricing
+        const authedHtml = await renderPricing(
+          true,
+          MOCK_TOPUP_LIST_RESPONSE.items,
+        );
+        assert.match(authedHtml, /data-testid="pricing-topup-history"/);
+        assert.match(authedHtml, /Lịch Sử Đơn Nạp Credit/);
+        assert.match(authedHtml, /data-testid="topup-orders-list"/);
+        assert.match(authedHtml, /NAP P4N8T2WD/);
       } finally {
         if (fs.existsSync(tmpFile)) {
           fs.unlinkSync(tmpFile);

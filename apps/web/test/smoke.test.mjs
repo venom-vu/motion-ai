@@ -33,6 +33,7 @@ import {
   uploadPresignedFile,
 } from '../utils/api-client.ts';
 import {
+  computeCameraCaptureDimensions,
   formatFileSizeVi,
   getImageDimensions,
   normalizeImageMimeType,
@@ -1892,11 +1893,71 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
       assert.match(errorHtml, /data-testid="upload-error-state"/);
       assert.match(errorHtml, /data-testid="reselect-image-button"/);
       assert.match(errorHtml, /data-testid="reselect-camera-button"/);
+
+      // 5. Trạng thái mở hộp thoại chụp ảnh trực tiếp qua WebRTC Camera
+      const cameraApp = createSSRApp({
+        ssrRender,
+        setup() {
+          return {
+            status: 'idle',
+            labelVi: 'Tải ảnh khuôn mặt',
+            descriptionVi: 'JPG, PNG, WebP ≤ 10 MB',
+            idPrefix: 'test-camera',
+            disabled: false,
+            showTosConsent: false,
+            isUploading: false,
+            isDragging: false,
+            localConsent: false,
+            isCameraOpen: true,
+            isCameraStarting: false,
+            cameraErrorVi: null,
+            cameraFacingMode: 'user',
+            TOS_VERSION,
+            openLibrary: () => {},
+            openCamera: () => {},
+            closeCamera: () => {},
+            switchCameraFacing: () => {},
+            capturePhoto: () => {},
+            startCameraStream: () => {},
+            fallbackCameraToLibrary: () => {},
+            onFileInputChange: () => {},
+            onDrop: () => {},
+            updateConsent: () => {},
+          };
+        },
+      });
+      cameraApp.component('Icon', {
+        props: ['name'],
+        ssrRender(_ctx, push) {
+          push('<span class="icon-mock"></span>');
+        },
+      });
+      const cameraHtml = await renderToString(cameraApp);
+      assert.match(cameraHtml, /data-testid="camera-capture-modal"/);
+      assert.match(cameraHtml, /data-testid="camera-video-preview"/);
+      assert.match(cameraHtml, /data-testid="capture-photo-button"/);
+      assert.match(cameraHtml, /data-testid="switch-camera-button"/);
+      assert.match(cameraHtml, /data-testid="close-camera-button"/);
     } finally {
       if (fs.existsSync(tmpUploaderFile)) {
         fs.unlinkSync(tmpUploaderFile);
       }
     }
+  });
+
+  it('computeCameraCaptureDimensions đảm bảo cạnh ngắn >= 512px và tỷ lệ khung hình <= 2:1', () => {
+    // Webcam 640x480 (cạnh ngắn 480 < 512px) được phóng lên 683x512
+    const vga = computeCameraCaptureDimensions(640, 480);
+    assert.ok(Math.min(vga.dw, vga.dh) >= 512);
+    assert.equal(vga.dh, 512);
+
+    // Khung hình siêu rộng 2400x800 (3:1 > 2:1) được cắt giữa về 1600x800
+    const ultraWide = computeCameraCaptureDimensions(2400, 800);
+    assert.equal(ultraWide.sw, 1600);
+    assert.equal(ultraWide.sh, 800);
+    assert.equal(ultraWide.sx, 400);
+    assert.equal(ultraWide.dw, 1600);
+    assert.equal(ultraWide.dh, 800);
   });
 
   it('normalizeImageMimeType chuẩn hóa đúng MIME và đuôi tệp cho thiết bị di động', () => {

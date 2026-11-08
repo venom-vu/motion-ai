@@ -4,7 +4,6 @@ import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compileScript, parse } from '@vue/compiler-sfc';
-import { ApiErrorCode, getApiErrorMessageVi } from '@motion-ai/contracts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(__dirname, '..');
@@ -29,96 +28,6 @@ async function loadSetup(rel, stubs, dir) {
     fs.rmSync(tmp, { force: true });
   }
 }
-
-describe('pages/topup.vue: handleRecreateOrder và query ?pack=', () => {
-  let dir;
-  let comp;
-
-  before(async () => {
-    dir = fs.mkdtempSync(path.join(webRoot, 'test', '.tmp-topup-page-'));
-    comp = await loadSetup(
-      'pages/topup.vue',
-      {
-        '#imports': `import { reactive } from 'vue';
-export const useHead = () => {};
-export const useRoute = () => globalThis.__tp.route;`,
-        '~/composables/useAuth': `import { ref } from 'vue'; export const useAuth = () => ({ isAuthenticated: globalThis.__tp.authed });`,
-        '~/composables/useAuthDialog': `export const useAuthDialog = () => ({ open: (...a) => globalThis.__tp.calls.push(['openAuthDialog', ...a]) });`,
-        '~/composables/usePricingConfig': `import { ref } from 'vue';
-export const usePricingConfig = () => ({ pricing: ref(null), currentTier: ref(null), isLoading: ref(false), errorMessageVi: ref(null), refreshAll: async () => {} });`,
-        '~/composables/useTopup': `import { ref } from 'vue';
-export const useTopup = () => ({
-  activeTopup: ref(null), isModalOpen: ref(false), isCreating: ref(false), isConfirming: ref(false),
-  createErrorVi: globalThis.__tp.createErrorVi, confirmErrorVi: ref(null), remainingSeconds: ref(0), formattedCountdown: ref(''),
-  isExpired: ref(false), isOutsideHours: ref(false), topups: ref([]), isLoadingList: ref(false), isLoadingMore: ref(false),
-  listErrorVi: ref(null), hasMore: ref(false), openModal() {}, closeModal: () => globalThis.__tp.calls.push(['closeModal']),
-  createOrder: async (...a) => { globalThis.__tp.calls.push(['createOrder', ...a]); },
-  confirmTransfer: async () => {}, fetchTopups: async () => {}, loadMore: async () => {},
-});`,
-        '~/utils/catalog': `export const formatNumberVi = String; export const formatVndVi = String;`,
-        '~/utils/topup': `const id = (x) => x;
-export const formatTopupTimestampVi = String; export const getTopupStatusBadgeClass = () => '';
-export const getTopupStatusLabelVi = String; export const isOverdue = () => false;
-export const getRemainingSeconds = () => 0; export const isApprovalDeferred = () => false;
-export const isOutsideWorkingHoursVn = () => false; export const OFF_HOURS_MESSAGE_VI = '';`,
-      },
-      dir,
-    );
-  });
-
-  after(() => {
-    fs.rmSync(dir, { recursive: true, force: true });
-    delete globalThis.__tp;
-  });
-
-  async function fresh({ query = {}, authed = true } = {}) {
-    const { ref } = await import('vue');
-    globalThis.__tp = { calls: [], route: { query }, authed: ref(authed), createErrorVi: ref(null) };
-    return comp.setup({}, { expose() {} });
-  }
-  const calls = () => globalThis.__tp.calls;
-
-  it('đã tích ToS: "Tạo mã mới" đóng modal rồi tạo ngay đơn mới với đúng gói', async () => {
-    const s = await fresh();
-    s.consent.value = true;
-    await s.handleRecreateOrder('creator');
-    assert.deepEqual(calls(), [['closeModal'], ['createOrder', 'creator', true]]);
-    assert.equal(s.selectedPack.value, 'creator');
-  });
-
-  it('chưa tích ToS: không tự tạo đơn, không tích hộ, và báo người dùng cần đồng ý ToS', async () => {
-    const s = await fresh();
-    s.consent.value = false;
-    await s.handleRecreateOrder('starter');
-    assert.deepEqual(calls(), [['closeModal']], 'không được gọi createOrder');
-    assert.equal(s.consent.value, false, 'không được tự tích ToS thay người dùng');
-    assert.equal(globalThis.__tp.createErrorVi.value, getApiErrorMessageVi(ApiErrorCode.CONSENT_REQUIRED));
-  });
-
-  it('?pack= hợp lệ chọn sẵn gói; giá trị lạ giữ mặc định', async () => {
-    assert.equal((await fresh({ query: { pack: 'creator' } })).selectedPack.value, 'creator');
-    assert.equal((await fresh({ query: { pack: 'starter' } })).selectedPack.value, 'starter');
-    assert.equal((await fresh({ query: { pack: 'hack' } })).selectedPack.value, 'pro');
-    assert.equal((await fresh({ query: {} })).selectedPack.value, 'pro');
-  });
-
-  it('handleCreateTopup: chưa đăng nhập mở dialog đăng nhập; chưa tích ToS thì không gọi API', async () => {
-    let s = await fresh({ authed: false });
-    s.consent.value = true;
-    await s.handleCreateTopup();
-    assert.deepEqual(calls(), [['openAuthDialog', 'login']]);
-
-    s = await fresh({ authed: true });
-    s.consent.value = false;
-    await s.handleCreateTopup();
-    assert.deepEqual(calls(), []);
-
-    s = await fresh({ authed: true });
-    s.consent.value = true;
-    await s.handleCreateTopup();
-    assert.deepEqual(calls(), [['createOrder', 'pro', true]]);
-  });
-});
 
 describe('components/VietQRModal.vue: loadQrSvg không để QR cũ ghi đè QR mới', () => {
   let dir;
@@ -157,5 +66,77 @@ export const generateQrSvg = (payload) => globalThis.__qr.gen(payload);`,
     pending.get('OLD')('<svg>OLD</svg>');
     await new Promise((r) => setTimeout(r, 0));
     assert.equal(s.qrSvg.value, '<svg>NEW</svg>');
+  });
+});
+
+describe('pages/pricing.vue: handleSelectPack mở QR trực tiếp hoặc dialog đăng nhập', () => {
+  let dir;
+  let comp;
+
+  before(async () => {
+    dir = fs.mkdtempSync(path.join(webRoot, 'test', '.tmp-pricing-page-'));
+    comp = await loadSetup(
+      'pages/pricing.vue',
+      {
+        '~/composables/useAuth': `export const useAuth = () => ({ isAuthenticated: globalThis.__pr.authed });`,
+        '~/composables/useAuthDialog': `export const useAuthDialog = () => ({ open: (...a) => globalThis.__pr.calls.push(['openAuthDialog', ...a]) });`,
+        '~/composables/usePricingConfig': `import { ref } from 'vue';
+export const usePricingConfig = () => ({ pricing: ref(null), currentTier: ref('FREE'), isLoading: ref(false), errorMessageVi: ref(null), refreshAll: async () => {}, clearError: () => {} });`,
+        '~/composables/useTopup': `import { ref } from 'vue';
+export const useTopup = () => ({
+  activeTopup: ref(null), isModalOpen: ref(false), isCreating: globalThis.__pr.isCreating, isConfirming: ref(false),
+  createErrorVi: ref(null), confirmErrorVi: ref(null), remainingSeconds: ref(0), formattedCountdown: ref(''),
+  isExpired: ref(false), isOutsideHours: ref(false), topups: ref([]), isLoadingList: ref(false), isLoadingMore: ref(false),
+  listErrorVi: ref(null), hasMore: ref(false), openModal: (o) => globalThis.__pr.calls.push(['openModal', o]),
+  closeModal: () => globalThis.__pr.calls.push(['closeModal']),
+  createOrder: async (...a) => { globalThis.__pr.calls.push(['createOrder', ...a]); },
+  confirmTransfer: async () => {}, fetchTopups: async () => { globalThis.__pr.calls.push(['fetchTopups']); }, loadMore: async () => {},
+});`,
+        '~/utils/catalog': `export const formatNumberVi = String; export const formatVndVi = String;`,
+        '~/utils/topup': `export const formatTopupTimestampVi = String; export const getTopupStatusBadgeClass = () => ''; export const getTopupStatusLabelVi = String;`,
+      },
+      dir,
+    );
+  });
+
+  after(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+    delete globalThis.__pr;
+  });
+
+  async function fresh({ authed = true, isCreating = false } = {}) {
+    const { ref } = await import('vue');
+    globalThis.__pr = {
+      calls: [],
+      authed: ref(authed),
+      isCreating: ref(isCreating),
+    };
+    return comp.setup({}, { expose() {} });
+  }
+  const calls = () => globalThis.__pr.calls;
+
+  it('chưa đăng nhập: ấn nạp gói mở dialog đăng nhập, không gọi createOrder', async () => {
+    const s = await fresh({ authed: false });
+    await s.handleSelectPack('pro');
+    assert.deepEqual(calls(), [['openAuthDialog', 'login']]);
+  });
+
+  it('đã đăng nhập: ấn nạp gói gọi createOrder(packId, true) ngay để hiển thị mã QR', async () => {
+    const s = await fresh({ authed: true });
+    await s.handleSelectPack('creator');
+    assert.deepEqual(calls(), [['createOrder', 'creator', true]]);
+    assert.equal(s.creatingPackId.value, null);
+  });
+
+  it('đang tạo đơn (isCreating = true): chặn bấm trùng lặp', async () => {
+    const s = await fresh({ authed: true, isCreating: true });
+    await s.handleSelectPack('starter');
+    assert.deepEqual(calls(), []);
+  });
+
+  it('handleRecreateOrder: đóng modal hiện tại và tạo lại mã QR mới cho gói tương ứng', async () => {
+    const s = await fresh({ authed: true });
+    await s.handleRecreateOrder('starter');
+    assert.deepEqual(calls(), [['closeModal'], ['createOrder', 'starter', true]]);
   });
 });

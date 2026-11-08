@@ -218,7 +218,7 @@ function handleSubmit(): void {
   <div
     v-if="open && topup"
     data-testid="admin-topup-action-modal"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 font-mono text-cyber-text"
+    class="fixed inset-0 !m-0 z-50 flex items-center justify-center p-4 font-mono text-cyber-text"
     @keydown.esc="handleClose"
     @keydown.tab="handleKeydownTab"
   >
