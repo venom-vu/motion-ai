@@ -69,3 +69,7 @@ FE chỉ có một chế độ `live` (không có chế độ mock). "Mock" là 
 2. Chạy FE: `NUXT_PUBLIC_API_BASE_URL=http://localhost:3001 pnpm --filter @motion-ai/web run dev` (hoặc trỏ tới BE đã triển khai).
 3. Chạy test: `pnpm test` (bỏ qua smoke Docker). Smoke đầy đủ: `RUN_COMPOSE_E2E=1 pnpm --filter @motion-ai/api test` (cần Docker). Smoke giả Google bằng `GOOGLE_TOKEN_URL`/`GOOGLE_USERINFO_URL` (chỉ có tác dụng khi `NODE_ENV=test`), kiểm tra người dùng mới có 500 credit và đúng một dòng "Tặng", tài khoản thứ hai cùng thiết bị có 0 credit, rồi chạy đối soát.
 4. Đăng nhập Google thật là bước thủ công, chạy một lần khi có `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_CALLBACK_URL` thật (không nằm trong CI, không commit bí mật): mở FE, đăng nhập Google, kiểm tra số dư 500 và dòng "Tặng" ở trang lịch sử.
+
+## Smoke test nạp tiền (Story 3.8)
+
+Smoke nạp tiền VietQR (`apps/api/test/smoke-topup.test.mjs`) chạy bằng `RUN_COMPOSE_E2E=1 pnpm --filter @motion-ai/api test` (cần Docker; `pnpm test` bỏ qua phần Docker nhưng vẫn kiểm tra `MOCK_*` khớp schema). FE gọi API đúng schema trong `packages/contracts`, nên smoke xác nhận ở mức hợp đồng. Biến môi trường cần có: `TOPUP_BANK_BIN`, `TOPUP_BANK_ACCOUNT_NO`, `TOPUP_BANK_ACCOUNT_NAME`, `DISCORD_WEBHOOK_URL`, `ADMIN_EMAILS` (xem `deploy/.env.example`). Chi tiết và các ghi đè chỉ dành cho `NODE_ENV=test`: `deploy/README.md`.

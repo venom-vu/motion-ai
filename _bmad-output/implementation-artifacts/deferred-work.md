@@ -165,3 +165,10 @@
 
 - Đơn `awaiting_transfer` quá `qr_expires_at` vẫn tính vào giới hạn 3 đơn (`topups.service.ts`): người dùng bỏ 3 mã QR bị `TOPUP_LIMIT` cho tới khi bộ quét hết hạn của Story 3.3 chạy. Kiểm tra lại khi 3.3 merge.
 - `toDto` lấy tài khoản nhận và `qrPayload` từ env hiện tại cho mọi đơn: đổi tài khoản làm đơn cũ hiển thị tài khoản mới; thiếu env làm `GET /topups` trả 500. Cần quyết định sản phẩm về snapshot tài khoản trên bảng `topups`.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-8-integration-noi-fe-voi-be-va-smoke-test-nap-tien.md`
+  summary: Smoke nạp tiền chưa phủ reject, Discord lỗi, cảnh báo quá hạn duyệt, 403 đơn người khác và giải mã `qrPayload`.
+  evidence: Ngoài ma trận I/O của story 3.8; các story 3.2-3.5 có test riêng nhưng chưa có ở mức stack Compose.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-8-integration-noi-fe-voi-be-va-smoke-test-nap-tien.md`
+  summary: Chưa có kiểm tra FE thật (CORS, cookie, nút "tạo mã mới" khi QR hết hạn) trên stack live.
+  evidence: Spec chỉ xác nhận ở mức hợp đồng; cần test trình duyệt (xác nhận chưa xác minh, mức medium).

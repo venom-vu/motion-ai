@@ -44,3 +44,9 @@ node --env-file=apps/api/.env apps/api/dist/scripts/configure-bucket.js
 Script đặt CORS chỉ cho `FRONTEND_URL` (PUT/GET/HEAD) và lifecycle: `in-raw/` xóa sau 1 ngày, `in/` xóa sau 7 ngày. Job worker mỗi giờ chuyển bản ghi `uploads` pending quá 24 giờ sang `expired`.
 
 Presigned PUT ký kèm `Content-Type` và `Content-Length`: client phải PUT đúng `Content-Type` trả về trong `headers` và body có độ dài đúng bằng `sizeBytes` đã khai báo (không dùng chunked/stream), nếu không R2 trả 403.
+
+## Smoke test nạp tiền (Story 3.8)
+
+`apps/api/test/smoke-topup.test.mjs` dựng stack bốn container (project `motion-ai-smoke-tp`, api `3104`, Postgres `15435`, Redis `16382`). Google giả (cổng `3199`) và Discord webhook giả (cổng `3196`) chạy trong tiến trình test. Chạy: `RUN_COMPOSE_E2E=1 pnpm --filter @motion-ai/api test` (cần Docker). Kịch bản: đường thành công (Discord nhận đúng 1 thông báo, +12.000 credit, Tier Pro, đúng 1 dòng `TOPUP`), `bank_ref` trùng, xác nhận lúc 23:30 giờ VN (`approve_by` 08:15 hôm sau, quá hạn QR vẫn `pending`), QR hết hạn (`expired`, `TOPUP_QR_EXPIRED`), hai Admin duyệt song song, rồi `reconcile.js`.
+
+Biến chỉ có tác dụng khi `NODE_ENV=test` (bị bỏ qua ở production): `TOPUP_QR_TTL_MS` (rút hạn QR), `TOPUP_FAKE_NOW` (ISO, giả đồng hồ tính `approve_by`), `TOPUP_SWEEP_INTERVAL` (chu kỳ bộ quét, ms). Biến cấu hình thật: `TOPUP_BANK_BIN`, `TOPUP_BANK_ACCOUNT_NO`, `TOPUP_BANK_ACCOUNT_NAME`, `DISCORD_WEBHOOK_URL`, `ADMIN_EMAILS` (xem `deploy/.env.example`; giá trị smoke là giả).

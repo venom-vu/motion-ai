@@ -35,6 +35,22 @@ import { TopupNotifierService } from './topup-notifier.service.js';
 import { buildVietQrPayload } from './vietqr.js';
 
 export const QR_TTL_MS = 15 * 60 * 1000;
+
+/** TTL QR; `TOPUP_QR_TTL_MS` chỉ có hiệu lực khi NODE_ENV=test (smoke test rút ngắn hạn). */
+export function qrTtlMs(): number {
+  if (process.env.NODE_ENV !== 'test') return QR_TTL_MS;
+  const v = Number(process.env.TOPUP_QR_TTL_MS);
+  return Number.isInteger(v) && v > 0 ? v : QR_TTL_MS;
+}
+
+/** Đồng hồ tính `approve_by`; `TOPUP_FAKE_NOW` (ISO) chỉ có hiệu lực khi NODE_ENV=test. */
+export function topupClock(): Date {
+  if (process.env.NODE_ENV === 'test' && process.env.TOPUP_FAKE_NOW) {
+    const d = new Date(process.env.TOPUP_FAKE_NOW);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  return new Date();
+}
 export const OPEN_TOPUP_STATUSES = ['awaiting_transfer', 'pending', 'needs_review'] as const;
 /** Bảng chữ in hoa bỏ ký tự dễ nhầm (0/O, 1/I/L). */
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -188,7 +204,7 @@ export class TopupsService {
               pack: pack.id,
               amountVnd: pack.priceVnd,
               status: 'awaiting_transfer',
-              qrExpiresAt: new Date(Date.now() + QR_TTL_MS),
+              qrExpiresAt: new Date(Date.now() + qrTtlMs()),
               tosVersion: TOS_VERSION,
             },
           });
@@ -217,7 +233,7 @@ export class TopupsService {
     if (!found) throw this.apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
     if (found.userId !== userId) throw this.apiError(ForbiddenException, ApiErrorCode.FORBIDDEN);
 
-    const approveBy = computeApproveBy(new Date());
+    const approveBy = computeApproveBy(topupClock());
     const won = await this.prisma.$queryRaw<Array<{ id: string }>>`
       UPDATE topups SET status = 'pending', approve_by = ${approveBy}, updated_at = now()
       WHERE id = ${id}::uuid AND status = 'awaiting_transfer' AND qr_expires_at > now()
@@ -422,7 +438,7 @@ export class TopupsService {
   returnToPending(adminId: string, id: string): Promise<AdminTopup> {
     return this.adminTransition(id, async (tx) => {
       // Hạn duyệt tính lại từ lúc quay về hàng chờ; giữ giá trị cũ sẽ khiến đơn quá hạn ngay.
-      const approveBy = computeApproveBy(new Date());
+      const approveBy = computeApproveBy(topupClock());
       const before = await this.casTransition(tx, id, ['needs_review'], { status: 'pending', note: null, approveBy, overdueNotifiedAt: null });
       await this.audit.record(tx, {
         adminId,

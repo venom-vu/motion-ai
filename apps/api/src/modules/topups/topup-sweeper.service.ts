@@ -5,6 +5,13 @@ import { TopupsService } from './topups.service.js';
 
 export const TOPUP_SWEEP_INTERVAL_MS = 30_000;
 
+/** `TOPUP_SWEEP_INTERVAL` (ms) chỉ có hiệu lực khi NODE_ENV=test. */
+export function topupSweepIntervalMs(): number {
+  if (process.env.NODE_ENV !== 'test') return TOPUP_SWEEP_INTERVAL_MS;
+  const v = Number(process.env.TOPUP_SWEEP_INTERVAL);
+  return Number.isInteger(v) && v >= 200 ? v : TOPUP_SWEEP_INTERVAL_MS;
+}
+
 /** Bộ quét đơn nạp hết hạn QR. Chỉ chạy ở tiến trình worker. */
 @Injectable()
 export class TopupSweeperService {
@@ -18,7 +25,7 @@ export class TopupSweeperService {
     private readonly notifier: TopupNotifierService,
   ) {}
 
-  @Interval(TOPUP_SWEEP_INTERVAL_MS)
+  @Interval(topupSweepIntervalMs())
   async scheduledSweep(): Promise<void> {
     if (process.env.MOTION_PROCESS_ROLE !== 'worker') return;
     try {
