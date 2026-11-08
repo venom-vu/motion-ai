@@ -16,6 +16,7 @@ import { bootstrapApi } from '../dist/main.js';
 import { NOTIFIER_PORT } from '../dist/ports/index.js';
 import { DiscordNotifierAdapter, createNotifierPort } from '../dist/modules/ops/discord-notifier.adapter.js';
 import { PrismaService } from '../dist/infra/prisma.service.js';
+import { getTopupThrottleOptions } from '../dist/modules/auth/throttler.guard.js';
 import { TopupNotifierService, TopupSweeperService, buildVietQrPayload, computeApproveBy, crc16, generateTopupCode } from '../dist/modules/topups/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -67,6 +68,36 @@ function parseTlv(s) {
   }
   return out;
 }
+
+describe('getTopupThrottleOptions', () => {
+  const KEYS = ['TOPUP_THROTTLE_LIMIT', 'TOPUP_THROTTLE_TTL_MS'];
+  const saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
+  after(() => {
+    for (const k of KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+
+  for (const bad of ['', 'abc', '0', '-5']) {
+    it(`quay về 10 lượt / 60000 ms khi env là ${JSON.stringify(bad)}`, () => {
+      process.env.TOPUP_THROTTLE_LIMIT = bad;
+      process.env.TOPUP_THROTTLE_TTL_MS = bad;
+      assert.deepEqual(getTopupThrottleOptions(), { limit: 10, ttl: 60_000 });
+    });
+  }
+
+  it('quay về mặc định khi thiếu env', () => {
+    for (const k of KEYS) delete process.env[k];
+    assert.deepEqual(getTopupThrottleOptions(), { limit: 10, ttl: 60_000 });
+  });
+
+  it('dùng giá trị env hợp lệ', () => {
+    process.env.TOPUP_THROTTLE_LIMIT = '3';
+    process.env.TOPUP_THROTTLE_TTL_MS = '5000';
+    assert.deepEqual(getTopupThrottleOptions(), { limit: 3, ttl: 5000 });
+  });
+});
 
 describe('vietqr thuần', () => {
   it('CRC16/CCITT-FALSE khớp vector chuẩn', () => {
@@ -455,6 +486,8 @@ describe('Story 3.2: bộ đếm tạo đơn và xác nhận chuyển khoản t�
       assert.equal((await fetch(`${baseUrl}/topups`, { method: 'POST', headers, body: JSON.stringify({ pack: 'pro', consent: true }) })).status, 429);
       const confirm = await fetch(`${baseUrl}/topups/${created.id}/confirm-transfer`, { method: 'POST', headers });
       assert.equal(confirm.status, 200);
+      const refresh = await fetch(`${baseUrl}/auth/refresh`, { method: 'POST' });
+      assert.notEqual(refresh.status, 429, 'bộ đếm auth không dùng chung với bộ đếm tạo đơn');
     } finally {
       const rd = new Redis(REDIS_URL);
       const keys = await rd.keys('throttle:*');
@@ -549,11 +582,17 @@ describe('Story 3.3: [BE] Xác nhận chuyển khoản, hạn QR và hạn duy�
   it('xác nhận hợp lệ: pending + approveBy; gọi lặp idempotent', async () => {
     const u = await newUser();
     const id = await mkTopup(u, 'awaiting_transfer', 600);
+    const before = new Date();
     const r1 = await confirm(u, id);
+    const after = new Date();
     assert.equal(r1.status, 200);
     const b1 = TopupSchema.parse(await r1.json());
     assert.equal(b1.status, 'pending');
     assert.ok(b1.approveBy);
+    // approveBy phải là hạn duyệt tính từ lúc xác nhận, không phải từ createdAt hay hằng số.
+    const approveBy = new Date(b1.approveBy).getTime();
+    assert.ok(approveBy >= computeApproveBy(before).getTime(), 'approveBy không sớm hơn mốc trước lời gọi');
+    assert.ok(approveBy <= computeApproveBy(after).getTime(), 'approveBy không muộn hơn mốc sau lời gọi');
     const r2 = await confirm(u, id);
     assert.equal(r2.status, 200);
     const b2 = await r2.json();
@@ -681,6 +720,25 @@ describe('Story 3.3: [BE] Xác nhận chuyển khoản, hạn QR và hạn duy�
     // Bộ quét vẫn an toàn khi chạy sau đó.
     await sweeper.sweepExpired();
     assert.equal((await create()).status, 429);
+  });
+
+  it('bộ quét giải phóng chỗ: đủ 3 đơn mở có 1 đơn quá hạn, quét xong tạo được đơn mới', async () => {
+    const u = await newUser();
+    const overdue = await mkTopup(u, 'awaiting_transfer', -5);
+    const fresh = await mkTopup(u, 'awaiting_transfer', 600);
+    await mkTopup(u, 'pending', 600);
+    const swept = await sweeper.sweepExpired();
+    assert.ok(swept >= 1, 'bộ quét phải đổi ít nhất đơn quá hạn của người dùng này');
+    assert.equal((await state(overdue)).status, 'expired');
+    assert.equal((await state(fresh)).status, 'awaiting_transfer');
+    const r = await fetch(`${baseUrl}/topups`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${u.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pack: 'pro', consent: true }),
+    });
+    assert.equal(r.status, 201);
+    // Đủ 3 đơn mở thật (fresh, pending, đơn mới): đơn còn hạn không bị bộ quét đổi nhầm.
+    assert.equal((await state(fresh)).status, 'awaiting_transfer');
   });
 });
 

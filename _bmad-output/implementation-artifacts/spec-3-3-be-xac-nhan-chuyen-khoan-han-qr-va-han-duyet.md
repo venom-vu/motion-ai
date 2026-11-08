@@ -92,6 +92,25 @@ context:
 | `computeApproveBy` với `Invalid Date`; thiếu test 00:00–07:59 và biên ngày UTC | low | reject | Đầu vào luôn là `new Date()`; các mốc quan trọng (07:00, 08:00, 22:50, 23:00, 23:30) đã có |
 | Ai xử lý đơn `pending` quá `approve_by` | false | - | Epic quy định ở 3.4 (cảnh báo quá hạn) và 3.5 (Admin xử lý) |
 
+### Review Findings
+
+- [x] [Review][Patch] Không test nào đi qua đường bộ quét → tạo đơn mới; câu assert cuối của test "giải phóng chỗ" không phát hiện được bộ quét expire nhầm đơn còn hạn [apps/api/test/topups.test.mjs] — test hiện gọi `create()` trước khi `sweepExpired()` nên chỉ qua nhờ lệnh expire trong `create`; xóa bộ quét thì test vẫn pass, trái AC "bộ quét chạy → đủ 3 đơn mở tạo được đơn mới". Cần: đủ 3 đơn mở có 1 đơn quá hạn → `sweepExpired()` trả 1 và đơn đó thành `expired` → `POST /topups` trả 201; đồng thời đơn còn hạn vẫn `awaiting_transfer` sau khi quét.
+- [x] [Review][Patch] `approve_by` được lưu bởi `confirmTransfer` không được kiểm tra ở mức endpoint [apps/api/src/modules/topups/topups.service.ts:172-176] — các test chỉ assert `approveBy` khác null và ổn định; đổi thành `computeApproveBy(found.createdAt)` hay bỏ `APPROVE_SLA_MS` thì mọi test vẫn qua. Cần assert `computeApproveBy(before) <= approveBy <= computeApproveBy(after)` với `before`/`after` là mốc ngay trước và sau lời gọi.
+
+#### Rejected
+- `create` bị đổi trái Code Map "không đổi `create`" — low; lệnh expire trong `create` là patch có chủ đích ở commit `7afcd85` để đơn quá hạn không chiếm chỗ khi worker chưa chạy tới, hành vi đúng; sửa bằng cách chỉnh spec nên bị loại (phần thiếu test đã gộp vào patch 1).
+- Hai lần `create` đồng thời vượt giới hạn 3 đơn — false; `create` chạy trong transaction khóa dòng user của 3.2 (AD-3) trước khi đếm.
+- Hạn duyệt 23:05–23:14 nằm ngoài khung khi xác nhận 22:50–22:59 — false; spec định nghĩa hạn là 15 phút sau thời điểm đầu tiên nằm trong khung, và mốc 22:50 đã có trong test.
+- Bộ quét không có test lịch `@Interval`/wiring worker — low; các bộ quét `tasks`, `uploads` cũng test bằng gọi trực tiếp, `create`/`confirm` vẫn expire lười nên thiệt hại giới hạn.
+- Thiếu hoặc sai `MOTION_PROCESS_ROLE` khiến bộ quét âm thầm không chạy; lỗi quét bị nuốt chỉ ghi log — low; đúng mẫu các bộ quét hiện có, đã có test cổng vai trò.
+- `ScheduleModule.forRoot()` trong `TopupsModule` — false; `tasks`, `storage`, `ops` làm như vậy (đã ghi trong log).
+- Bộ quét không có LIMIT / chạy trùng ở nhiều worker — low; một UPDATE có điều kiện, an toàn khi chạy trùng.
+- `confirmTransfer` đọc thừa, kiểm tra chủ đơn ngoài UPDATE, `RETURNING *` — low; đã loại ở log (chủ đơn không đổi được).
+- `approve_by` theo đồng hồ app, hạn QR theo đồng hồ DB — low; đã loại ở log.
+- Trả `TOPUP_STATE_INVALID` thay vì `TOPUP_QR_EXPIRED` khi bộ quét đã expire; nhánh `expired === 0` còn `awaiting_transfer` — low; AC quy định `expired` → `TOPUP_STATE_INVALID`, nhánh sau gần như không thể xảy ra vì cùng đồng hồ DB.
+- Thiếu audit khi chuyển trạng thái, thiếu ghi số đơn expire trong `create`, `computeApproveBy(Invalid Date)`, thiếu test 401/khóa/throttle riêng cho route mới — low; đã loại ở log hoặc đầu vào luôn là `new Date()`; guard JWT và `AccountLockedGuard` có ở cấp class (`topups.controller.ts:19`).
+- Test đua 20 đơn phụ thuộc thời gian (TTL 1 s, ngủ 900 ms) — low; đã được xử lý ở vòng review trước (khẳng định 200↔`pending`, 409↔`expired`).
+
 ## Verification
 
 **Commands:**

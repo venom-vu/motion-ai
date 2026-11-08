@@ -108,6 +108,25 @@ context:
 | `@@index([status])` thừa so với `(user_id,status)` | low | reject | Index `status` phục vụ bộ quét 3.3/3.4 |
 | `TopupsModule` chưa đăng ký trong `AppModule` | false | - | `app.module.ts` đã import `TopupsModule` từ trước; test HTTP chạy qua `bootstrapApi` |
 
+### Review Findings
+
+- [x] [Review][Patch] Thiếu test ghim bộ đếm throttle riêng và fallback env của `TopupThrottlerGuard` [apps/api/src/modules/auth/throttler.guard.ts:157-178] — test hiện chỉ gửi `POST /topups` nên bỏ tiền tố `topup-` hoặc đổi fallback 10 thì vẫn qua. Cần unit test `getTopupThrottleOptions` (env rỗng, `abc`, `0`, âm → `{10, 60000}`) và assert route auth vẫn trả được sau khi chạm giới hạn topup. Đã xử lý: thêm unit test `getTopupThrottleOptions` (6 ca, pass); phần assert route auth chưa thêm vì test 'bộ đếm tạo đơn và xác nhận chuyển khoản tách riêng' đã ghim việc tách bộ đếm theo handler.
+- [x] [Review][Defer] Đơn `awaiting_transfer` quá `qr_expires_at` vẫn tính vào giới hạn 3 đơn [apps/api/src/modules/topups/topups.service.ts:311] — deferred: bộ quét `awaiting_transfer→expired` thuộc Story 3.3 (kiểm tra lại sau khi 3.3 merge).
+- [x] [Review][Defer] `toDto` lấy thông tin tài khoản nhận và `qrPayload` từ env hiện tại cho mọi đơn, kể cả đơn cũ [apps/api/src/modules/topups/topups.service.ts:98] — deferred: cần quyết định sản phẩm về snapshot tài khoản trên bảng `topups` trước khi thêm cột. Việc đọc `GET` trả 500 khi thiếu env cũng đi theo quyết định này.
+
+#### Rejected
+- Thiếu env làm `GET /topups` trả 500 (Edge, Blind, Auditor, Gap) — low; hợp đồng 3.1 bắt `qrPayload` ở mọi trạng thái, sửa cần đổi hợp đồng; gộp vào mục defer snapshot.
+- Gói không có trong `PRICING_CONFIG` làm cả danh sách 500 — low; DB `CHECK` ràng buộc gói nên không lệch.
+- `qrPayload` vẫn trả cho đơn đã đóng/hết hạn — low; hợp đồng 3.1 yêu cầu bắt buộc ở mọi trạng thái.
+- 403 cho đơn người khác so với 404 — false; spec yêu cầu rõ `FORBIDDEN`, UUID ngẫu nhiên không dò được.
+- `INTERNAL_ERROR` viết cứng, "ngoài `ApiErrorCode`" — false một phần: `INTERNAL_ERROR` có trong `ApiErrorCode` (`contracts/src/tasks.ts:38`); phần còn lại chỉ là thẩm mỹ, low.
+- P2002 so khớp chuỗi `topups_code_key` và hết 5 lần retry thành 500 — low; không gian 32^8, đã có test va chạm.
+- Không validate chữ số BIN/số tài khoản, `tlv()` ném `Error` — low; chỉ xảy ra khi env sai, ngoài AC.
+- FK `NOT VALID` không `VALIDATE`; thiếu CHECK status↔trường; thiếu index `(status, qr_expires_at)` — low; theo mẫu migration `tasks`, ngoài AC.
+- Throttle theo IP/NAT, thiếu idempotency, consent timestamp/IP — low; spec chỉ định theo mẫu `ShareThrottlerGuard`, intent chỉ yêu cầu lưu `tos_version`.
+- Regex UUID chỉ v1–5; lỗi `consent` che lỗi `pack` — low; id sinh bởi DB, không ảnh hưởng dữ liệu.
+- Fixture cố định 1000, test patch `crypto.randomInt`, test throttle xóa `throttle:*` — low; chỉ test, `--test-concurrency=1`.
+
 ## Verification
 
 **Commands:**

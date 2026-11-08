@@ -160,3 +160,8 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-7-fe-dashboard-admin-duyet-don-nap.md`
   summary: Các ô chỉ số thống kê vận hành trên đỉnh trang admin phụ thuộc vào tab lọc hiện tại do thiếu endpoint backend tổng hợp.
   evidence: Backend hiện chỉ có `GET /admin/topups` danh sách phân trang theo filter, chưa có route API tổng hợp chỉ số vận hành toàn hệ thống (thuộc phạm vi Epic 6).
+
+## Deferred from: code review of spec-3-2-be-tao-don-nap-va-ma-vietqr (2026-11-08)
+
+- Đơn `awaiting_transfer` quá `qr_expires_at` vẫn tính vào giới hạn 3 đơn (`topups.service.ts`): người dùng bỏ 3 mã QR bị `TOPUP_LIMIT` cho tới khi bộ quét hết hạn của Story 3.3 chạy. Kiểm tra lại khi 3.3 merge.
+- `toDto` lấy tài khoản nhận và `qrPayload` từ env hiện tại cho mọi đơn: đổi tài khoản làm đơn cũ hiển thị tài khoản mới; thiếu env làm `GET /topups` trả 500. Cần quyết định sản phẩm về snapshot tài khoản trên bảng `topups`.
