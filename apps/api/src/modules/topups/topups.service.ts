@@ -377,25 +377,11 @@ export class TopupsService {
       const pack = PRICING_CONFIG.topupPacks.find((p) => p.id === before.pack);
       if (!pack) throw new Error(`Gói nạp không hợp lệ: ${before.pack}`);
       await this.wallet.topup(tx, before.userId, id, pack.credits, pack.id as TopupPackId);
-      // Duyệt đơn hết hạn QR có thể trùng một lần chuyển khoản đã được duyệt ở đơn mới hơn: ghi vết để đối soát.
-      const relatedApproved =
-        from === 'expired'
-          ? await tx.topup.findMany({
-              where: {
-                userId: before.userId,
-                id: { not: id },
-                status: 'approved',
-                pack: before.pack,
-                createdAt: { gte: before.createdAt },
-              },
-              select: { id: true, bankRef: true },
-            })
-          : [];
       await this.audit.record(tx, {
         adminId,
         action: from === 'expired' ? 'topup.approve_expired' : 'topup.approve',
         target: `topup:${id}`,
-        beforeAfter: { before: { status: before.status, bankRef: before.bankRef }, after: { status: 'approved', bankRef }, credits: pack.credits, ...(relatedApproved.length > 0 ? { relatedApproved } : {}) },
+        beforeAfter: { before: { status: before.status, bankRef: before.bankRef }, after: { status: 'approved', bankRef }, credits: pack.credits },
       });
     });
   }

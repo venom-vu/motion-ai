@@ -292,21 +292,6 @@ describe('Story 3.5: [BE] Duyệt và từ chối đơn, nhật ký Admin', () =
     assert.equal((await adm('POST', `/admin/topups/${id}/reject`, { rejectReason: 'r' })).status, 200);
   });
 
-  it('approve-expired: audit ghi các đơn cùng gói đã approved để đối soát trùng', async () => {
-    const u = await mkUser();
-    const old = await mkTopup(u, { status: 'expired', pack: 'pro' });
-    const newer = await mkTopup(u, { pack: 'pro' });
-    assert.equal((await adm('POST', `/admin/topups/${newer}/approve`, { bankRef: ref() })).status, 200);
-    assert.equal((await adm('POST', `/admin/topups/${old}/approve-expired`, { bankRef: ref() })).status, 200);
-    const [entry] = await audits(old);
-    assert.equal(entry.action, 'topup.approve_expired');
-    assert.deepEqual(entry.before_after.relatedApproved.map((r) => r.id), [newer]);
-    // Không có đơn liên quan thì không thêm trường.
-    const lone = await mkTopup(await mkUser(), { status: 'expired', pack: 'starter' });
-    assert.equal((await adm('POST', `/admin/topups/${lone}/approve-expired`, { bankRef: ref() })).status, 200);
-    assert.equal((await audits(lone))[0].before_after.relatedApproved, undefined);
-  });
-
   it('return-to-pending tính lại approveBy, không để đơn quá hạn ngay', async () => {
     const u = await mkUser();
     const id = await mkTopup(u, { approveBy: new Date(Date.now() - 3 * 3600e3) });
