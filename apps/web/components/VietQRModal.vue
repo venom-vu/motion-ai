@@ -122,15 +122,21 @@ const packName = computed<string>(() => {
   return p.charAt(0).toUpperCase() + p.slice(1);
 });
 
+let qrRequestSeq = 0;
+
 async function loadQrSvg(): Promise<void> {
-  if (props.topup?.qrPayload) {
-    try {
-      qrSvg.value = await generateQrSvg(props.topup.qrPayload);
-    } catch {
-      qrSvg.value = '';
-    }
-  } else {
+  // Mỗi lần gọi có số thứ tự riêng: kết quả của đơn cũ về muộn không được ghi đè QR của đơn mới.
+  const seq = ++qrRequestSeq;
+  const payload = props.topup?.qrPayload;
+  if (!payload) {
     qrSvg.value = '';
+    return;
+  }
+  try {
+    const svg = await generateQrSvg(payload);
+    if (seq === qrRequestSeq) qrSvg.value = svg;
+  } catch {
+    if (seq === qrRequestSeq) qrSvg.value = '';
   }
 }
 

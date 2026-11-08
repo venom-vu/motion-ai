@@ -172,3 +172,17 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-8-integration-noi-fe-voi-be-va-smoke-test-nap-tien.md`
   summary: Chưa có kiểm tra FE thật (CORS, cookie, nút "tạo mã mới" khi QR hết hạn) trên stack live.
   evidence: Spec chỉ xác nhận ở mức hợp đồng; cần test trình duyệt (xác nhận chưa xác minh, mức medium).
+
+## Deferred from: code review Epic 3 (2026-11-08)
+
+Đã sửa trong lượt review này: `bank_ref` chuẩn hoá chữ hoa (chặn duyệt trùng `FT1`/`ft1`), kiểm tra định dạng `TOPUP_BANK_BIN`/`TOPUP_BANK_ACCOUNT_NO`, cảnh báo quá hạn có giới hạn lượt và giãn cách (cột `overdue_notify_attempts`), không gửi trùng Discord khi ghi `notified_at` lỗi, QR cũ không ghi đè QR mới, "Tạo mã mới" báo cần đồng ý ToS, test Discord (cắt 2000 ký tự, timeout), test script `pages/admin/topups.vue` và `pages/topup.vue`.
+
+- Quyết định sản phẩm: `returnToPending` tính lại `approve_by` (code) trong khi spec 3.5 ghi "giữ `approve_by`". Giữ code vì giữ hạn cũ làm đơn quá hạn ngay; cần chủ sản phẩm xác nhận rồi sửa spec.
+- DB chưa ép bất biến trạng thái: thiếu CHECK `bank_ref` khi `approved`, `reject_reason` khi `rejected`, `note` khi `needs_review`; FK `ledger_entries_topup_id_fkey` thêm `NOT VALID` chưa `VALIDATE`; `admin_audit` chỉ append-only theo quy ước (chưa trigger/REVOKE), `admin_id` chưa có index.
+- Bốn ô thống kê trang admin chỉ đếm danh sách đang tải (đã gắn nhãn); cần endpoint tổng hợp (Epic 6).
+- `needs_review` không có hạn hay cảnh báo; đơn `expired` không từ chối được; `MAX_OPEN_TOPUPS` tính cả `needs_review`.
+- `GET /topups`, `GET /topups/:id` chưa có throttle riêng; Discord adapter chưa xử lý 429/`Retry-After`, chấp nhận `http:`.
+- Hai nguồn đồng hồ: `qrExpiresAt` và `isOverdue` dùng đồng hồ ứng dụng, các so sánh khác dùng `now()` của DB.
+- Biến test `TOPUP_FAKE_NOW`, `TOPUP_QR_TTL_MS`, `TOPUP_SWEEP_INTERVAL` chưa có trong `.env.example` (chỉ có hiệu lực khi `NODE_ENV=test`).
+- FE: `VietQRModal` thiếu focus trap/khôi phục focus, Esc đóng khi đang xác nhận; thẻ gói nạp chưa điều khiển bằng bàn phím; polling không tạm dừng khi tab ẩn; `confirmTransfer` gán `expired` cục bộ thay vì tải lại; `runAction` ném `Error` thường khi bấm kép; `qrcode` import tĩnh; `isApprovalDeferred` dựa `updatedAt` nên có thể lệch khi bộ quét cập nhật dòng.
+- Test chưa phủ: script `VietQRModal` (Esc, copy, khoá cuộn), `computeApproveBy` quanh 07:59/23:00, kiểm thử trình duyệt thật cho CORS/cookie.

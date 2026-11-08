@@ -17,7 +17,7 @@ import { NOTIFIER_PORT } from '../dist/ports/index.js';
 import { DiscordNotifierAdapter, createNotifierPort } from '../dist/modules/ops/discord-notifier.adapter.js';
 import { PrismaService } from '../dist/infra/prisma.service.js';
 import { getTopupThrottleOptions } from '../dist/modules/auth/throttler.guard.js';
-import { TopupNotifierService, TopupSweeperService, buildVietQrPayload, computeApproveBy, crc16, generateTopupCode } from '../dist/modules/topups/index.js';
+import { MAX_NOTIFY_ATTEMPTS, TopupNotifierService, TopupSweeperService, buildVietQrPayload, computeApproveBy, crc16, generateTopupCode } from '../dist/modules/topups/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const apiRoot = path.resolve(__dirname, '..');
@@ -779,7 +779,11 @@ describe('Story 3.4: [BE] Thông báo Discord cho Admin', () => {
       headers: { Authorization: `Bearer ${user.token}`, 'Content-Type': 'application/json' },
     });
   const ageAttempt = (id) =>
-    pool.query(`UPDATE topups SET notify_attempted_at = now() - interval '2 minutes' WHERE id=$1`, [id]);
+    pool.query(
+      `UPDATE topups SET notify_attempted_at = now() - interval '2 minutes',
+         overdue_notify_attempted_at = now() - interval '2 minutes' WHERE id=$1`,
+      [id],
+    );
   // Tin nhắn chỉ chứa mã đơn (không còn UUID), nên khớp theo code.
   const forId = (id) => received.filter((r) => r.body.includes(codeById.get(id)));
   async function waitFor(fn, ms = 5000) {
@@ -934,7 +938,11 @@ describe('Story 3.4: [BE] Thông báo Discord cho Admin', () => {
     mode = 'fail';
     await sweeper.sweepNotifications();
     assert.equal((await row(id)).overdue_notified_at, null);
+    // Ngay sau lượt lỗi, bộ quét chưa thử lại (giãn cách), tránh dồn dập khi Discord đang sập.
     mode = 'ok';
+    await sweeper.sweepNotifications();
+    assert.equal((await row(id)).overdue_notified_at, null, 'chưa tới lượt thử lại');
+    await ageAttempt(id);
     await sweeper.sweepNotifications();
     await sweeper.sweepNotifications();
     assert.ok((await row(id)).overdue_notified_at);
@@ -1007,7 +1015,7 @@ describe('Story 3.4: [BE] Thông báo Discord cho Admin', () => {
     const prisma = app.get(PrismaService);
     const orig = prisma.$queryRaw;
     prisma.$queryRaw = function (strings, ...values) {
-      if (strings.join('?').includes('SET overdue_notified_at = now()') && values[0] === second) {
+      if (strings.join('?').includes('SET overdue_notify_attempts = overdue_notify_attempts + 1') && values[0] === second) {
         return Promise.reject(new Error('DB lỗi khi nhận đơn'));
       }
       return orig.call(this, strings, ...values);
@@ -1023,6 +1031,74 @@ describe('Story 3.4: [BE] Thông báo Discord cho Admin', () => {
     await app.get(TopupNotifierService).alertOverdue();
     assert.equal(forId(second).filter((x) => x.body.includes('quá hạn')).length, 1);
     assert.equal(forId(first).filter((x) => x.body.includes('quá hạn')).length, 1);
+  });
+
+  it('quá hạn duyệt: Discord sập kéo dài thì dừng sau MAX_NOTIFY_ATTEMPTS lượt, không thử vô hạn', async () => {
+    const u = await newUser();
+    const id = await mkTopup(u, 'pending');
+    await pool.query(`UPDATE topups SET approve_by = now() - interval '1 minute', notified_at = now() WHERE id=$1`, [id]);
+    mode = 'fail';
+    for (let i = 0; i < MAX_NOTIFY_ATTEMPTS + 3; i++) {
+      await ageAttempt(id);
+      await sweeper.sweepNotifications();
+    }
+    const r = await row(id);
+    assert.equal(r.overdue_notified_at, null);
+    assert.equal(
+      (await pool.query('SELECT overdue_notify_attempts n FROM topups WHERE id=$1', [id])).rows[0].n,
+      MAX_NOTIFY_ATTEMPTS,
+    );
+    mode = 'ok';
+    await ageAttempt(id);
+    await sweeper.sweepNotifications();
+    assert.equal(forId(id).filter((x) => x.body.includes('quá hạn')).length, MAX_NOTIFY_ATTEMPTS, 'không gửi thêm sau khi hết lượt');
+  });
+
+  it('quá hạn duyệt: đã gửi nhưng ghi overdue_notified_at lỗi thì không gửi trùng ở các lượt sau', async () => {
+    mode = 'ok';
+    const u = await newUser();
+    const id = await mkTopup(u, 'pending');
+    await pool.query(`UPDATE topups SET approve_by = now() - interval '1 minute', notified_at = now() WHERE id=$1`, [id]);
+    const prisma = app.get(PrismaService);
+    const orig = prisma.$executeRaw;
+    prisma.$executeRaw = function (strings, ...values) {
+      if (strings.join('?').includes('SET overdue_notified_at = now()')) return Promise.reject(new Error('DB lỗi'));
+      return orig.call(this, strings, ...values);
+    };
+    try {
+      await app.get(TopupNotifierService).alertOverdue();
+    } finally {
+      prisma.$executeRaw = orig;
+    }
+    assert.equal(forId(id).filter((x) => x.body.includes('quá hạn')).length, 1);
+    for (let i = 0; i < 3; i++) {
+      await ageAttempt(id);
+      await sweeper.sweepNotifications();
+    }
+    assert.equal(forId(id).filter((x) => x.body.includes('quá hạn')).length, 1, 'không gửi trùng');
+  });
+
+  it('đã gửi Discord nhưng ghi notified_at lỗi 3 lần: không gửi trùng ở các lượt quét sau', async () => {
+    mode = 'ok';
+    const u = await newUser();
+    const id = await mkTopup(u, 'pending');
+    await pool.query(`UPDATE topups SET approve_by = now() + interval '1 hour' WHERE id=$1`, [id]);
+    const prisma = app.get(PrismaService);
+    const orig = prisma.$executeRaw;
+    prisma.$executeRaw = function (strings, ...values) {
+      if (strings.join('?').includes('SET notified_at')) return Promise.reject(new Error('DB lỗi kéo dài'));
+      return orig.call(this, strings, ...values);
+    };
+    try {
+      assert.equal(await app.get(TopupNotifierService).notifyPending(id), true);
+    } finally {
+      prisma.$executeRaw = orig;
+    }
+    for (let i = 0; i < 3; i++) {
+      await ageAttempt(id);
+      await sweeper.sweepNotifications();
+    }
+    assert.equal(forId(id).length, 1, 'không được gửi trùng');
   });
 
   it('createNotifierPort: URL sai định dạng thì dùng adapter log', async () => {

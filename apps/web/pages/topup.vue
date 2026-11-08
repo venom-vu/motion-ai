@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useHead, useRoute } from '#imports';
-import type { Topup, TopupPackId } from '@motion-ai/contracts';
+import { ApiErrorCode, getApiErrorMessageVi, type Topup, type TopupPackId } from '@motion-ai/contracts';
 import { useAuth } from '~/composables/useAuth';
 import { useAuthDialog } from '~/composables/useAuthDialog';
 import { usePricingConfig } from '~/composables/usePricingConfig';
@@ -121,6 +121,8 @@ async function handleRecreateOrder(pack: TopupPackId): Promise<void> {
   // Không tự tích ToS thay người dùng: chỉ tạo ngay khi họ đã tích đồng ý.
   if (consent.value) {
     await createOrder(pack, consent.value);
+  } else {
+    createErrorVi.value = getApiErrorMessageVi(ApiErrorCode.CONSENT_REQUIRED);
   }
 }
 </script>

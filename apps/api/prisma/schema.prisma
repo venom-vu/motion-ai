@@ -105,34 +105,34 @@ model Upload {
 }
 
 model Task {
-  id              String        @id @db.Uuid
-  userId          String        @map("user_id") @db.Uuid
-  pipeline        String        @map("pipeline")
-  status          String        @default("queued") @map("status")
-  reasonCode      String?       @map("reason_code")
-  resultKey       String?       @map("result_key")
-  tierSnapshot    Json          @map("tier_snapshot")
-  consent         Boolean       @map("consent")
-  tosVersion      String        @map("tos_version")
-  inputKeys       Json          @map("input_keys")
-  params          Json          @default("{}") @map("params")
-  holdAmount      Int           @map("hold_amount")
-  queuedAt        DateTime      @default(now()) @map("queued_at") @db.Timestamptz(6)
-  enqueueAttempts Int           @default(0) @map("enqueue_attempts")
-  runningAt         DateTime?   @map("running_at") @db.Timestamptz(6)
-  prepDeadlineAt    DateTime?   @map("prep_deadline_at") @db.Timestamptz(6)
-  deadlineAt        DateTime?   @map("deadline_at") @db.Timestamptz(6)
-  submitStartedAt   DateTime?   @map("submit_started_at") @db.Timestamptz(6)
-  finishedAt        DateTime?   @map("finished_at") @db.Timestamptz(6)
-  rhOrphanUntil     DateTime?   @map("rh_orphan_until") @db.Timestamptz(6)
-  gateDeadline      DateTime?   @map("gate_deadline") @db.Timestamptz(6)
-  runninghubTaskId  String?     @map("runninghub_task_id")
-  gpuCoins          Int?        @map("gpu_coins")
-  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  ledgerEntries   LedgerEntry[]
-  shareTokens     ShareToken[]
+  id               String        @id @db.Uuid
+  userId           String        @map("user_id") @db.Uuid
+  pipeline         String        @map("pipeline")
+  status           String        @default("queued") @map("status")
+  reasonCode       String?       @map("reason_code")
+  resultKey        String?       @map("result_key")
+  tierSnapshot     Json          @map("tier_snapshot")
+  consent          Boolean       @map("consent")
+  tosVersion       String        @map("tos_version")
+  inputKeys        Json          @map("input_keys")
+  params           Json          @default("{}") @map("params")
+  holdAmount       Int           @map("hold_amount")
+  queuedAt         DateTime      @default(now()) @map("queued_at") @db.Timestamptz(6)
+  enqueueAttempts  Int           @default(0) @map("enqueue_attempts")
+  runningAt        DateTime?     @map("running_at") @db.Timestamptz(6)
+  prepDeadlineAt   DateTime?     @map("prep_deadline_at") @db.Timestamptz(6)
+  deadlineAt       DateTime?     @map("deadline_at") @db.Timestamptz(6)
+  submitStartedAt  DateTime?     @map("submit_started_at") @db.Timestamptz(6)
+  finishedAt       DateTime?     @map("finished_at") @db.Timestamptz(6)
+  rhOrphanUntil    DateTime?     @map("rh_orphan_until") @db.Timestamptz(6)
+  gateDeadline     DateTime?     @map("gate_deadline") @db.Timestamptz(6)
+  runninghubTaskId String?       @map("runninghub_task_id")
+  gpuCoins         Int?          @map("gpu_coins")
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ledgerEntries    LedgerEntry[]
+  shareTokens      ShareToken[]
 
   @@index([userId, status])
   @@index([status, queuedAt])
@@ -154,26 +154,28 @@ model ShareToken {
 }
 
 model Topup {
-  id                String        @id @db.Uuid
-  userId            String        @map("user_id") @db.Uuid
-  code              String        @unique @map("code")
-  pack              String        @map("pack")
-  amountVnd         Int           @map("amount_vnd")
-  status            String        @default("awaiting_transfer") @map("status")
-  qrExpiresAt       DateTime      @map("qr_expires_at") @db.Timestamptz(6)
-  approveBy         DateTime?     @map("approve_by") @db.Timestamptz(6)
-  bankRef           String?       @unique @map("bank_ref")
-  rejectReason      String?       @map("reject_reason")
-  note              String?       @map("note")
-  tosVersion        String        @map("tos_version")
-  notifiedAt        DateTime?     @map("notified_at") @db.Timestamptz(6)
-  overdueNotifiedAt DateTime?     @map("overdue_notified_at") @db.Timestamptz(6)
-  notifyAttempts    Int           @default(0) @map("notify_attempts")
-  notifyAttemptedAt DateTime?     @map("notify_attempted_at") @db.Timestamptz(6)
-  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
-  user              User          @relation(fields: [userId], references: [id], onDelete: Restrict)
-  ledgerEntries     LedgerEntry[]
+  id                       String        @id @db.Uuid
+  userId                   String        @map("user_id") @db.Uuid
+  code                     String        @unique @map("code")
+  pack                     String        @map("pack")
+  amountVnd                Int           @map("amount_vnd")
+  status                   String        @default("awaiting_transfer") @map("status")
+  qrExpiresAt              DateTime      @map("qr_expires_at") @db.Timestamptz(6)
+  approveBy                DateTime?     @map("approve_by") @db.Timestamptz(6)
+  bankRef                  String?       @unique @map("bank_ref")
+  rejectReason             String?       @map("reject_reason")
+  note                     String?       @map("note")
+  tosVersion               String        @map("tos_version")
+  notifiedAt               DateTime?     @map("notified_at") @db.Timestamptz(6)
+  overdueNotifiedAt        DateTime?     @map("overdue_notified_at") @db.Timestamptz(6)
+  notifyAttempts           Int           @default(0) @map("notify_attempts")
+  notifyAttemptedAt        DateTime?     @map("notify_attempted_at") @db.Timestamptz(6)
+  overdueNotifyAttempts    Int           @default(0) @map("overdue_notify_attempts")
+  overdueNotifyAttemptedAt DateTime?     @map("overdue_notify_attempted_at") @db.Timestamptz(6)
+  createdAt                DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                     User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  ledgerEntries            LedgerEntry[]
 
   @@index([userId, status])
   @@index([userId, createdAt(sort: Desc), id(sort: Desc)], map: "topups_user_id_created_at_idx")

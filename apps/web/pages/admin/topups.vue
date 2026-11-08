@@ -332,9 +332,10 @@ watch(isAdmin, (admin) => {
         </button>
       </div>
 
-      <!-- 4 ô chỉ số thống kê nhanh phong cách Vercel -->
+      <!-- 4 ô chỉ số thống kê nhanh phong cách Vercel. Chỉ đếm các đơn trong danh sách đang tải (theo bộ lọc), không phải tổng toàn hệ thống. -->
       <section
-        aria-label="Thống kê nhanh đơn nạp"
+        aria-label="Thống kê nhanh trong danh sách đơn nạp đang tải"
+        title="Số liệu chỉ tính trên các đơn đang hiển thị theo bộ lọc"
         class="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3"
       >
         <div class="rounded-xl border border-cyber-border bg-[#0F0F0F] p-3.5 sm:p-4">

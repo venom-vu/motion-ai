@@ -72,6 +72,9 @@ export class TopupNotifierService {
       } catch (err) {
         if (attempt >= 3) {
           this.logger.error(`Đã gửi thông báo đơn nạp ${id} nhưng không ghi được notified_at: ${String(err)}`);
+          // Dùng hết lượt thử để bộ quét không gửi lại cùng một thông báo tối đa MAX_NOTIFY_ATTEMPTS lần nữa.
+          await this.prisma.$executeRaw`
+            UPDATE topups SET notify_attempts = ${MAX_NOTIFY_ATTEMPTS} WHERE id = ${id}::uuid AND notified_at IS NULL`.catch(() => undefined);
           break;
         }
       }
@@ -94,21 +97,28 @@ export class TopupNotifierService {
     }
   }
 
-  /** Gửi đúng một cảnh báo cho đơn pending quá approve_by. Nhận từng đơn một để sự cố giữa chừng chỉ ảnh hưởng một đơn. */
+  /**
+   * Cảnh báo đơn pending quá approve_by. Mỗi đơn: nhận lượt (đếm + giãn cách, như notifyPending), gửi, rồi mới đặt
+   * overdue_notified_at. Discord lỗi hoặc tiến trình chết giữa chừng thì lượt sau thử lại, tối đa MAX_NOTIFY_ATTEMPTS lần.
+   */
   async alertOverdue(): Promise<void> {
     const candidates = await this.prisma.$queryRaw<Array<{ id: string }>>`
       SELECT id FROM topups
       WHERE status = 'pending' AND approve_by < now() AND overdue_notified_at IS NULL
+        AND overdue_notify_attempts < ${MAX_NOTIFY_ATTEMPTS}
       ORDER BY approve_by LIMIT 100`;
     for (const c of candidates) {
-      let claimed: ClaimedRow[];
+      let claimed: Array<ClaimedRow & { overdue_notify_attempts: number }>;
       try {
-        claimed = await this.prisma.$queryRaw<ClaimedRow[]>`
-          UPDATE topups SET overdue_notified_at = now()
+        claimed = await this.prisma.$queryRaw<Array<ClaimedRow & { overdue_notify_attempts: number }>>`
+          UPDATE topups SET overdue_notify_attempts = overdue_notify_attempts + 1, overdue_notify_attempted_at = now()
           WHERE id = ${c.id}::uuid AND status = 'pending' AND approve_by < now() AND overdue_notified_at IS NULL
-          RETURNING id, code, pack, amount_vnd, approve_by`;
+            AND overdue_notify_attempts < ${MAX_NOTIFY_ATTEMPTS}
+            AND (overdue_notify_attempted_at IS NULL
+                 OR overdue_notify_attempted_at < now() - make_interval(secs => ${NOTIFY_RETRY_INTERVAL_SECONDS}))
+          RETURNING id, code, pack, amount_vnd, approve_by, overdue_notify_attempts`;
       } catch (err) {
-        // Chưa nhận được đơn này (overdue_notified_at vẫn NULL): lần quét sau thử lại, các đơn khác vẫn xử lý.
+        // Chưa nhận được đơn này: lần quét sau thử lại, các đơn khác vẫn xử lý.
         this.logger.error(`Nhận cảnh báo quá hạn đơn nạp ${c.id} lỗi: ${String(err)}`);
         continue;
       }
@@ -120,14 +130,20 @@ export class TopupNotifierService {
             message: `Đơn nạp ${r.code} đã quá hạn duyệt: gói ${r.pack}, ${formatVnd(r.amount_vnd)}, hạn duyệt ${formatVnTime(r.approve_by)} (giờ VN)`,
           });
         } catch (err) {
-          this.logger.error(`Cảnh báo quá hạn đơn nạp ${r.id} lỗi: ${String(err)}`);
-          // Hoàn tác phiên nhận để lần quét sau gửi lại; không để mất cảnh báo vì Discord lỗi tạm thời.
-          try {
-            await this.prisma.$executeRaw`
-              UPDATE topups SET overdue_notified_at = NULL WHERE id = ${r.id}::uuid AND status = 'pending'`;
-          } catch (revertErr) {
-            this.logger.error(`Hoàn tác cảnh báo quá hạn đơn nạp ${r.id} lỗi: ${String(revertErr)}`);
+          this.logger.error(`Cảnh báo quá hạn đơn nạp ${r.id} lỗi (lượt ${r.overdue_notify_attempts}/${MAX_NOTIFY_ATTEMPTS}): ${String(err)}`);
+          if (r.overdue_notify_attempts >= MAX_NOTIFY_ATTEMPTS) {
+            this.logger.error(`Đơn nạp ${r.id} cảnh báo quá hạn thất bại ${MAX_NOTIFY_ATTEMPTS} lần, bỏ qua.`);
           }
+          continue;
+        }
+        try {
+          await this.prisma.$executeRaw`
+            UPDATE topups SET overdue_notified_at = now() WHERE id = ${r.id}::uuid AND overdue_notified_at IS NULL`;
+        } catch (err) {
+          // Đã gửi nhưng không ghi được: dùng hết lượt để không gửi trùng nhiều lần.
+          this.logger.error(`Đã gửi cảnh báo quá hạn đơn nạp ${r.id} nhưng không ghi được overdue_notified_at: ${String(err)}`);
+          await this.prisma.$executeRaw`
+            UPDATE topups SET overdue_notify_attempts = ${MAX_NOTIFY_ATTEMPTS} WHERE id = ${r.id}::uuid AND overdue_notified_at IS NULL`.catch(() => undefined);
         }
       }
     }

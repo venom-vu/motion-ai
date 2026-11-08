@@ -139,7 +139,7 @@ describe('Story 3.5: [BE] Duyệt và từ chối đơn, nhật ký Admin', () =
     const body = await res.json();
     AdminTopupSchema.parse(body);
     assert.equal(body.status, 'approved');
-    assert.equal(body.bankRef, bankRef);
+    assert.equal(body.bankRef, bankRef.toUpperCase());
     const me = await (await call(u, 'GET', '/me')).json();
     assert.equal(me.balance, 12000);
     assert.equal(me.tier, 'Pro');
@@ -182,6 +182,18 @@ describe('Story 3.5: [BE] Duyệt và từ chối đơn, nhật ký Admin', () =
     const res = await adm('POST', `/admin/topups/${crypto.randomUUID()}/approve`, { bankRef: ref() });
     assert.equal(res.status, 404);
     assert.equal(await errCode(res), ApiErrorCode.NOT_FOUND);
+  });
+
+  it('bank_ref chỉ khác hoa/thường vẫn là trùng: 409, không cộng credit lần hai', async () => {
+    const u = await mkUser();
+    const a = await mkTopup(u);
+    const b = await mkTopup(u);
+    const bankRef = ref();
+    assert.equal((await adm('POST', `/admin/topups/${a}/approve`, { bankRef: bankRef.toLowerCase() })).status, 200);
+    const res = await adm('POST', `/admin/topups/${b}/approve`, { bankRef: ` ${bankRef.toUpperCase()} ` });
+    assert.equal(res.status, 409);
+    assert.equal(await errCode(res), ApiErrorCode.BANK_REF_DUPLICATE);
+    assert.equal((await ledger(u.id)).length, 1);
   });
 
   it('bank_ref trùng: 409, rollback hoàn toàn, không audit', async () => {

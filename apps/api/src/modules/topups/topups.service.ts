@@ -83,10 +83,10 @@ export function readBankAccountConfig(env: NodeJS.ProcessEnv = process.env): Ban
   const bin = env.TOPUP_BANK_BIN?.trim();
   const accountNo = env.TOPUP_BANK_ACCOUNT_NO?.trim();
   const accountName = env.TOPUP_BANK_ACCOUNT_NAME?.trim();
-  if (!bin || !accountNo || !accountName) {
+  if (!bin || !accountNo || !accountName || !/^\d{6}$/.test(bin) || !/^\d{6,19}$/.test(accountNo)) {
     // Chi tiết chỉ ghi log vận hành; không lộ tên biến môi trường cho client.
     new Logger('TopupsService').error(
-      'Thiếu cấu hình tài khoản nhận tiền: cần TOPUP_BANK_BIN, TOPUP_BANK_ACCOUNT_NO, TOPUP_BANK_ACCOUNT_NAME.',
+      'Thiếu hoặc sai định dạng cấu hình tài khoản nhận tiền: TOPUP_BANK_BIN (6 chữ số), TOPUP_BANK_ACCOUNT_NO (6-19 chữ số), TOPUP_BANK_ACCOUNT_NAME.',
     );
     throw new InternalServerErrorException({
       code: 'INTERNAL_ERROR',
@@ -343,7 +343,7 @@ export class TopupsService {
     tx: PrismaTransactionClient,
     id: string,
     from: readonly string[],
-    data: { status: string; bankRef?: string; rejectReason?: string; note?: string | null; approveBy?: Date; overdueNotifiedAt?: null },
+    data: { status: string; bankRef?: string; rejectReason?: string; note?: string | null; approveBy?: Date; overdueNotifiedAt?: null; overdueNotifyAttempts?: number },
   ) {
     // Khóa dòng để `before` của audit đúng là trạng thái nguồn mà CAS chuyển đi (READ COMMITTED).
     const locked = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM topups WHERE id = ${id}::uuid FOR UPDATE`;
@@ -389,6 +389,8 @@ export class TopupsService {
     from: 'pending_or_review' | 'expired',
   ): Promise<AdminTopup> {
     const sources = from === 'expired' ? ['expired'] : ['pending', 'needs_review'];
+    // Mã giao dịch ngân hàng không phân biệt hoa thường: FT1 và ft1 là cùng một giao dịch.
+    bankRef = bankRef.trim().toUpperCase();
     return this.adminTransition(id, async (tx) => {
       const before = await this.casTransition(tx, id, sources, { status: 'approved', bankRef, note: null });
       const pack = PRICING_CONFIG.topupPacks.find((p) => p.id === before.pack);
@@ -439,7 +441,7 @@ export class TopupsService {
     return this.adminTransition(id, async (tx) => {
       // Hạn duyệt tính lại từ lúc quay về hàng chờ; giữ giá trị cũ sẽ khiến đơn quá hạn ngay.
       const approveBy = computeApproveBy(topupClock());
-      const before = await this.casTransition(tx, id, ['needs_review'], { status: 'pending', note: null, approveBy, overdueNotifiedAt: null });
+      const before = await this.casTransition(tx, id, ['needs_review'], { status: 'pending', note: null, approveBy, overdueNotifiedAt: null, overdueNotifyAttempts: 0 });
       await this.audit.record(tx, {
         adminId,
         action: 'topup.return_to_pending',
