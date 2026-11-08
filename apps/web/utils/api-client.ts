@@ -1,5 +1,17 @@
 import {
   API_ERROR_MESSAGES_VI,
+  AdminTopupApproveExpiredRequestSchema,
+  AdminTopupApproveExpiredResponseSchema,
+  AdminTopupApproveRequestSchema,
+  AdminTopupApproveResponseSchema,
+  AdminTopupListQuerySchema,
+  AdminTopupListResponseSchema,
+  AdminTopupNeedsReviewRequestSchema,
+  AdminTopupNeedsReviewResponseSchema,
+  AdminTopupRejectRequestSchema,
+  AdminTopupRejectResponseSchema,
+  AdminTopupReturnToPendingRequestSchema,
+  AdminTopupReturnToPendingResponseSchema,
   ApiErrorCode,
   AuthGoogleCallbackQuerySchema,
   AuthGoogleCallbackResponseSchema,
@@ -35,6 +47,19 @@ import {
   WalletLedgerResponseSchema,
   getApiErrorMessageVi,
   getReasonCodeMessageVi,
+  type AdminTopup,
+  type AdminTopupApproveExpiredRequest,
+  type AdminTopupApproveExpiredResponse,
+  type AdminTopupApproveRequest,
+  type AdminTopupApproveResponse,
+  type AdminTopupListQuery,
+  type AdminTopupListResponse,
+  type AdminTopupNeedsReviewRequest,
+  type AdminTopupNeedsReviewResponse,
+  type AdminTopupRejectRequest,
+  type AdminTopupRejectResponse,
+  type AdminTopupReturnToPendingRequest,
+  type AdminTopupReturnToPendingResponse,
   type AuthGoogleCallbackQuery,
   type AuthGoogleCallbackResponse,
   type AuthGoogleQuery,
@@ -75,6 +100,19 @@ export {
   ApiErrorCode,
   getApiErrorMessageVi,
   getReasonCodeMessageVi,
+  type AdminTopup,
+  type AdminTopupApproveExpiredRequest,
+  type AdminTopupApproveExpiredResponse,
+  type AdminTopupApproveRequest,
+  type AdminTopupApproveResponse,
+  type AdminTopupListQuery,
+  type AdminTopupListResponse,
+  type AdminTopupNeedsReviewRequest,
+  type AdminTopupNeedsReviewResponse,
+  type AdminTopupRejectRequest,
+  type AdminTopupRejectResponse,
+  type AdminTopupReturnToPendingRequest,
+  type AdminTopupReturnToPendingResponse,
   type FaceSwapCreateRequest,
   type FaceSwapCreateResponse,
   type ReasonCode,
@@ -699,6 +737,127 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
           signal: options?.signal,
         },
         (payload) => TopupListResponseSchema.parse(payload),
+      );
+    },
+
+    async adminListTopups(
+      rawQuery?: AdminTopupListQuery,
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminTopupListResponse> {
+      const query = AdminTopupListQuerySchema.parse(rawQuery ?? {});
+      const params = new URLSearchParams();
+      if (query.status) {
+        params.set('status', query.status);
+      }
+      if (query.pageSize) {
+        params.set('pageSize', String(query.pageSize));
+      }
+      if (query.cursor) {
+        params.set('cursor', query.cursor);
+      }
+      const qs = params.toString();
+      return requestLive(
+        `/admin/topups${qs ? `?${qs}` : ''}`,
+        {
+          method: 'GET',
+          signal: options?.signal,
+        },
+        (payload) => AdminTopupListResponseSchema.parse(payload),
+      );
+    },
+
+    async adminApproveTopup(
+      id: string,
+      rawRequest: AdminTopupApproveRequest,
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminTopupApproveResponse> {
+      TopupIdParamsSchema.parse({ id });
+      const data = AdminTopupApproveRequestSchema.parse(rawRequest);
+      return requestLive(
+        `/admin/topups/${encodeURIComponent(id)}/approve`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          signal: options?.signal,
+        },
+        (payload) => AdminTopupApproveResponseSchema.parse(payload),
+      );
+    },
+
+    async adminApproveExpiredTopup(
+      id: string,
+      rawRequest: AdminTopupApproveExpiredRequest,
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminTopupApproveExpiredResponse> {
+      TopupIdParamsSchema.parse({ id });
+      const data = AdminTopupApproveExpiredRequestSchema.parse(rawRequest);
+      return requestLive(
+        `/admin/topups/${encodeURIComponent(id)}/approve-expired`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          signal: options?.signal,
+        },
+        (payload) => AdminTopupApproveExpiredResponseSchema.parse(payload),
+      );
+    },
+
+    async adminRejectTopup(
+      id: string,
+      rawRequest: AdminTopupRejectRequest,
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminTopupRejectResponse> {
+      TopupIdParamsSchema.parse({ id });
+      const data = AdminTopupRejectRequestSchema.parse(rawRequest);
+      return requestLive(
+        `/admin/topups/${encodeURIComponent(id)}/reject`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          signal: options?.signal,
+        },
+        (payload) => AdminTopupRejectResponseSchema.parse(payload),
+      );
+    },
+
+    async adminNeedsReviewTopup(
+      id: string,
+      rawRequest: AdminTopupNeedsReviewRequest,
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminTopupNeedsReviewResponse> {
+      TopupIdParamsSchema.parse({ id });
+      const data = AdminTopupNeedsReviewRequestSchema.parse(rawRequest);
+      return requestLive(
+        `/admin/topups/${encodeURIComponent(id)}/needs-review`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          signal: options?.signal,
+        },
+        (payload) => AdminTopupNeedsReviewResponseSchema.parse(payload),
+      );
+    },
+
+    async adminReturnTopupToPending(
+      id: string,
+      rawRequest?: AdminTopupReturnToPendingRequest,
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminTopupReturnToPendingResponse> {
+      TopupIdParamsSchema.parse({ id });
+      const data = AdminTopupReturnToPendingRequestSchema.parse(rawRequest ?? {});
+      return requestLive(
+        `/admin/topups/${encodeURIComponent(id)}/return-to-pending`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data ?? {}),
+          signal: options?.signal,
+        },
+        (payload) => AdminTopupReturnToPendingResponseSchema.parse(payload),
       );
     },
   };
