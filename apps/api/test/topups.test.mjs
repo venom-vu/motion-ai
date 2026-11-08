@@ -702,12 +702,15 @@ describe('Story 3.4: [BE] Thông báo Discord cho Admin', () => {
     users.push(r.rows[0].id);
     return { id: r.rows[0].id, email: r.rows[0].email, token: jwt.sign({ sub: r.rows[0].id, email: r.rows[0].email, role: 'user' }) };
   }
+  const codeById = new Map();
   async function mkTopup(user, status) {
+    const code = `D${runId}${seq++}`.slice(0, 12);
     const r = await pool.query(
       `INSERT INTO topups (id,user_id,code,pack,amount_vnd,status,qr_expires_at,tos_version,updated_at)
        VALUES (gen_random_uuid(),$1,$2,'pro',99000,$3, now() + interval '600 seconds','t',now()) RETURNING id`,
-      [user.id, `D${runId}${seq++}`.slice(0, 12), status],
+      [user.id, code, status],
     );
+    codeById.set(r.rows[0].id, code);
     return r.rows[0].id;
   }
   const row = async (id) =>
@@ -719,7 +722,8 @@ describe('Story 3.4: [BE] Thông báo Discord cho Admin', () => {
     });
   const ageAttempt = (id) =>
     pool.query(`UPDATE topups SET notify_attempted_at = now() - interval '2 minutes' WHERE id=$1`, [id]);
-  const forId = (id) => received.filter((r) => r.body.includes(id));
+  // Tin nhắn chỉ chứa mã đơn (không còn UUID), nên khớp theo code.
+  const forId = (id) => received.filter((r) => r.body.includes(codeById.get(id)));
   async function waitFor(fn, ms = 5000) {
     const end = Date.now() + ms;
     while (Date.now() < end) {
@@ -790,7 +794,9 @@ describe('Story 3.4: [BE] Thông báo Discord cho Admin', () => {
     const parsed = JSON.parse(reqs[0].body);
     assert.deepEqual(parsed.allowed_mentions, { parse: [] });
     assert.ok(parsed.content.length <= 2000);
-    for (const needle of [code, '99000', 'pro']) assert.ok(parsed.content.includes(needle), needle);
+    for (const needle of [code, '99.000đ', 'pro', 'giờ VN']) assert.ok(parsed.content.includes(needle), needle);
+    assert.ok(!parsed.content.includes('{'), 'không còn dòng JSON');
+    assert.ok(!/\dT\d{2}:\d{2}.*Z/.test(parsed.content), 'không dùng giờ UTC dạng ISO');
     for (const bad of [u.email, 'jwt', u.token, '0123456789', 'CONG TY MOTION AI', 'secret-token-xyz', 'Bearer'])
       assert.ok(!reqs[0].body.includes(bad), bad);
   });

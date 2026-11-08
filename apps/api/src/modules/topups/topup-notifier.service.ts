@@ -14,6 +14,21 @@ interface ClaimedRow {
   notify_attempts?: number;
 }
 
+const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+/** 49000 -> "49.000đ". */
+function formatVnd(amount: number): string {
+  return `${String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}đ`;
+}
+
+/** Giờ Việt Nam (UTC+7, không DST), dạng "11:31 08/11/2026". */
+function formatVnTime(d: Date | null): string {
+  if (!d) return 'n/a';
+  const t = new Date(d.getTime() + VN_OFFSET_MS);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(t.getUTCHours())}:${p(t.getUTCMinutes())} ${p(t.getUTCDate())}/${p(t.getUTCMonth() + 1)}/${t.getUTCFullYear()}`;
+}
+
 /** Thông báo Discord cho đơn nạp. Chỉ ghi các cột thông báo của bảng topups (module topups sở hữu). */
 @Injectable()
 export class TopupNotifierService {
@@ -23,16 +38,6 @@ export class TopupNotifierService {
     private readonly prisma: PrismaService,
     @Inject(NOTIFIER_PORT) private readonly notifier: NotifierPort,
   ) {}
-
-  private payload(r: ClaimedRow) {
-    return {
-      topupId: r.id,
-      code: r.code,
-      pack: r.pack,
-      amountVnd: r.amount_vnd,
-      approveBy: r.approve_by ? r.approve_by.toISOString() : null,
-    };
-  }
 
   /** Nhận phiên gửi (UPDATE có điều kiện) rồi gửi; thành công thì đặt notified_at. Trả true nếu đã gửi. */
   async notifyPending(id: string): Promise<boolean> {
@@ -49,8 +54,7 @@ export class TopupNotifierService {
       await this.notifier.notify({
         kind: 'TOPUP_PENDING',
         severity: 'info',
-        message: `Đơn nạp ${r.code} chờ duyệt: gói ${r.pack}, ${r.amount_vnd} VNĐ, hạn duyệt ${r.approve_by?.toISOString() ?? 'n/a'}`,
-        data: this.payload(r),
+        message: `Đơn nạp ${r.code} chờ duyệt: gói ${r.pack}, ${formatVnd(r.amount_vnd)}, hạn duyệt ${formatVnTime(r.approve_by)} (giờ VN)`,
       });
     } catch (err) {
       // Lượt thứ MAX_NOTIFY_ATTEMPTS thất bại: ghi log lỗi đúng một lần (trạng thái nằm ở DB, sống qua khởi động lại).
@@ -113,8 +117,7 @@ export class TopupNotifierService {
           await this.notifier.notify({
             kind: 'TOPUP_OVERDUE',
             severity: 'warn',
-            message: `Đơn nạp ${r.code} đã quá hạn duyệt: gói ${r.pack}, ${r.amount_vnd} VNĐ, hạn duyệt ${r.approve_by?.toISOString() ?? 'n/a'}`,
-            data: this.payload(r),
+            message: `Đơn nạp ${r.code} đã quá hạn duyệt: gói ${r.pack}, ${formatVnd(r.amount_vnd)}, hạn duyệt ${formatVnTime(r.approve_by)} (giờ VN)`,
           });
         } catch (err) {
           this.logger.error(`Cảnh báo quá hạn đơn nạp ${r.id} lỗi: ${String(err)}`);
