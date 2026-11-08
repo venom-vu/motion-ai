@@ -750,11 +750,12 @@ describe('@motion-ai/contracts', () => {
       assert.deepEqual(portraitRatio.error.issues[0].path, ['height']);
     });
 
-    it('requires consent === true', () => {
+    it('không còn nhận consent theo từng lượt (ToS chấp nhận một lần khi đăng nhập)', () => {
       assert.equal(FaceSwapCreateRequestSchema.safeParse(MOCK_FACE_SWAP_CREATE_REQUEST).success, true);
-      const { consent: _c, ...noConsent } = MOCK_FACE_SWAP_CREATE_REQUEST;
-      assert.equal(FaceSwapCreateRequestSchema.safeParse(noConsent).success, false);
-      assert.equal(FaceSwapCreateRequestSchema.safeParse({ ...noConsent, consent: false }).success, false);
+      assert.equal(
+        FaceSwapCreateRequestSchema.safeParse({ ...MOCK_FACE_SWAP_CREATE_REQUEST, consent: true }).success,
+        false,
+      );
     });
 
     it('enforces Task invariants', () => {
@@ -866,12 +867,10 @@ describe('@motion-ai/contracts', () => {
     });
 
     it('validates create request', () => {
-      assert.equal(TopupCreateRequestSchema.safeParse({ pack: 'pro', consent: true }).success, true);
-      assert.equal(TopupCreateRequestSchema.safeParse({ pack: 'pro', consent: false }).success, false);
-      assert.equal(TopupCreateRequestSchema.safeParse({ pack: 'pro' }).success, false);
-      assert.equal(TopupCreateRequestSchema.safeParse({ pack: 'vip', consent: true }).success, false);
+      assert.equal(TopupCreateRequestSchema.safeParse({ pack: 'pro' }).success, true);
+      assert.equal(TopupCreateRequestSchema.safeParse({ pack: 'vip' }).success, false);
       assert.equal(
-        TopupCreateRequestSchema.safeParse({ pack: 'pro', consent: true, amountVnd: 1 }).success,
+        TopupCreateRequestSchema.safeParse({ pack: 'pro', amountVnd: 1 }).success,
         false,
       );
     });

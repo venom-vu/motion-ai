@@ -77,7 +77,7 @@ describe('Story 2.8: [BE] Ưu tiên theo Tier và hết hạn hàng đợi FREE'
       await prisma.upload.create({ data: { userId: user.id, key: `in-raw/${user.id}/${uuid}`, kind: 'image', mimeType: 'image/jpeg', declaredBytes: 10, status: 'confirmed', confirmedKey: `in/${user.id}/${uuid}` } });
       keys.push(`in/${user.id}/${uuid}`);
     }
-    const res = await fetch(`${baseUrl}/tasks/face-swap`, { method: 'POST', headers: { Authorization: `Bearer ${user.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ sourceKey: keys[0], targetKey: keys[1], consent: true }) });
+    const res = await fetch(`${baseUrl}/tasks/face-swap`, { method: 'POST', headers: { Authorization: `Bearer ${user.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ sourceKey: keys[0], targetKey: keys[1] }) });
     assert.equal(res.status, 201);
     const id = (await res.json()).id;
     taskIds.push(id);

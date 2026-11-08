@@ -77,7 +77,7 @@ async function handleSelectPack(packId: TopupPackId): Promise<void> {
   }
   creatingPackId.value = packId;
   try {
-    await createOrder(packId, true);
+    await createOrder(packId);
   } finally {
     creatingPackId.value = null;
   }
@@ -96,7 +96,7 @@ async function handleRecreateOrder(pack: TopupPackId): Promise<void> {
   closeModal();
   creatingPackId.value = pack;
   try {
-    await createOrder(pack, true);
+    await createOrder(pack);
   } finally {
     creatingPackId.value = null;
   }

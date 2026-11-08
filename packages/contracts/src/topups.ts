@@ -123,9 +123,6 @@ export type TopupIdParams = z.infer<typeof TopupIdParamsSchema>;
 export const TopupCreateRequestSchema = z
   .object({
     pack: TopupPackIdSchema,
-    consent: z.literal(true, {
-      errorMap: () => ({ message: 'Bạn cần cam kết đồng ý Điều khoản dịch vụ để tiếp tục.' }),
-    }),
   })
   .strict();
 export type TopupCreateRequest = z.infer<typeof TopupCreateRequestSchema>;

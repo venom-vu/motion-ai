@@ -121,10 +121,10 @@ export const useTopup = () => ({
     assert.deepEqual(calls(), [['openAuthDialog', 'login']]);
   });
 
-  it('đã đăng nhập: ấn nạp gói gọi createOrder(packId, true) ngay để hiển thị mã QR', async () => {
+  it('đã đăng nhập: ấn nạp gói gọi createOrder(packId) ngay để hiển thị mã QR', async () => {
     const s = await fresh({ authed: true });
     await s.handleSelectPack('creator');
-    assert.deepEqual(calls(), [['createOrder', 'creator', true]]);
+    assert.deepEqual(calls(), [['createOrder', 'creator']]);
     assert.equal(s.creatingPackId.value, null);
   });
 
@@ -137,6 +137,6 @@ export const useTopup = () => ({
   it('handleRecreateOrder: đóng modal hiện tại và tạo lại mã QR mới cho gói tương ứng', async () => {
     const s = await fresh({ authed: true });
     await s.handleRecreateOrder('starter');
-    assert.deepEqual(calls(), [['closeModal'], ['createOrder', 'starter', true]]);
+    assert.deepEqual(calls(), [['closeModal'], ['createOrder', 'starter']]);
   });
 });

@@ -108,7 +108,7 @@ describe('Story 2.3: [BE] Tạo Task Face Swap và xếp vào hàng đợi', () 
     });
   async function validBody(user) {
     const [sourceKey, targetKey] = await confirmedKeys(user);
-    return { sourceKey, targetKey, consent: true };
+    return { sourceKey, targetKey };
   }
   const wal = async (u) => prisma.user.findUnique({ where: { id: u.id } });
   const taskCount = (u) => prisma.task.count({ where: { userId: u.id } });
@@ -207,14 +207,14 @@ describe('Story 2.3: [BE] Tạo Task Face Swap và xếp vào hàng đợi', () 
     assert.equal(queueCalls[0].opts.removeOnFail, true);
   });
 
-  it('consent sai hoặc vắng -> CONSENT_REQUIRED; trường khác -> VALIDATION_FAILED', async () => {
+  it('không còn nhận consent theo lượt; trường lạ/không hợp lệ -> VALIDATION_FAILED', async () => {
     const u = await newUser();
     const body = await validBody(u);
     queueCalls.length = 0;
-    for (const b of [{ ...body, consent: false }, { sourceKey: body.sourceKey, targetKey: body.targetKey }]) {
+    for (const b of [{ ...body, consent: true }, { ...body, consent: false }]) {
       const res = await post(u, b);
       assert.equal(res.status, 400);
-      assert.equal((await res.json()).code, ApiErrorCode.CONSENT_REQUIRED);
+      assert.equal((await res.json()).code, ApiErrorCode.VALIDATION_FAILED);
     }
     const res = await post(u, { ...body, sourceKey: 'bad' });
     assert.equal((await res.json()).code, ApiErrorCode.VALIDATION_FAILED);
@@ -293,7 +293,7 @@ describe('Story 2.3: [BE] Tạo Task Face Swap và xếp vào hàng đợi', () 
       { sourceKey: mine[0], targetKey: ghost },
     ];
     for (const i of inputs) {
-      const res = await post(u, { ...i, consent: true });
+      const res = await post(u, { ...i });
       assert.equal(res.status, 400);
       assert.equal((await res.json()).code, ApiErrorCode.VALIDATION_FAILED);
     }

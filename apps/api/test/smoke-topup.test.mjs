@@ -169,7 +169,7 @@ describe('Smoke nạp tiền FE-BE trên stack Compose (Story 3.8)', () => {
           return MeResponseSchema.parse(await res.json());
         }
         async function createTopup(session, pack) {
-          const res = await api(session, 'POST', '/topups', { pack, consent: true });
+          const res = await api(session, 'POST', '/topups', { pack });
           assert.equal(res.status, 201);
           const t = TopupSchema.parse(await res.json());
           assert.equal(t.status, 'awaiting_transfer');

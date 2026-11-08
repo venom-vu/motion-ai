@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, watch } from 'vue';
-import { useRoute, useRouter } from '#imports';
-import { TOS_VERSION } from '@motion-ai/contracts';
-import { useAuthDialog } from '~/composables/useAuthDialog';
-import { usePricingConfig } from '~/composables/usePricingConfig';
-import { resolveApiErrorMessageVi } from '~/utils/api-client';
-import { formatNumberVi } from '~/utils/catalog';
+import { onBeforeUnmount, onMounted, watch } from "vue";
+import { useRoute, useRouter } from "#imports";
+// import { TOS_VERSION } from '@motion-ai/contracts';
+import { useAuthDialog } from "~/composables/useAuthDialog";
+import { usePricingConfig } from "~/composables/usePricingConfig";
+import { resolveApiErrorMessageVi } from "~/utils/api-client";
+import { formatNumberVi } from "~/utils/catalog";
 
 const { pricing, me } = usePricingConfig();
 const { mode, errorVi, open, close } = useAuthDialog();
@@ -13,30 +13,30 @@ const route = useRoute();
 const router = useRouter();
 
 function handleKeydown(event: KeyboardEvent): void {
-  if (mode.value && event.key === 'Escape') {
+  if (mode.value && event.key === "Escape") {
     close();
   }
 }
 
 // Đăng nhập thành công thì tự đóng dialog đăng nhập.
 watch(me, (next) => {
-  if (next && mode.value === 'login') {
+  if (next && mode.value === "login") {
     close();
   }
 });
 
 // BE redirect về /?authError=<code> khi Google OAuth thất bại: mở lại dialog kèm thông báo.
 onMounted(() => {
-  window.addEventListener('keydown', handleKeydown);
+  window.addEventListener("keydown", handleKeydown);
   const err = route.query.authError;
-  if (typeof err === 'string' && err) {
-    open('login', resolveApiErrorMessageVi(err));
+  if (typeof err === "string" && err) {
+    open("login", resolveApiErrorMessageVi(err));
     void router.replace({ path: route.path, query: {} });
   }
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', handleKeydown);
+  window.removeEventListener("keydown", handleKeydown);
 });
 </script>
 
@@ -74,14 +74,14 @@ onBeforeUnmount(() => {
             <h2 id="auth-dialog-title" class="font-display text-xl font-bold">
               Đăng Nhập
             </h2>
-            <p class="text-xs text-cyber-muted">
+            <!-- <p class="text-xs text-cyber-muted">
               Điều khoản phiên bản
               <span class="font-mono text-cyber-cyan">{{ TOS_VERSION }}</span>
-            </p>
+            </p> -->
           </div>
         </div>
 
-        <p v-if="pricing" class="mt-4 text-sm text-cyber-muted">
+        <p v-if="pricing" class="mt-2.5 text-sm text-cyber-muted">
           Tài khoản đăng ký lần đầu được tặng
           <span class="font-mono font-semibold text-cyber-cyan">
             {{ formatNumberVi(pricing.trialGrantCredits) }} credit
@@ -89,7 +89,7 @@ onBeforeUnmount(() => {
           dùng thử.
         </p>
 
-        <div class="mt-5">
+        <div class="mt-3">
           <LoginConsentForm id-prefix="dialog" :initial-error-vi="errorVi" />
         </div>
       </template>
@@ -107,7 +107,7 @@ onBeforeUnmount(() => {
               Tài Khoản
             </h2>
             <p class="truncate font-mono text-xs text-cyber-muted">
-              {{ me?.email ?? 'Đang tải...' }}
+              {{ me?.email ?? "Đang tải..." }}
             </p>
           </div>
         </div>
@@ -133,7 +133,9 @@ onBeforeUnmount(() => {
               {{ formatNumberVi(me.held) }} CR
             </dd>
           </div>
-          <div class="col-span-2 rounded-xl border border-cyber-border bg-cyber-bg/70 p-3">
+          <div
+            class="col-span-2 rounded-xl border border-cyber-border bg-cyber-bg/70 p-3"
+          >
             <dt class="text-cyber-muted">Điều khoản đã đồng ý</dt>
             <dd class="mt-1 font-mono">{{ me.tosVersion }}</dd>
           </div>

@@ -49,7 +49,7 @@ Gói hợp đồng dùng chung (Shared Contracts) giữa Backend (`@motion-ai/ap
 - Quy tắc ảnh dùng chung FE/BE: `ImageFileDeclarationSchema` (loại + dung lượng khai báo, dùng cho `POST /uploads`), `ImageMetaSchema` (thêm `width`/`height`: JPG/PNG/WebP, tối đa 10 MB, cạnh ngắn >= 512 px, tỷ lệ 1:2 đến 2:1) và các hằng số giới hạn.
 - Endpoint tải lên: `POST /uploads` (`UploadCreateRequestSchema`/`UploadCreateResponseSchema`), `POST /uploads/{key}/confirm` (`UploadConfirm*`; `{key}` là khóa `in-raw/<uuid>/<uuid>`, cần URL-encode khi đặt vào đường dẫn).
 - Enum `ReasonCode` (16 mã), `TaskStatus` (6 trạng thái), `TaskSchema` với bất biến trạng thái/`reasonCode`/`queuePosition`/`resultKey`.
-- Endpoint Task: `POST /tasks/face-swap` (`consent` chỉ nhận `true`, không nhận credit từ client), `GET /tasks` (cursor), `GET /tasks/{id}`, `POST /tasks/{id}/cancel`, `GET /tasks/{id}/result` (`sourceUrl` nullable), `POST`/`DELETE /tasks/{id}/share`, `GET /s/{token}` (chỉ params; thành công là chuyển hướng, 404 dùng `ApiError`).
+- Endpoint Task: `POST /tasks/face-swap` (không nhận credit từ client; ToS chỉ chấp nhận một lần khi đăng nhập), `GET /tasks` (cursor), `GET /tasks/{id}`, `POST /tasks/{id}/cancel`, `GET /tasks/{id}/result` (`sourceUrl` nullable), `POST`/`DELETE /tasks/{id}/share`, `GET /s/{token}` (chỉ params; thành công là chuyển hướng, 404 dùng `ApiError`).
 - Thông báo tiếng Việt theo `reasonCode`: `REASON_CODE_MESSAGES_VI`, `getReasonCodeMessageVi(code, pipeline?)` (ghi đè `NO_POSE` cho `body_retouch`/`motion_control`).
 - Mã lỗi API mới: `NOT_FOUND`, `FORBIDDEN`, `CONFLICT`.
 - Mock: `MOCK_TASKS_BY_STATUS` (6 trạng thái), `MOCK_TASK_LIST_RESPONSE`, `MOCK_UPLOAD_*`, `MOCK_TASK_RESULT_*`, `MOCK_TASK_SHARE_*`.
@@ -58,7 +58,7 @@ Gói hợp đồng dùng chung (Shared Contracts) giữa Backend (`@motion-ai/ap
 
 - Trạng thái đơn `TopupStatus` (`awaiting_transfer`, `pending`, `approved`, `rejected`, `needs_review`, `expired`), nhãn tiếng Việt `TOPUP_STATUS_LABELS_VI` / `getTopupStatusLabelVi` (`pending` = "Đang chờ duyệt", `needs_review` = "Cần xem xét"). Gói nạp dùng lại `TopupPackId` của `wallet.ts`.
 - `TopupSchema` (bất biến: `transferContent` = `NAP <code>`, `approveBy` bắt buộc khi `pending`, `bankRef` chỉ khi `approved`, `rejectReason` khi và chỉ khi `rejected`) và `AdminTopupSchema` (thêm `userId`, `isOverdue`; không có email).
-- Endpoint người dùng: `POST /topups` (`pack`, `consent: true`, `.strict()` nên không nhận `amountVnd`), `POST /topups/{id}/confirm-transfer`, `GET /topups` (cursor), `GET /topups/{id}`.
+- Endpoint người dùng: `POST /topups` (`pack`, `.strict()` nên không nhận `amountVnd`), `POST /topups/{id}/confirm-transfer`, `GET /topups` (cursor), `GET /topups/{id}`.
 - Endpoint Admin: `GET /admin/topups` (lọc `status`, cursor), `POST /admin/topups/{id}/approve`, `approve-expired` (`bankRef`), `reject` (`rejectReason`), `needs-review` (`note`), `return-to-pending` (body rỗng).
 - Mã lỗi API mới: `TOPUP_LIMIT`, `BANK_REF_DUPLICATE`, `TOPUP_STATE_INVALID`, `TOPUP_QR_EXPIRED`.
 - Mock: `MOCK_TOPUPS_BY_STATUS`, `MOCK_TOPUP_LIST_RESPONSE`, `MOCK_ADMIN_TOPUPS_BY_STATUS`, `MOCK_ADMIN_TOPUP_LIST_RESPONSE`.

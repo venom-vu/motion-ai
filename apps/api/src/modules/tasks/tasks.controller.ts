@@ -34,13 +34,10 @@ export class TasksController {
   ): Promise<FaceSwapCreateResponse> {
     const parsed = FaceSwapCreateRequestSchema.safeParse(body);
     if (!parsed.success) {
-      const consentIssue = parsed.error.issues.some((i) => i.path[0] === 'consent');
-      const code = consentIssue ? ApiErrorCode.CONSENT_REQUIRED : ApiErrorCode.VALIDATION_FAILED;
+      const code = ApiErrorCode.VALIDATION_FAILED;
       throw new BadRequestException({
         code,
-        message: consentIssue
-          ? getApiErrorMessageVi(code)
-          : (parsed.error.issues[0]?.message ?? getApiErrorMessageVi(code)),
+        message: parsed.error.issues[0]?.message ?? getApiErrorMessageVi(code),
       });
     }
     return this.tasks.createFaceSwap(user.sub, parsed.data);

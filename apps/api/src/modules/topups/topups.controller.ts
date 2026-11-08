@@ -25,8 +25,7 @@ export class TopupsController {
   async create(@CurrentUser() user: JwtUserPayload, @Body() body: unknown): Promise<Topup> {
     const parsed = TopupCreateRequestSchema.safeParse(body);
     if (!parsed.success) {
-      const consentIssue = parsed.error.issues.some((i) => i.path[0] === 'consent');
-      const code = consentIssue ? ApiErrorCode.CONSENT_REQUIRED : ApiErrorCode.VALIDATION_FAILED;
+      const code = ApiErrorCode.VALIDATION_FAILED;
       throw new BadRequestException({
         code,
         message: getApiErrorMessageVi(code),

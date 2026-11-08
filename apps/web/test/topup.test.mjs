@@ -138,7 +138,7 @@ describe('Story 3.6: [FE] Trang nạp credit và theo dõi đơn', () => {
   });
 
   describe('API Client Topup Methods & Error Handling', () => {
-    it('createTopup gọi POST /topups với đúng body { pack, consent: true } và parse Zod schema', async () => {
+    it('createTopup gọi POST /topups với đúng body { pack } và parse Zod schema', async () => {
       let capturedUrl = '';
       let capturedMethod = '';
       let capturedBody = '';
@@ -159,11 +159,11 @@ describe('Story 3.6: [FE] Trang nạp credit và theo dõi đơn', () => {
         },
       });
 
-      const res = await client.createTopup({ pack: 'pro', consent: true });
+      const res = await client.createTopup({ pack: 'pro' });
       assert.equal(capturedUrl, 'http://test-topup.example/topups');
       assert.equal(capturedMethod, 'POST');
       const parsedBody = JSON.parse(capturedBody);
-      assert.deepEqual(parsedBody, { pack: 'pro', consent: true });
+      assert.deepEqual(parsedBody, { pack: 'pro' });
       assert.equal(res.id, MOCK_TOPUPS_BY_STATUS.awaiting_transfer.id);
       assert.equal(res.status, 'awaiting_transfer');
       assert.equal(res.amountVnd, 99000);
@@ -339,7 +339,7 @@ export const useApiClient = () => ({
       assert.equal(nextCursor.value, null);
     });
 
-    it('createOrder chặn gọi trùng lặp (double-click lock) khi isCreating đang true và kiểm tra ToS consent', async () => {
+    it('createOrder chặn gọi trùng lặp (double-click lock) khi isCreating đang true ', async () => {
       let callCount = 0;
       mockContextModule.setMockClient({
         createTopup: async () => {
@@ -350,21 +350,15 @@ export const useApiClient = () => ({
 
       const topup = useTopupModule.useTopup();
 
-      // Chưa đồng ý ToS -> từ chối ngay lập tức
-      const noConsentResult = await topup.createOrder('pro', false);
-      assert.equal(noConsentResult, null);
-      assert.equal(callCount, 0);
-      assert.match(topup.createErrorVi.value ?? '', /Điều khoản dịch vụ/);
-
       // Đặt isCreating = true thủ công để kiểm tra guard chống gọi trùng
       topup.isCreating.value = true;
-      const doubleClickResult = await topup.createOrder('pro', true);
+      const doubleClickResult = await topup.createOrder('pro');
       assert.equal(doubleClickResult, null);
       assert.equal(callCount, 0);
 
       // Mở khóa -> gọi thành công
       topup.isCreating.value = false;
-      const successResult = await topup.createOrder('pro', true);
+      const successResult = await topup.createOrder('pro');
       assert.equal(callCount, 1);
       assert.equal(successResult?.id, MOCK_TOPUPS_BY_STATUS.awaiting_transfer.id);
       assert.equal(topup.isModalOpen.value, true);

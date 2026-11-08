@@ -207,7 +207,7 @@ describe('Story 3.2: [BE] Tạo đơn nạp và mã VietQR', () => {
   it('tạo đơn hợp lệ: 201, TopupSchema, số tiền từ server, qrPayload hợp lệ', async () => {
     const u = await newUser();
     const before = Date.now();
-    const res = await post(u, { pack: 'pro', consent: true });
+    const res = await post(u, { pack: 'pro' });
     assert.equal(res.status, 201);
     const t = TopupSchema.parse(await res.json());
     assert.equal(t.status, 'awaiting_transfer');
@@ -225,14 +225,9 @@ describe('Story 3.2: [BE] Tạo đơn nạp và mã VietQR', () => {
     assert.equal(row.tosVersion.length > 0, true);
   });
 
-  it('consent sai/thiếu -> CONSENT_REQUIRED; gói/field lạ -> VALIDATION_FAILED', async () => {
+  it('không còn nhận consent theo lượt; gói/field lạ -> VALIDATION_FAILED', async () => {
     const u = await newUser();
-    for (const body of [{ pack: 'pro', consent: false }, { pack: 'pro' }]) {
-      const r = await post(u, body);
-      assert.equal(r.status, 400);
-      assert.equal((await r.json()).code, ApiErrorCode.CONSENT_REQUIRED);
-    }
-    for (const body of [{ pack: 'vip', consent: true }, { pack: 'pro', consent: true, amountVnd: 1 }]) {
+    for (const body of [{ pack: 'pro', consent: true }, { pack: 'vip' }, { pack: 'pro', amountVnd: 1 }]) {
       const r = await post(u, body);
       assert.equal(r.status, 400);
       assert.equal((await r.json()).code, ApiErrorCode.VALIDATION_FAILED);
@@ -242,31 +237,31 @@ describe('Story 3.2: [BE] Tạo đơn nạp và mã VietQR', () => {
 
   it('đủ 3 đơn mở -> TOPUP_LIMIT; approved/expired không tính', async () => {
     const u = await newUser();
-    for (let i = 0; i < 3; i++) assert.equal((await post(u, { pack: 'starter', consent: true })).status, 201);
-    const r = await post(u, { pack: 'starter', consent: true });
+    for (let i = 0; i < 3; i++) assert.equal((await post(u, { pack: 'starter' })).status, 201);
+    const r = await post(u, { pack: 'starter' });
     assert.equal((await r.json()).code, ApiErrorCode.TOPUP_LIMIT);
     assert.equal(r.status, 429);
     await pool.query(`UPDATE topups SET status='expired' WHERE user_id=$1 AND id=(SELECT id FROM topups WHERE user_id=$1 LIMIT 1)`, [u.id]);
-    assert.equal((await post(u, { pack: 'starter', consent: true })).status, 201);
+    assert.equal((await post(u, { pack: 'starter' })).status, 201);
     await pool.query(`UPDATE topups SET status='approved', bank_ref='r-'||id::text WHERE user_id=$1 AND status='awaiting_transfer' AND id=(SELECT id FROM topups WHERE user_id=$1 AND status='awaiting_transfer' LIMIT 1)`, [u.id]);
-    assert.equal((await post(u, { pack: 'starter', consent: true })).status, 201);
+    assert.equal((await post(u, { pack: 'starter' })).status, 201);
   });
 
   it('pending và needs_review cũng tính vào giới hạn; rejected thì không', async () => {
     const u = await newUser();
-    for (let i = 0; i < 3; i++) assert.equal((await post(u, { pack: 'starter', consent: true })).status, 201);
+    for (let i = 0; i < 3; i++) assert.equal((await post(u, { pack: 'starter' })).status, 201);
     const rows = (await pool.query('SELECT id FROM topups WHERE user_id=$1 ORDER BY id', [u.id])).rows;
     await pool.query(`UPDATE topups SET status='pending', approve_by=now() WHERE id=$1`, [rows[0].id]);
     await pool.query(`UPDATE topups SET status='needs_review', approve_by=now(), note='n' WHERE id=$1`, [rows[1].id]);
-    const r = await post(u, { pack: 'starter', consent: true });
+    const r = await post(u, { pack: 'starter' });
     assert.equal((await r.json()).code, ApiErrorCode.TOPUP_LIMIT);
     await pool.query(`UPDATE topups SET status='rejected', reject_reason='x' WHERE id=$1`, [rows[2].id]);
-    assert.equal((await post(u, { pack: 'starter', consent: true })).status, 201);
+    assert.equal((await post(u, { pack: 'starter' })).status, 201);
   });
 
   it('4 yêu cầu song song -> đúng 3 đơn', async () => {
     const u = await newUser();
-    const rs = await Promise.all([1, 2, 3, 4].map(() => post(u, { pack: 'creator', consent: true })));
+    const rs = await Promise.all([1, 2, 3, 4].map(() => post(u, { pack: 'creator' })));
     const codes = await Promise.all(rs.map(async (r) => (r.status === 201 ? 'ok' : (await r.json()).code)));
     assert.equal(codes.filter((c) => c === 'ok').length, 3);
     assert.equal(codes.filter((c) => c === ApiErrorCode.TOPUP_LIMIT).length, 1);
@@ -275,7 +270,7 @@ describe('Story 3.2: [BE] Tạo đơn nạp và mã VietQR', () => {
 
   it('tài khoản khóa -> ACCOUNT_LOCKED', async () => {
     const u = await newUser({ locked: true });
-    const r = await post(u, { pack: 'pro', consent: true });
+    const r = await post(u, { pack: 'pro' });
     assert.equal((await r.json()).code, ApiErrorCode.ACCOUNT_LOCKED);
     assert.equal(await prisma.topup.count({ where: { userId: u.id } }), 0);
   });
@@ -288,7 +283,7 @@ describe('Story 3.2: [BE] Tạo đơn nạp và mã VietQR', () => {
   it('GET /topups/{id}: của mình OK, người khác FORBIDDEN, không có NOT_FOUND', async () => {
     const a = await newUser();
     const b = await newUser();
-    const created = await (await post(a, { pack: 'pro', consent: true })).json();
+    const created = await (await post(a, { pack: 'pro' })).json();
     const ok = await call(a, 'GET', `/topups/${created.id}`);
     assert.equal(ok.status, 200);
     assert.equal(TopupSchema.parse(await ok.json()).id, created.id);
@@ -304,8 +299,8 @@ describe('Story 3.2: [BE] Tạo đơn nạp và mã VietQR', () => {
     const a = await newUser();
     const b = await newUser();
     const ids = [];
-    for (let i = 0; i < 3; i++) ids.push((await (await post(a, { pack: 'pro', consent: true })).json()).id);
-    await post(b, { pack: 'pro', consent: true });
+    for (let i = 0; i < 3; i++) ids.push((await (await post(a, { pack: 'pro' })).json()).id);
+    await post(b, { pack: 'pro' });
     const p1 = TopupListResponseSchema.parse(await (await call(a, 'GET', '/topups?pageSize=2')).json());
     assert.equal(p1.items.length, 2);
     assert.equal(p1.hasMore, true);
@@ -332,10 +327,10 @@ describe('Story 3.2: [BE] Tạo đơn nạp và mã VietQR', () => {
     let forced = 8;
     crypto.randomInt = (...args) => (forced-- > 0 ? 0 : orig(...args));
     try {
-      const first = await (await post(u, { pack: 'pro', consent: true })).json();
+      const first = await (await post(u, { pack: 'pro' })).json();
       assert.equal(first.code, 'AAAAAAAA');
       forced = 8;
-      const r = await post(v, { pack: 'pro', consent: true });
+      const r = await post(v, { pack: 'pro' });
       assert.equal(r.status, 201);
       const second = TopupSchema.parse(await r.json());
       assert.notEqual(second.code, 'AAAAAAAA');
@@ -381,7 +376,7 @@ describe('Story 3.2: rate limit POST /topups', () => {
         const r = await fetch(`${baseUrl}/topups`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pack: 'pro', consent: true }),
+          body: JSON.stringify({ pack: 'pro' }),
         });
         statuses.push(r.status);
         last = await r.json();
@@ -430,7 +425,7 @@ describe('Story 3.2: rate limit POST /topups theo người dùng', () => {
       fetch(`${baseUrl}/topups`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${who.token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pack: 'pro', consent: true }),
+        body: JSON.stringify({ pack: 'pro' }),
       });
     try {
       for (let i = 0; i < 2; i++) await post(a);
@@ -478,12 +473,12 @@ describe('Story 3.2: bộ đếm tạo đơn và xác nhận chuyển khoản t�
     const token = jwt.sign({ sub: u.id, email: u.email, role: 'user' });
     const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
     try {
-      const first = await fetch(`${baseUrl}/topups`, { method: 'POST', headers, body: JSON.stringify({ pack: 'pro', consent: true }) });
+      const first = await fetch(`${baseUrl}/topups`, { method: 'POST', headers, body: JSON.stringify({ pack: 'pro' }) });
       assert.equal(first.status, 201);
       const created = await first.json();
-      const second = await fetch(`${baseUrl}/topups`, { method: 'POST', headers, body: JSON.stringify({ pack: 'pro', consent: true }) });
+      const second = await fetch(`${baseUrl}/topups`, { method: 'POST', headers, body: JSON.stringify({ pack: 'pro' }) });
       assert.equal(second.status, 201);
-      assert.equal((await fetch(`${baseUrl}/topups`, { method: 'POST', headers, body: JSON.stringify({ pack: 'pro', consent: true }) })).status, 429);
+      assert.equal((await fetch(`${baseUrl}/topups`, { method: 'POST', headers, body: JSON.stringify({ pack: 'pro' }) })).status, 429);
       const confirm = await fetch(`${baseUrl}/topups/${created.id}/confirm-transfer`, { method: 'POST', headers });
       assert.equal(confirm.status, 200);
       const refresh = await fetch(`${baseUrl}/auth/refresh`, { method: 'POST' });
@@ -695,7 +690,7 @@ describe('Story 3.3: [BE] Xác nhận chuyển khoản, hạn QR và hạn duy�
     const r = await fetch(`${baseUrl}/topups`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${u.token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pack: 'pro', consent: true }),
+      body: JSON.stringify({ pack: 'pro' }),
     });
     assert.equal(r.status, 201);
     const n = await pool.query(`SELECT count(*)::int AS n FROM topups WHERE user_id=$1 AND status='expired'`, [u.id]);
@@ -711,7 +706,7 @@ describe('Story 3.3: [BE] Xác nhận chuyển khoản, hạn QR và hạn duy�
       fetch(`${baseUrl}/topups`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${u.token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pack: 'pro', consent: true }),
+        body: JSON.stringify({ pack: 'pro' }),
       });
     // Đơn quá hạn QR bị loại ngay khi tạo, nên còn 2 đơn mở: tạo được đơn thứ 3.
     assert.equal((await create()).status, 201);
@@ -734,7 +729,7 @@ describe('Story 3.3: [BE] Xác nhận chuyển khoản, hạn QR và hạn duy�
     const r = await fetch(`${baseUrl}/topups`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${u.token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pack: 'pro', consent: true }),
+      body: JSON.stringify({ pack: 'pro' }),
     });
     assert.equal(r.status, 201);
     // Đủ 3 đơn mở thật (fresh, pending, đơn mới): đơn còn hạn không bị bộ quét đổi nhầm.

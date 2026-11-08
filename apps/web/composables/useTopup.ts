@@ -2,7 +2,6 @@ import { computed, onScopeDispose, ref, watch } from 'vue';
 import { refreshNuxtData } from '#imports';
 import {
   ApiErrorCode,
-  getApiErrorMessageVi,
   type Topup,
   type TopupPackId,
 } from '@motion-ai/contracts';
@@ -205,22 +204,15 @@ export function useTopup() {
     stopPolling();
   }
 
-  async function createOrder(
-    pack: TopupPackId,
-    consent: boolean,
-  ): Promise<Topup | null> {
+  async function createOrder(pack: TopupPackId): Promise<Topup | null> {
     if (isCreating.value) {
       return null;
     }
     createErrorVi.value = null;
-    if (!consent) {
-      createErrorVi.value = getApiErrorMessageVi(ApiErrorCode.CONSENT_REQUIRED);
-      return null;
-    }
 
     isCreating.value = true;
     try {
-      const created = await client.createTopup({ pack, consent: true });
+      const created = await client.createTopup({ pack });
       updateItemInList(created);
       openModal(created);
       return created;

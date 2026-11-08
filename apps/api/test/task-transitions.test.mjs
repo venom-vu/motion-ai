@@ -96,7 +96,7 @@ describe('Story 2.4: [BE] Máy trạng thái Task bằng compare-and-set', () =>
     const res = await fetch(`${baseUrl}/tasks/face-swap`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${user.token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sourceKey: keys[0], targetKey: keys[1], consent: true }),
+      body: JSON.stringify({ sourceKey: keys[0], targetKey: keys[1] }),
     });
     assert.equal(res.status, 201);
     return (await res.json()).id;

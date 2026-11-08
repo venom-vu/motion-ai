@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import { TOS_VERSION, type Task } from '@motion-ai/contracts';
+import { computed, ref } from 'vue';
+import type { Task } from '@motion-ai/contracts';
 import { usePricingConfig } from '~/composables/usePricingConfig';
 import { useApiClient } from '~/composables/useApiClient';
 import { useAuthDialog } from '~/composables/useAuthDialog';
@@ -28,14 +28,6 @@ const isAuthenticated = computed<boolean>(() => Boolean(me.value));
 const sourceKey = ref<string | null>(null);
 const targetKey = ref<string | null>(null);
 
-// Cam kết ToS theo FR19: Bắt buộc tích cho mỗi lượt tải ảnh mới
-const acceptedConsent = ref<boolean>(false);
-
-// Reset ToS mỗi khi một trong hai ảnh thay đổi
-watch([sourceKey, targetKey], () => {
-  acceptedConsent.value = false;
-});
-
 // Trạng thái tác vụ
 const activeTask = ref<Task | null>(null);
 const isSubmitting = ref<boolean>(false);
@@ -55,16 +47,14 @@ const hasEnoughBalance = computed<boolean>(() => {
 // Điều kiện kích hoạt nút "Tạo Face Swap":
 // 1. Đã đăng nhập
 // 2. Đủ cả hai ảnh (sourceKey && targetKey)
-// 3. Đã tích xác nhận ToS
-// 4. Số dư credit >= 100
-// 5. Không trong trạng thái đang gửi (isSubmitting)
+// 3. Số dư credit >= 100
+// 4. Không trong trạng thái đang gửi (isSubmitting)
 const canSubmit = computed<boolean>(() => {
   return Boolean(
     isAuthenticated.value &&
       sourceKey.value &&
       targetKey.value &&
-      acceptedConsent.value &&
-      hasEnoughBalance.value &&
+        hasEnoughBalance.value &&
       !isSubmitting.value,
   );
 });
@@ -82,7 +72,6 @@ async function handleSubmit(): Promise<void> {
     const task = await client.createFaceSwapTask({
       sourceKey: sourceKey.value!,
       targetKey: targetKey.value!,
-      consent: true,
     });
 
     activeTask.value = task;
@@ -98,7 +87,6 @@ async function handleSubmit(): Promise<void> {
 function handleReset(): void {
   activeTask.value = null;
   submitErrorVi.value = null;
-  acceptedConsent.value = false;
   void refreshAll();
 }
 </script>
@@ -190,8 +178,7 @@ function handleReset(): void {
             id-prefix="source-face"
             label-vi="Chọn ảnh mặt nguồn"
             description-vi="Ảnh chân dung rõ mặt, JPG/PNG/WebP ≤ 10 MB"
-            :show-tos-consent="false"
-          />
+                  />
         </div>
 
         <!-- Ô tải 2: Ảnh đích -->
@@ -220,38 +207,8 @@ function handleReset(): void {
             id-prefix="target-face"
             label-vi="Chọn ảnh đích"
             description-vi="Ảnh có người rõ dáng, JPG/PNG/WebP ≤ 10 MB"
-            :show-tos-consent="false"
-          />
+                  />
         </div>
-      </div>
-
-      <!-- Ô cam kết ToS chung cho lượt tạo Face Swap theo FR19 -->
-      <div
-        class="rounded-xl border border-cyber-border bg-cyber-surface/70 p-4"
-        data-testid="face-swap-tos-container"
-      >
-        <label
-          for="face-swap-tos-checkbox"
-          class="touch-target flex min-h-[48px] items-start gap-3 text-sm transition"
-          :class="{
-            'cursor-pointer': Boolean(sourceKey && targetKey),
-            'opacity-60 cursor-not-allowed': !sourceKey || !targetKey,
-          }"
-        >
-          <input
-            id="face-swap-tos-checkbox"
-            v-model="acceptedConsent"
-            :disabled="!sourceKey || !targetKey"
-            type="checkbox"
-            data-testid="face-swap-tos-checkbox"
-            class="mt-1 h-5 w-5 shrink-0 accent-cyber-violet disabled:cursor-not-allowed"
-          />
-          <span class="text-xs leading-relaxed text-cyber-muted">
-            Tôi xác nhận đủ 18 tuổi, sở hữu quyền hợp pháp đối với cả hai ảnh
-            tải lên, những người trong ảnh đã đồng ý cho xử lý và cam kết tuân
-            thủ Điều khoản dịch vụ (phiên bản {{ TOS_VERSION }}).
-          </span>
-        </label>
       </div>
 
       <!-- Banner thông báo lỗi nếu có khi tạo Task -->

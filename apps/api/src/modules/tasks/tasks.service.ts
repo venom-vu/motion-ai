@@ -397,7 +397,7 @@ export class TasksService {
           pipeline: 'face_swap',
           status: 'queued',
           tierSnapshot: snapshot as unknown as object,
-          consent: req.consent,
+          consent: true, // đã đồng ý ToS một lần lúc đăng nhập
           tosVersion: rows[0].tos_version,
           inputKeys: { sourceKey: req.sourceKey, targetKey: req.targetKey },
           params: {},

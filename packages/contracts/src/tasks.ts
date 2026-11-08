@@ -183,9 +183,6 @@ export const FaceSwapCreateRequestSchema = z
   .object({
     sourceKey: ConfirmedUploadKeySchema,
     targetKey: ConfirmedUploadKeySchema,
-    consent: z.literal(true, {
-      errorMap: () => ({ message: 'Bạn cần cam kết đồng ý Điều khoản dịch vụ để tiếp tục.' }),
-    }),
   })
   .strict();
 export type FaceSwapCreateRequest = z.infer<typeof FaceSwapCreateRequestSchema>;

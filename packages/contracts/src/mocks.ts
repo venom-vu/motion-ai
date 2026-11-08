@@ -328,7 +328,6 @@ export const MOCK_UPLOAD_CONFIRM_RESPONSE: UploadConfirmResponse = {
 export const MOCK_FACE_SWAP_CREATE_REQUEST: FaceSwapCreateRequest = {
   sourceKey: `in/${MOCK_USER_ID}/60000000-0000-4000-8000-000000000001`,
   targetKey: `in/${MOCK_USER_ID}/60000000-0000-4000-8000-000000000002`,
-  consent: true,
 };
 
 export const MOCK_TASK_QUEUED: Task = {

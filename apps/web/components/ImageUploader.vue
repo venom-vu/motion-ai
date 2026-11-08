@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import {
-  TOS_VERSION,
   type ImageMeta,
   type UploadConfirmResponse,
 } from '@motion-ai/contracts';
@@ -19,36 +18,30 @@ import {
 const props = withDefaults(
   defineProps<{
     modelValue?: string | null;
-    consent?: boolean;
     labelVi?: string;
     descriptionVi?: string;
     idPrefix?: string;
     disabled?: boolean;
-    showTosConsent?: boolean;
       initialPreviewUrl?: string | null;
   }>(),
   {
     modelValue: null,
-    consent: false,
     labelVi: 'Tải ảnh lên',
     descriptionVi:
       'JPG, PNG, WebP ≤ 10 MB, cạnh ngắn ≥ 512px, tỷ lệ 1:2 đến 2:1',
     idPrefix: 'image-uploader',
     disabled: false,
-    showTosConsent: true,
       initialPreviewUrl: null,
   },
 );
 
 const emit = defineEmits<{
   'update:modelValue': [key: string | null];
-  'update:consent': [consent: boolean];
   success: [data: UploadConfirmResponse, file: File];
   change: [
     payload: {
       key: string | null;
       meta: ImageMeta | null;
-      consent: boolean;
     },
   ];
   error: [messageVi: string];
@@ -79,16 +72,6 @@ const errorMessageVi = ref<string | null>(null);
 let activeAbortController: AbortController | null = null;
 const isDragging = ref(false);
 
-// Quản lý ô tích cam kết ToS theo FR19
-const localConsent = ref<boolean>(props.consent);
-
-watch(
-  () => props.consent,
-  (next) => {
-    localConsent.value = next;
-  },
-);
-
 watch(
   () => props.modelValue,
   (nextKey) => {
@@ -103,22 +86,6 @@ watch(
     }
   },
 );
-
-function updateConsent(value: boolean): void {
-  localConsent.value = value;
-  emit('update:consent', value);
-  emit('change', {
-    key: confirmedKey.value,
-    meta: currentMeta.value,
-    consent: value,
-  });
-}
-
-// Bắt buộc reset cam kết ToS mỗi khi có lượt chọn/đổi ảnh mới theo FR19
-function resetConsent(): void {
-  localConsent.value = false;
-  emit('update:consent', false);
-}
 
 function clearOldPreview(): void {
   if (
@@ -304,7 +271,6 @@ async function capturePhoto(): Promise<void> {
 async function handleFileSelect(file: File): Promise<void> {
   cancelOngoingUpload();
   clearOldPreview();
-  resetConsent();
 
   currentFile.value = file;
   confirmedKey.value = null;
@@ -313,7 +279,6 @@ async function handleFileSelect(file: File): Promise<void> {
   emit('change', {
     key: null,
     meta: null,
-    consent: false,
   });
   errorMessageVi.value = null;
 
@@ -388,7 +353,6 @@ async function startUpload(file: File, meta: ImageMeta): Promise<void> {
     emit('change', {
       key: confirmRes.key,
       meta: confirmRes.image,
-      consent: localConsent.value,
     });
   } catch (error: unknown) {
     if (signal.aborted) {
@@ -407,7 +371,6 @@ function handleCancel(): void {
   closeCamera();
   cancelOngoingUpload();
   clearOldPreview();
-  resetConsent();
   currentFile.value = null;
   confirmedKey.value = null;
   currentMeta.value = null;
@@ -419,12 +382,10 @@ function handleCancel(): void {
   emit('change', {
     key: null,
     meta: null,
-    consent: false,
   });
 }
 
 function handleRetry(): void {
-  resetConsent();
   if (currentFile.value && currentMeta.value) {
     startUpload(currentFile.value, currentMeta.value);
   } else if (currentFile.value) {
@@ -727,33 +688,6 @@ const isUploading = computed(
           <span>Chụp ảnh mới</span>
         </button>
       </div>
-    </div>
-
-    <!-- Ô cam kết ToS theo FR19: Bắt buộc tích cho mỗi lần tải ảnh mới -->
-    <div v-if="showTosConsent" class="pt-1">
-      <label
-        :for="`${idPrefix}-tos-checkbox`"
-        class="touch-target flex min-h-[48px] items-start gap-3 rounded-xl border border-cyber-border bg-cyber-bg/70 p-3.5 text-sm transition hover:border-cyber-violet/60"
-        :class="{
-          'cursor-pointer': !disabled && status === 'ready',
-          'opacity-60 cursor-not-allowed': disabled || status !== 'ready',
-        }"
-      >
-        <input
-          :id="`${idPrefix}-tos-checkbox`"
-          :checked="localConsent"
-          :disabled="disabled || status !== 'ready'"
-          type="checkbox"
-          data-testid="image-uploader-tos-checkbox"
-          class="mt-1 h-5 w-5 shrink-0 accent-cyber-violet disabled:cursor-not-allowed"
-          @change="updateConsent(($event.target as HTMLInputElement).checked)"
-        />
-        <span class="text-xs leading-relaxed text-cyber-muted">
-          Tôi xác nhận đủ 18 tuổi, sở hữu quyền hợp pháp đối với ảnh tải lên,
-          người trong ảnh đã đồng ý cho xử lý và cam kết tuân thủ Điều khoản
-          dịch vụ (phiên bản {{ TOS_VERSION }}).
-        </span>
-      </label>
     </div>
 
     <!-- Centered Dialog chụp ảnh trực tiếp qua WebRTC Camera -->

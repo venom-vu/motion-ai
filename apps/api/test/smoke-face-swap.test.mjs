@@ -283,7 +283,7 @@ describe('Smoke Face Swap FE-BE trên stack Compose (Story 2.14)', () => {
         async function createTask(session) {
           const sourceKey = await uploadImage(session);
           const targetKey = await uploadImage(session);
-          const res = await api(session, 'POST', '/tasks/face-swap', { sourceKey, targetKey, consent: true });
+          const res = await api(session, 'POST', '/tasks/face-swap', { sourceKey, targetKey });
           assert.equal(res.status, 201);
           const task = FaceSwapCreateResponseSchema.parse(await res.json());
           assert.equal(task.status, 'queued');
