@@ -18,7 +18,9 @@ import {
   formatTopupTimestampVi,
   getTopupStatusBadgeClass,
   getTopupStatusLabelVi,
+  isOverdue,
 } from '~/utils/topup';
+import { useAuthDialog } from '~/composables/useAuthDialog';
 import { formatNumberVi, formatVndVi } from '~/utils/catalog';
 import { MotionApiClientError, resolveApiErrorMessageVi } from '~/utils/api-client';
 
@@ -27,6 +29,7 @@ definePageMeta({
 });
 
 const { client } = useApiClient();
+const { open: openAuthDialog } = useAuthDialog();
 
 // Lấy thông tin phiên đăng nhập
 const meAsync = useAsyncData<MeResponse>(ME_KEY, () => client.getMe());
@@ -88,20 +91,6 @@ const stats = computed(() => {
     resolved: resolvedCount,
   };
 });
-
-function isOverdue(order: AdminTopup): boolean {
-  if (order.status !== 'pending') {
-    return false;
-  }
-  if (order.isOverdue) {
-    return true;
-  }
-  if (order.approveBy) {
-    const approveMs = Date.parse(order.approveBy);
-    return Number.isFinite(approveMs) && approveMs < Date.now();
-  }
-  return false;
-}
 
 function openActionModal(order: AdminTopup, actionType: AdminTopupActionType): void {
   activeTopup.value = order;
@@ -259,6 +248,15 @@ watch(isAdmin, (admin) => {
         Bạn không có quyền truy cập vào trang quản trị này. Trang này chỉ dành riêng cho Quản trị viên (Admin) để duyệt đơn nạp tiền.
       </p>
       <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+        <button
+          type="button"
+          data-testid="admin-forbidden-login-button"
+          class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-border bg-[#141414] px-5 py-2.5 text-xs font-semibold text-cyber-text transition hover:border-cyber-cyan"
+          @click="() => openAuthDialog('login')"
+        >
+          <Icon name="lucide:log-in" class="h-4 w-4 text-cyber-cyan" />
+          <span>Đăng nhập</span>
+        </button>
         <NuxtLink
           to="/"
           class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-surface px-5 py-2.5 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet"
@@ -275,7 +273,7 @@ watch(isAdmin, (admin) => {
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div class="space-y-1">
           <div class="flex items-center gap-2 text-xs text-cyber-muted">
-            <span>Admin</span>
+            <NuxtLink to="/admin" class="hover:text-cyber-text transition">Admin</NuxtLink>
             <span>/</span>
             <span class="text-cyber-text">Duyệt đơn VietQR</span>
           </div>
@@ -315,6 +313,8 @@ watch(isAdmin, (admin) => {
       <!-- Thông báo trang (nếu có) -->
       <div
         v-if="pageNotificationVi"
+        role="status"
+        aria-live="polite"
         data-testid="admin-page-notification"
         class="flex items-center justify-between gap-2 rounded-xl border border-cyan-500/40 bg-cyan-500/10 p-3 text-xs text-cyan-200"
       >
@@ -406,6 +406,8 @@ watch(isAdmin, (admin) => {
       <!-- TRẠNG THÁI LỖI TẢI DANH SÁCH -->
       <div
         v-else-if="errorVi"
+        role="alert"
+        aria-live="polite"
         data-testid="admin-topups-error-state"
         class="flex min-h-[260px] flex-col items-center justify-center gap-3 rounded-xl border border-rose-500/40 bg-rose-500/10 p-6 text-center"
       >
@@ -767,6 +769,8 @@ watch(isAdmin, (admin) => {
         <div v-if="hasMore" class="pt-4 text-center space-y-2">
           <div
             v-if="loadMoreErrorVi"
+            role="alert"
+            aria-live="polite"
             data-testid="load-more-error-banner"
             class="flex items-center justify-center gap-1.5 text-xs text-rose-300"
           >

@@ -154,3 +154,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-5-be-duyet-va-tu-choi-don-nhat-ky-admin.md`
   summary: `pnpm run reconcile` báo lệch hai user fixture `p-0840a375-9/10@motionai.vn` còn sót trong DB dev từ test cũ (tạo 2026-11-06).
   evidence: Hai user không có bút toán hay đơn nạp nào; một test cũ (nghi `task-priority`) đặt `balance/held` trực tiếp mà không dọn; làm `reconcile` không sạch trên DB dev.
+
+## Deferred from: code review of spec-3-7-fe-dashboard-admin-duyet-don-nap (2026-11-08)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-7-fe-dashboard-admin-duyet-don-nap.md`
+  summary: Các ô chỉ số thống kê vận hành trên đỉnh trang admin phụ thuộc vào tab lọc hiện tại do thiếu endpoint backend tổng hợp.
+  evidence: Backend hiện chỉ có `GET /admin/topups` danh sách phân trang theo filter, chưa có route API tổng hợp chỉ số vận hành toàn hệ thống (thuộc phạm vi Epic 6).

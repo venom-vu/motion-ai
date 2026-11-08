@@ -165,3 +165,25 @@ export function getTopupStatusBadgeClass(status: TopupStatus): string {
   }
 }
 
+/**
+ * Kiểm tra xem đơn nạp có bị quá hạn duyệt SLA hay không.
+ * Chỉ áp dụng cho đơn đang ở trạng thái 'pending'.
+ */
+export function isOverdue(
+  order: { status: string; isOverdue?: boolean; approveBy?: string | null },
+  nowMs: number = Date.now(),
+): boolean {
+  if (order.status !== 'pending') {
+    return false;
+  }
+  if (order.isOverdue) {
+    return true;
+  }
+  if (order.approveBy) {
+    const approveMs = Date.parse(order.approveBy);
+    return Number.isFinite(approveMs) && approveMs < nowMs;
+  }
+  return false;
+}
+
+

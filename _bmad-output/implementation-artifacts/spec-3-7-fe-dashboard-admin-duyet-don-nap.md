@@ -80,6 +80,28 @@ context:
 - [x] `apps/web/layouts/admin.vue` -- Cập nhật sidebar điều hướng -- bổ sung liên kết `/admin/topups` với icon `lucide:receipt`.
 - [x] `apps/web/test/admin-topups.test.mjs` -- Viết bộ unit & integration tests -- kiểm thử toàn bộ I/O matrix, role guard, hành vi form và SSR render.
 
+### Review Findings
+
+- [ ] [Review][Patch] Bổ sung kiểm thử cho isOverdue, approveExpiredTopup và handleModalConfirm [apps/web/test/admin-topups.test.mjs]
+- [ ] [Review][Patch] Trích xuất hàm helper isOverdue ra utils/topup.ts để dùng chung và test trực tiếp [apps/web/utils/topup.ts, apps/web/pages/admin/topups.vue]
+- [ ] [Review][Patch] Dọn dẹp globalThis.document trong khối try...finally để tránh ô nhiễm test runner [apps/web/test/admin-topups.test.mjs]
+- [ ] [Review][Patch] Ngăn focus thoát khỏi modal khi isSubmitting = true và reset isLoadingMore khi fetchTopups reset [apps/web/components/AdminTopupActionModal.vue, apps/web/composables/useAdminTopups.ts]
+- [ ] [Review][Patch] Xóa thông báo lỗi khi người dùng gõ vào input và bổ sung role="alert" / aria-live cho các thông báo [apps/web/components/AdminTopupActionModal.vue, apps/web/pages/admin/topups.vue]
+- [ ] [Review][Patch] Thêm nút Đăng nhập trên màn hình 403 và chuyển breadcrumb Admin thành NuxtLink tới /admin [apps/web/pages/admin/topups.vue]
+- [x] [Review][Defer] Các ô chỉ số thống kê trên đỉnh trang admin phụ thuộc vào tab lọc hiện tại do thiếu endpoint backend tổng hợp [apps/web/pages/admin/topups.vue] — deferred: backend chưa có route GET /admin/ops/metrics hay summary thống kê, cần làm ở Epic 6
+
+#### Rejected Findings
+- Processed orders persist in table: by design for operator feedback before filter switch (false).
+- Missing detail drawer: spec & mockup did not specify separate detail drawer (false).
+- Modal lacks max-h/overflow: already implemented via max-h-[90vh] overflow-y-auto (false).
+- Status filter not in query params: not in AC, cosmetic (low).
+- Periodic auto-polling: not in AC, manual refresh provided (low).
+- isOverdue non-reactive Date.now: operator list refreshes frequently (low).
+- Copy-to-clipboard: nice to have, not in AC (low).
+- handleReturnToPending confirmation: reversible action, low risk (low).
+- Restore focus on modal close: negligible a11y polish (low).
+- sprint-status set to done: false, was set to review (false).
+
 **Acceptance Criteria:**
 - Given người dùng role `user` hoặc chưa đăng nhập, when mở `/admin/topups`, then FE chuyển về trang đăng nhập hoặc hiển thị trang 403, không lộ dữ liệu nào.
 - Given Admin đã đăng nhập, when mở `/admin/topups`, then thấy danh sách đơn có bộ lọc theo trạng thái (mặc định `pending`), mã đơn, gói, số tiền, thời gian tạo và thời hạn duyệt, và đơn quá `approve_by` (hoặc `isOverdue`) có nhãn nổi bật.
@@ -110,6 +132,15 @@ context:
 | Verification Gap | apps/web/test/admin-topups.test.mjs:487-652 | patch | Logic script setup và handleSubmit của AdminTopupActionModal chưa được thực thi trong test. | patch |
 | Verification Gap | apps/web/test/admin-topups.test.mjs:347-368 | patch | Chưa có test kiểm tra setStatusFilter('all') truyền status: undefined lên API thay vì chuỗi 'all'. | patch |
 | Verification Gap | apps/web/test/admin-topups.test.mjs:849-858 | patch | layouts/admin.vue mới chỉ kiểm tra qua fs.readFileSync mà chưa kiểm tra HTML kết xuất. | patch |
+
+### Review Findings
+
+- [x] [Review][Patch] `useAdminTopups`: reset `isLoadingMore.value = false` khi `fetchTopups(reset = true)` để tránh kẹt cờ tải thêm khi chuyển tab filter.
+- [x] [Review][Patch] `topup.ts`: Trích xuất và export hàm `isOverdue(order, nowMs)` dùng chung giữa UI và composable để tránh nhân bản logic tính SLA.
+- [x] [Review][Patch] `AdminTopupActionModal.vue`: Chặn thoát focus bằng `e.preventDefault()` khi modal không có focusable elements (`!focusable.length`).
+- [x] [Review][Patch] `AdminTopupActionModal.vue`: Xóa lỗi `localErrorVi = null` khi người dùng bắt đầu nhập liệu (`@input`), thêm `role="alert"` / `aria-live="polite"`.
+- [x] [Review][Patch] `pages/admin/topups.vue`: Sửa breadcrumb Admin thành `NuxtLink` tới `/admin` và bổ sung ARIA roles `role="status"` / `role="alert"`.
+- [x] [Review][Patch] `admin-topups.test.mjs`: Bổ sung unit tests cho `isOverdue`, `approveExpiredTopup`, breadcrumb link, `role="status"`, dọn dẹp `delete globalThis.document` trong `finally`.
 
 ## Design Notes
 

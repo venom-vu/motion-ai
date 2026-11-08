@@ -74,6 +74,7 @@ function handleKeydownTab(e: KeyboardEvent): void {
     'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
   );
   if (!focusable.length) {
+    e.preventDefault();
     return;
   }
   const first = focusable[0];
@@ -360,6 +361,7 @@ function handleSubmit(): void {
             placeholder="Ví dụ: FT26305991820 hoặc VCB123456"
             :disabled="isSubmitting"
             class="mt-1.5 w-full rounded-lg border border-cyber-border bg-[#09090B] px-3 py-2.5 text-xs text-cyber-text placeholder:text-cyber-muted focus:border-cyber-cyan focus:outline-none"
+            @input="localErrorVi = null"
           />
         </div>
 
@@ -390,6 +392,7 @@ function handleSubmit(): void {
             placeholder="Ví dụ: Không tìm thấy giao dịch chuyển khoản trên sao kê tài khoản ngân hàng."
             :disabled="isSubmitting"
             class="mt-1.5 w-full rounded-lg border border-cyber-border bg-[#09090B] px-3 py-2 text-xs text-cyber-text placeholder:text-cyber-muted focus:border-rose-400 focus:outline-none"
+            @input="localErrorVi = null"
           />
         </div>
 
@@ -420,12 +423,15 @@ function handleSubmit(): void {
             placeholder="Ví dụ: Số tiền chuyển bị thiếu hoặc nội dung chuyển sai mã đơn, đang liên hệ hỗ trợ."
             :disabled="isSubmitting"
             class="mt-1.5 w-full rounded-lg border border-cyber-border bg-[#09090B] px-3 py-2 text-xs text-cyber-text placeholder:text-cyber-muted focus:border-orange-400 focus:outline-none"
+            @input="localErrorVi = null"
           />
         </div>
 
         <!-- Thông báo lỗi (nếu có) -->
         <div
           v-if="displayErrorVi"
+          role="alert"
+          aria-live="polite"
           data-testid="modal-error-message"
           class="flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 p-2.5 text-xs text-rose-300"
         >

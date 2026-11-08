@@ -39,6 +39,7 @@ export function useAdminTopups() {
 
     if (reset) {
       isLoading.value = true;
+      isLoadingMore.value = false;
       errorVi.value = null;
       loadMoreErrorVi.value = null;
       nextCursor.value = null;

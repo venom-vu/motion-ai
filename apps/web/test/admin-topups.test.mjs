@@ -20,6 +20,7 @@ import {
 import {
   formatTopupTimestampVi,
   getTopupStatusBadgeClass,
+  isOverdue,
 } from '../utils/topup.ts';
 import { formatNumberVi, formatVndVi } from '../utils/catalog.ts';
 
@@ -497,6 +498,42 @@ export const useApiClient = () => ({
       composable.isActionLoading.value = false;
     });
 
+    it('approveExpiredTopup gọi client.adminApproveExpiredTopup, trim bankRef và cập nhật item trong danh sách', async () => {
+      let capturedId = '';
+      let capturedBody = null;
+      mockContextModule.setMockClient({
+        adminApproveExpiredTopup: async (id, body) => {
+          capturedId = id;
+          capturedBody = body;
+          return {
+            ...MOCK_ADMIN_TOPUPS_BY_STATUS.expired,
+            status: 'approved',
+            bankRef: body.bankRef,
+          };
+        },
+      });
+
+      const composable = useAdminTopupsModule.useAdminTopups();
+      composable.topups.value = [{ ...MOCK_ADMIN_TOPUPS_BY_STATUS.expired }];
+
+      const targetId = MOCK_ADMIN_TOPUPS_BY_STATUS.expired.id;
+      const res = await composable.approveExpiredTopup(targetId, '  EXPIRED-REF-999  ');
+
+      assert.equal(capturedId, targetId);
+      assert.deepEqual(capturedBody, { bankRef: 'EXPIRED-REF-999' });
+      assert.equal(res.status, 'approved');
+      assert.equal(composable.topups.value[0].status, 'approved');
+      assert.equal(composable.topups.value[0].bankRef, 'EXPIRED-REF-999');
+
+      // Chống click đúp
+      composable.isActionLoading.value = true;
+      await assert.rejects(
+        () => composable.approveExpiredTopup(targetId, 'EXPIRED-REF-999'),
+        /Thao tác đang được xử lý, vui lòng không nhấn liên tục./,
+      );
+      composable.isActionLoading.value = false;
+    });
+
     it('khi gặp lỗi TOPUP_STATE_INVALID, tự động làm mới danh sách đơn để đồng bộ trạng thái mới nhất', async () => {
       let refreshCallCount = 0;
       mockContextModule.setMockClient({
@@ -929,7 +966,17 @@ export const useApiClient = () => ({
         });
         assert.equal(firstElement.focusCalled, true);
         assert.equal(prevented, true);
+
+        // Tab khi không có phần tử nào focus được (ví dụ lúc isSubmitting disable toàn bộ)
+        prevented = false;
+        approveState.dialogRef.value = { querySelectorAll: () => [] };
+        approveState.handleKeydownTab({
+          shiftKey: false,
+          preventDefault: () => { prevented = true; },
+        });
+        assert.equal(prevented, true, 'Phải preventDefault khi !focusable.length để không thoát modal');
       } finally {
+        delete globalThis.document;
         if (fs.existsSync(tmpScriptFile)) {
           fs.unlinkSync(tmpScriptFile);
         }
@@ -1011,7 +1058,7 @@ export const useApiClient = () => ({
                 { id: 'rejected', labelVi: 'Bị từ chối' },
                 { id: 'all', labelVi: 'Tất cả' },
               ],
-              isOverdue: (t) => t.isOverdue === true,
+              isOverdue: isOverdue,
               isModalOpen: false,
               activeTopup: null,
               currentActionType: null,
@@ -1048,7 +1095,7 @@ export const useApiClient = () => ({
         app.component('NuxtLink', {
           props: ['to'],
           ssrRender(_ctx, _push, _parent, _attrs, setAttrs, slots) {
-            _push('<a href="#">');
+            _push(`<a href="${_ctx.to}">`);
             slots.default?.();
             _push('</a>');
           },
@@ -1073,6 +1120,8 @@ export const useApiClient = () => ({
 
       assert.match(htmlUser, /data-testid="admin-forbidden-state"/);
       assert.match(htmlUser, /403 — TRUY CẬP BỊ TỪ CHỐI/);
+      assert.match(htmlUser, /data-testid="admin-forbidden-login-button"/);
+      assert.match(htmlUser, /Đăng nhập/);
       assert.equal(
         htmlUser.includes('P4N8T2WD'),
         false,
@@ -1161,7 +1210,7 @@ export const useApiClient = () => ({
         isAdmin: true,
         isMePending: false,
         topups: [overduePending, overdueExpired, overdueApproved],
-        isOverdue: (order) => order.status === 'pending' && Boolean(order.isOverdue),
+        isOverdue: isOverdue,
       });
 
       // Chỉ xuất hiện đúng 2 badge QUÁ HẠN (1 trong hàng desktop của pending, 1 trong thẻ mobile của pending)
@@ -1208,6 +1257,43 @@ export const useApiClient = () => ({
       assert.match(rawLayoutAdmin, /\/admin\/topups/);
       assert.match(rawLayoutAdmin, /Duyệt đơn VietQR/);
       assert.match(rawLayoutAdmin, /lucide:receipt/);
+    });
+
+    it('breadcrumb Admin là liên kết NuxtLink tới /admin và các banner thông báo có role alert/status', async () => {
+      const html = await compileAndRenderPage({
+        isAdmin: true,
+        pageNotificationVi: 'Thông báo thành công!',
+        loadMoreErrorVi: 'Lỗi tải thêm!',
+        hasMore: true,
+        topups: [MOCK_ADMIN_TOPUPS_BY_STATUS.pending],
+      });
+
+      assert.match(html, /href="\/admin"/);
+      assert.match(html, /role="status"/);
+      assert.match(html, /role="alert"/);
+    });
+  });
+
+  describe('Helper isOverdue SLA logic', () => {
+    it('chỉ trả true cho đơn status = pending khi isOverdue = true hoặc approveBy < now', () => {
+      const now = 1794115000000;
+      // Pending và isOverdue = true
+      assert.equal(isOverdue({ status: 'pending', isOverdue: true }, now), true);
+      // Pending và approveBy đã qua
+      assert.equal(
+        isOverdue({ status: 'pending', approveBy: new Date(now - 1000).toISOString() }, now),
+        true,
+      );
+      // Pending nhưng approveBy còn trong tương lai
+      assert.equal(
+        isOverdue({ status: 'pending', approveBy: new Date(now + 10000).toISOString() }, now),
+        false,
+      );
+      // Expired, approved, rejected không bao giờ quá hạn (ngay cả khi có approveBy cũ hoặc isOverdue = true)
+      assert.equal(isOverdue({ status: 'expired', isOverdue: true }, now), false);
+      assert.equal(isOverdue({ status: 'approved', isOverdue: true }, now), false);
+      assert.equal(isOverdue({ status: 'rejected', isOverdue: true }, now), false);
+      assert.equal(isOverdue({ status: 'awaiting_transfer', isOverdue: true }, now), false);
     });
   });
 
