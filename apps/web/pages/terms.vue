@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { TOS_VERSION } from '@motion-ai/contracts';
+import { TOS_VERSION } from '@flowvis/contracts';
 
 useHead({ title: 'Điều khoản dịch vụ - flowvis' });
 </script>

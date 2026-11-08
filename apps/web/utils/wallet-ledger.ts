@@ -5,7 +5,7 @@ import {
   type Ref,
   type WritableComputedRef,
 } from 'vue';
-import type { LedgerEntry, WalletLedgerResponse } from '@motion-ai/contracts';
+import type { LedgerEntry, WalletLedgerResponse } from '@flowvis/contracts';
 import { resolveApiErrorMessageVi } from './api-client.ts';
 
 const VIETNAM_TIMESTAMP_FORMATTER = new Intl.DateTimeFormat('vi-VN', {

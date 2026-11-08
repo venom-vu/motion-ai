@@ -5,7 +5,7 @@ import type {
   Task,
   TaskResultResponse,
   TaskShareResponse,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import { useApiClient } from '~/composables/useApiClient';
 import { useAuth } from '~/composables/useAuth';
 import { useAuthDialog } from '~/composables/useAuthDialog';

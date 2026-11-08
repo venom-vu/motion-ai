@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { Task } from '@motion-ai/contracts';
-import { getReasonCodeMessageVi } from '@motion-ai/contracts';
+import type { Task } from '@flowvis/contracts';
+import { getReasonCodeMessageVi } from '@flowvis/contracts';
 import {
   formatTaskTimestampVi,
   getPipelineLabelVi,

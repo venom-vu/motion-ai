@@ -4,7 +4,7 @@ import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compileScript, parse } from '@vue/compiler-sfc';
-import { ApiErrorCode } from '@motion-ai/contracts';
+import { ApiErrorCode } from '@flowvis/contracts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(__dirname, '..');
@@ -68,7 +68,7 @@ export const useAdminTopups = () => ({
       code = code.split(`'${spec}'`).join(JSON.stringify(pathToFileURL(path.join(dir, file)).href));
       assert.notEqual(code, before, `import ${spec} phải được thay (trang đổi import thì test này cần cập nhật)`);
     }
-    // File tạm nằm trong webRoot để import 'vue' và '@motion-ai/contracts' phân giải đúng.
+    // File tạm nằm trong webRoot để import 'vue' và '@flowvis/contracts' phân giải đúng.
     const tmp = path.join(webRoot, 'test', `.tmp-admin-page-${process.pid}.ts`);
     fs.writeFileSync(tmp, code, 'utf8');
     try {

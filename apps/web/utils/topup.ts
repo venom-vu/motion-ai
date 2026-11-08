@@ -5,7 +5,7 @@ import {
   TOPUP_STATUS_LABELS_VI,
   getTopupStatusLabelVi,
   type TopupStatus,
-} from "@motion-ai/contracts";
+} from "@flowvis/contracts";
 
 export { TOPUP_STATUS_LABELS_VI, getTopupStatusLabelVi, type TopupStatus };
 

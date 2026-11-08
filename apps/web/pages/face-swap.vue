@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import type { Task } from '@motion-ai/contracts';
+import type { Task } from '@flowvis/contracts';
 import { usePricingConfig } from '~/composables/usePricingConfig';
 import { useApiClient } from '~/composables/useApiClient';
 import { useAuthDialog } from '~/composables/useAuthDialog';

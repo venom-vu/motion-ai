@@ -24,7 +24,7 @@ import {
   type TopupListResponse,
   type TopupPackId,
   type TopupStatus,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import { PrismaService, type PrismaTransactionClient } from '../../infra/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { WalletService } from '../wallet/wallet.service.js';

@@ -11,7 +11,7 @@ import {
   getApiErrorMessageVi,
   type AdminTopup,
   type AdminTopupListResponse,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';

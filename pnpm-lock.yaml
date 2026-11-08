@@ -38,7 +38,7 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: 3.1161.0
         version: 3.1161.0
-      '@motion-ai/contracts':
+      '@flowvis/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
       '@nestjs/bullmq':
@@ -117,7 +117,7 @@ importers:
       '@iconify-json/lucide':
         specifier: 1.2.150
         version: 1.2.150
-      '@motion-ai/contracts':
+      '@flowvis/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
       '@nuxt/icon':

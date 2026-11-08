@@ -5,7 +5,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { ApiErrorCode } from '@motion-ai/contracts';
+import { ApiErrorCode } from '@flowvis/contracts';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../dist/generated/prisma/client.js';
@@ -18,7 +18,7 @@ const repoRoot = path.resolve(apiRoot, '../..');
 const composePath = path.join(repoRoot, 'deploy', 'compose.yml');
 const DB_URL =
   process.env.DATABASE_URL ||
-  'postgresql://motion_user:change_me_local_password@localhost:5432/motion_ai?schema=public';
+  'postgresql://motion_user:change_me_local_password@localhost:5432/flowvis?schema=public';
 
 function checkTcpPort(host, port, timeoutMs = 1000) {
   return new Promise((resolve) => {
@@ -66,7 +66,7 @@ describe('Story 1.6: [BE] Sổ cái credit bất biến', () => {
     const user = await prisma.user.create({
       data: {
         googleId: `g-${runId}-${n}`,
-        email: `wallet-${runId}-${n}@motionai.vn`,
+        email: `wallet-${runId}-${n}@flowvis.vn`,
         tosVersion: 'test',
       },
     });

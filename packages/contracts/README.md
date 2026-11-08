@@ -1,6 +1,6 @@
-# `@motion-ai/contracts`
+# `@flowvis/contracts`
 
-Gói hợp đồng dùng chung (Shared Contracts) giữa Backend (`@motion-ai/api`) và Frontend (`@motion-ai/web`) trong monorepo flowvis.
+Gói hợp đồng dùng chung (Shared Contracts) giữa Backend (`@flowvis/api`) và Frontend (`@flowvis/web`) trong monorepo flowvis.
 
 ## Thư viện Schema & Phiên bản
 

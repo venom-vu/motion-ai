@@ -11,7 +11,7 @@ import {
   type TaskResultResponse,
   type TaskShareResponse,
   type TaskShareRevokeResponse,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { AccountLockedGuard } from '../auth/guards/account-locked.guard.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRoute } from "#imports";
-import type { AccountTier, UserRole } from "@motion-ai/contracts";
+import type { AccountTier, UserRole } from "@flowvis/contracts";
 import { useAuthDialog } from "~/composables/useAuthDialog";
 import { formatNumberVi } from "~/utils/catalog";
 

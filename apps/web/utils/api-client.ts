@@ -93,7 +93,7 @@ import {
   type UploadCreateResponse,
   type WalletLedgerQuery,
   type WalletLedgerResponse,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 
 export {
   API_ERROR_MESSAGES_VI,
@@ -177,7 +177,7 @@ export class MotionApiClientError extends Error {
 
 /**
  * Chuẩn hóa mọi đối tượng lỗi API hoặc mã lỗi sang thông báo tiếng Việt thân thiện
- * thông qua bảng ánh xạ duy nhất `API_ERROR_MESSAGES_VI` của `@motion-ai/contracts`.
+ * thông qua bảng ánh xạ duy nhất `API_ERROR_MESSAGES_VI` của `@flowvis/contracts`.
  */
 export function resolveApiErrorMessageVi(errorOrCode: unknown): string {
   if (errorOrCode instanceof MotionApiClientError) {

@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { ReasonCode } from '@motion-ai/contracts';
+import type { ReasonCode } from '@flowvis/contracts';
 import sharp, { type ChannelStats, type Metadata } from 'sharp';
 import {
   STORAGE_PORT,

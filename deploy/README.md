@@ -5,10 +5,10 @@
 `pnpm test` mặc định bỏ qua test dựng cả stack. Để chạy (cần Docker, build image, mất vài phút):
 
 ```bash
-RUN_COMPOSE_E2E=1 pnpm --filter @motion-ai/api test
+RUN_COMPOSE_E2E=1 pnpm --filter @flowvis/api test
 ```
 
-Test dựng project `motion-ai-e2e` (cổng api `3101`, Postgres `15432`, Redis `16379`), kiểm tra:
+Test dựng project `flowvis-e2e` (cổng api `3101`, Postgres `15432`, Redis `16379`), kiểm tra:
 `GET /health` qua cổng publish trả `ok`, bảng `infra_probes` tồn tại (migrate trong container chạy được),
 `nestjs-worker` và `nestjs-api` vẫn chạy; luôn `compose down -v` khi kết thúc.
 
@@ -16,20 +16,20 @@ Postgres và Redis chỉ bind `127.0.0.1` trên host.
 
 ## Smoke test đăng nhập (Story 1.11)
 
-`apps/api/test/smoke-login.test.mjs` dựng stack bằng `compose.yml` + `compose.smoke.yml` (project `motion-ai-smoke`, api `3102`, Postgres `15433`, Redis `16380`), vẫn bốn container. Máy chủ Google giả chạy trong tiến trình test (cổng `3199` trên host); container api tới đó qua `host.docker.internal`. Override đặt `NODE_ENV=test` vì `GOOGLE_TOKEN_URL`/`GOOGLE_USERINFO_URL` bị bỏ qua ở production. Sau kịch bản, test chạy `docker compose exec nestjs-worker node apps/api/dist/scripts/reconcile.js` (thoát 0 nếu không lệch) rồi `down -v`.
+`apps/api/test/smoke-login.test.mjs` dựng stack bằng `compose.yml` + `compose.smoke.yml` (project `flowvis-smoke`, api `3102`, Postgres `15433`, Redis `16380`), vẫn bốn container. Máy chủ Google giả chạy trong tiến trình test (cổng `3199` trên host); container api tới đó qua `host.docker.internal`. Override đặt `NODE_ENV=test` vì `GOOGLE_TOKEN_URL`/`GOOGLE_USERINFO_URL` bị bỏ qua ở production. Sau kịch bản, test chạy `docker compose exec nestjs-worker node apps/api/dist/scripts/reconcile.js` (thoát 0 nếu không lệch) rồi `down -v`.
 
 ```bash
-RUN_COMPOSE_E2E=1 pnpm --filter @motion-ai/api test
+RUN_COMPOSE_E2E=1 pnpm --filter @flowvis/api test
 ```
 
 ## Smoke test Face Swap (Story 2.14)
 
-`apps/api/test/smoke-face-swap.test.mjs` dựng stack bốn container (project `motion-ai-smoke-fs`, api `3103`, Postgres `15434`, Redis `16381`). RunningHub giả (cổng `3197`), S3/R2 giả (`3198`) và Google giả (`3199`) chạy trong tiến trình test; container tới qua `host.docker.internal`. Ba kịch bản: thành công (500 -> 400, `queued -> running -> succeeded`, CAPTURED, ảnh tải được), `NO_FACE` (failed, RELEASED, số dư về 500), quá hạn (hạn chót ép 10 giây qua `RH_DEADLINE_MS`, `timed_out`, kết quả muộn bị bỏ qua). Thêm chia sẻ (`GET /s/<token>` 302, sau `DELETE` 404), kiểm tra hợp đồng `MOCK_*` và đối soát `reconcile.js`.
+`apps/api/test/smoke-face-swap.test.mjs` dựng stack bốn container (project `flowvis-smoke-fs`, api `3103`, Postgres `15434`, Redis `16381`). RunningHub giả (cổng `3197`), S3/R2 giả (`3198`) và Google giả (`3199`) chạy trong tiến trình test; container tới qua `host.docker.internal`. Ba kịch bản: thành công (500 -> 400, `queued -> running -> succeeded`, CAPTURED, ảnh tải được), `NO_FACE` (failed, RELEASED, số dư về 500), quá hạn (hạn chót ép 10 giây qua `RH_DEADLINE_MS`, `timed_out`, kết quả muộn bị bỏ qua). Thêm chia sẻ (`GET /s/<token>` 302, sau `DELETE` 404), kiểm tra hợp đồng `MOCK_*` và đối soát `reconcile.js`.
 
 Các biến ghi đè `RUNNINGHUB_BASE_URL`, `RH_DEADLINE_MS`, `RESULT_URL_ALLOW_HOSTS` và chế độ path-style của `R2_ENDPOINT` chỉ có tác dụng khi `NODE_ENV=test` (bản thân `R2_ENDPOINT` vẫn là ghi đè tùy chọn ở production) (`test-overrides.test.mjs` chứng minh bị bỏ qua ở production). SLA 60 giây không đo ở đây; thuộc benchmark Epic 6.
 
 ```bash
-RUN_COMPOSE_E2E=1 pnpm --filter @motion-ai/api test
+RUN_COMPOSE_E2E=1 pnpm --filter @flowvis/api test
 ```
 
 ## Bucket R2 (Story 2.2)
@@ -37,7 +37,7 @@ RUN_COMPOSE_E2E=1 pnpm --filter @motion-ai/api test
 Ảnh tải lên đi thẳng lên R2 bằng presigned PUT. Bucket phải **riêng tư** (không bật public access hay custom domain công khai). Đặt `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` (xem `apps/api/.env.example`) rồi chạy thủ công, idempotent:
 
 ```bash
-pnpm --filter @motion-ai/api run build
+pnpm --filter @flowvis/api run build
 node --env-file=apps/api/.env apps/api/dist/scripts/configure-bucket.js
 ```
 
@@ -47,7 +47,7 @@ Presigned PUT ký kèm `Content-Type` và `Content-Length`: client phải PUT đ
 
 ## Smoke test nạp tiền (Story 3.8)
 
-`apps/api/test/smoke-topup.test.mjs` dựng stack bốn container (project `motion-ai-smoke-tp`, api `3104`, Postgres `15435`, Redis `16382`). Google giả (cổng `3199`) và Discord webhook giả (cổng `3196`) chạy trong tiến trình test. Chạy: `RUN_COMPOSE_E2E=1 pnpm --filter @motion-ai/api test` (cần Docker). Kịch bản: đường thành công (Discord nhận đúng 1 thông báo, +12.000 credit, Tier Pro, đúng 1 dòng `TOPUP`), `bank_ref` trùng, xác nhận lúc 23:30 giờ VN (`approve_by` 08:15 hôm sau, quá hạn QR vẫn `pending`), QR hết hạn (`expired`, `TOPUP_QR_EXPIRED`), hai Admin duyệt song song, rồi `reconcile.js`.
+`apps/api/test/smoke-topup.test.mjs` dựng stack bốn container (project `flowvis-smoke-tp`, api `3104`, Postgres `15435`, Redis `16382`). Google giả (cổng `3199`) và Discord webhook giả (cổng `3196`) chạy trong tiến trình test. Chạy: `RUN_COMPOSE_E2E=1 pnpm --filter @flowvis/api test` (cần Docker). Kịch bản: đường thành công (Discord nhận đúng 1 thông báo, +12.000 credit, Tier Pro, đúng 1 dòng `TOPUP`), `bank_ref` trùng, xác nhận lúc 23:30 giờ VN (`approve_by` 08:15 hôm sau, quá hạn QR vẫn `pending`), QR hết hạn (`expired`, `TOPUP_QR_EXPIRED`), hai Admin duyệt song song, rồi `reconcile.js`.
 
 Biến chỉ có tác dụng khi `NODE_ENV=test` (bị bỏ qua ở production): `TOPUP_QR_TTL_MS` (rút hạn QR), `TOPUP_FAKE_NOW` (ISO, giả đồng hồ tính `approve_by`), `TOPUP_SWEEP_INTERVAL` (chu kỳ bộ quét, ms). Biến cấu hình thật: `TOPUP_BANK_BIN`, `TOPUP_BANK_ACCOUNT_NO`, `TOPUP_BANK_ACCOUNT_NAME`, `DISCORD_WEBHOOK_URL`, `ADMIN_EMAILS` (xem `deploy/.env.example`; giá trị smoke là giả).
 

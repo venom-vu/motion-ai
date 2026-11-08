@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { ApiErrorCode, getApiErrorMessageVi, type TaskShareResponse } from '@motion-ai/contracts';
+import { ApiErrorCode, getApiErrorMessageVi, type TaskShareResponse } from '@flowvis/contracts';
 import { PrismaService } from '../../infra/prisma.service.js';
 import { STORAGE_PORT, type StoragePort } from '../../ports/index.js';
 

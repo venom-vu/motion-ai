@@ -16,7 +16,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       ignoreExpiration: false,
       secretOrKey:
         process.env.JWT_SECRET ||
-        'motion-ai-jwt-dev-secret-change-me-in-production-min-32-chars',
+        'flowvis-jwt-dev-secret-change-me-in-production-min-32-chars',
     });
   }
 

@@ -4,7 +4,7 @@ import type {
   AccountTier,
   MeResponse,
   PricingConfigResponse,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import { useApiClient } from '~/composables/useApiClient';
 import { resolveApiErrorMessageVi } from '~/utils/api-client';
 import { isUnauthorizedError } from '~/utils/auth-session';

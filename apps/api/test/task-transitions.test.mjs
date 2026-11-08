@@ -5,7 +5,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { ApiErrorCode, TaskSchema } from '@motion-ai/contracts';
+import { ApiErrorCode, TaskSchema } from '@flowvis/contracts';
 import { JwtService } from '@nestjs/jwt';
 import pg from 'pg';
 import { Queue } from 'bullmq';
@@ -22,7 +22,7 @@ const repoRoot = path.resolve(apiRoot, '../..');
 const composePath = path.join(repoRoot, 'deploy', 'compose.yml');
 const DB_URL =
   process.env.DATABASE_URL ||
-  'postgresql://motion_user:change_me_local_password@localhost:5432/motion_ai?schema=public';
+  'postgresql://motion_user:change_me_local_password@localhost:5432/flowvis?schema=public';
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
 function tcp(host, port) {
@@ -78,7 +78,7 @@ describe('Story 2.4: [BE] Máy trạng thái Task bằng compare-and-set', () =>
   async function newUser(balance = 500) {
     const n = users.length;
     const u = await prisma.user.create({
-      data: { googleId: `tr-${runId}-${n}`, email: `tr-${runId}-${n}@motionai.vn`, tosVersion: 'tos-v7' },
+      data: { googleId: `tr-${runId}-${n}`, email: `tr-${runId}-${n}@flowvis.vn`, tosVersion: 'tos-v7' },
     });
     users.push(u.id);
     if (balance > 0) await prisma.$transaction((t) => new WalletService().grant(t, u.id, balance));

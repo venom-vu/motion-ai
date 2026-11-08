@@ -22,7 +22,7 @@ import {
   TaskShareRevokeResponseSchema,
   WalletLedgerResponseSchema,
   getReasonCodeMessageVi,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../..');
@@ -208,7 +208,7 @@ describe('Smoke Face Swap FE-BE trên stack Compose (Story 2.14)', () => {
       timeout: 1_200_000,
     },
     async () => {
-      const project = 'motion-ai-smoke-fs';
+      const project = 'flowvis-smoke-fs';
       const apiPort = '3103';
       const base = `http://127.0.0.1:${apiPort}`;
       const env = {

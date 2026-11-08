@@ -5,7 +5,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { ApiErrorCode, TaskListResponseSchema, TaskSchema } from '@motion-ai/contracts';
+import { ApiErrorCode, TaskListResponseSchema, TaskSchema } from '@flowvis/contracts';
 import { JwtService } from '@nestjs/jwt';
 import pg from 'pg';
 import { Queue } from 'bullmq';
@@ -20,7 +20,7 @@ const repoRoot = path.resolve(apiRoot, '../..');
 const composePath = path.join(repoRoot, 'deploy', 'compose.yml');
 const DB_URL =
   process.env.DATABASE_URL ||
-  'postgresql://motion_user:change_me_local_password@localhost:5432/motion_ai?schema=public';
+  'postgresql://motion_user:change_me_local_password@localhost:5432/flowvis?schema=public';
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
 function tcp(host, port) {
@@ -74,7 +74,7 @@ describe('Story 2.3: [BE] Tạo Task Face Swap và xếp vào hàng đợi', () 
     const u = await prisma.user.create({
       data: {
         googleId: `tk-${runId}-${n}`,
-        email: `tk-${runId}-${n}@motionai.vn`,
+        email: `tk-${runId}-${n}@flowvis.vn`,
         tosVersion: 'tos-v7',
         lockedAt: locked ? new Date() : null,
       },

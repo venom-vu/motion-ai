@@ -30,7 +30,7 @@ import { AuthThrottlerGuard, ShareThrottlerGuard, TopupThrottlerGuard, getAuthTh
       useFactory: () => ({
         secret:
           process.env.JWT_SECRET ||
-          'motion-ai-jwt-dev-secret-change-me-in-production-min-32-chars',
+          'flowvis-jwt-dev-secret-change-me-in-production-min-32-chars',
         signOptions: {
           expiresIn: 900, // 15 phút (900 giây)
         },

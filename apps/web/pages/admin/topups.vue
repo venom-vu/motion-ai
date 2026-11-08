@@ -5,7 +5,7 @@ import {
   ApiErrorCode,
   type AdminTopup,
   type MeResponse,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import { ME_KEY, useApiClient } from '~/composables/useApiClient';
 import {
   useAdminTopups,

@@ -94,7 +94,7 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-describe('@motion-ai/contracts', () => {
+describe('@flowvis/contracts', () => {
   it('exports package version constant', () => {
     assert.equal(CONTRACTS_PACKAGE_VERSION, '0.1.0');
   });

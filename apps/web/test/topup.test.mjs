@@ -12,7 +12,7 @@ import {
   MOCK_TOPUPS_BY_STATUS,
   MOCK_TOPUP_LIST_RESPONSE,
   getTopupStatusLabelVi,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import {
   MotionApiClientError,
   createMotionApiClient,

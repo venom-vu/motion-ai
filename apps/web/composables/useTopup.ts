@@ -4,7 +4,7 @@ import {
   ApiErrorCode,
   type Topup,
   type TopupPackId,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import { ME_KEY, useApiClient } from '~/composables/useApiClient';
 import { resolveApiErrorMessageVi } from '~/utils/api-client';
 import {

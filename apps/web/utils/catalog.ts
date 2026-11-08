@@ -2,7 +2,7 @@ import type {
   AccountTier,
   PricingConfigResponse,
   TierConfig,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 
 export type FeatureCategoryId = 'all' | 'image' | 'video';
 

@@ -21,7 +21,7 @@ import {
   type TaskResultResponse,
   type TaskStatus,
   type TierSnapshot,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import type { Queue } from 'bullmq';
 import { PrismaService } from '../../infra/prisma.service.js';
 import { RedisService } from '../../infra/redis.service.js';

@@ -1,4 +1,4 @@
-import type { ReasonCode } from '@motion-ai/contracts';
+import type { ReasonCode } from '@flowvis/contracts';
 
 export interface PipelineInputMapping {
   /** Khóa trong tasks.input_keys. */

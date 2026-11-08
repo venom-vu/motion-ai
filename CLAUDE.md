@@ -11,8 +11,8 @@ Monorepo đã được khởi tạo tại Story 1.1 (`1-1-shared-dựng-monorepo
 - **Các lệnh thật chạy từ thư mục gốc:**
   - `pnpm install`: cài đặt toàn bộ dependencies cho các workspace (`packages/contracts`, `apps/api`, `apps/web`).
   - `pnpm run lint`: chạy ESLint Flat Config kiểm tra mã nguồn toàn monorepo.
-  - `pnpm run typecheck`: kiểm tra kiểu TypeScript trên cả 3 gói (`@motion-ai/contracts`, `@motion-ai/api`, `@motion-ai/web`).
-  - `pnpm run build`: biên dịch `@motion-ai/contracts`, `@motion-ai/api` (NestJS `12.3.2` ESM) và `@motion-ai/web` (Nuxt `4.6.3`).
+  - `pnpm run typecheck`: kiểm tra kiểu TypeScript trên cả 3 gói (`@flowvis/contracts`, `@flowvis/api`, `@flowvis/web`).
+  - `pnpm run build`: biên dịch `@flowvis/contracts`, `@flowvis/api` (NestJS `12.3.2` ESM) và `@flowvis/web` (Nuxt `4.6.3`).
   - `pnpm test`: chạy bộ unit test kiểm tra ranh giới nhánh (`scripts/check-branch-boundaries.test.mjs`) và test của từng gói.
   - `pnpm run check:boundaries`: kiểm tra ranh giới đường dẫn theo tiền tố nhánh (`fe/*` chỉ sửa `apps/web/`, `be/*` chỉ sửa `apps/api/` và `deploy/`, `contract/*` chỉ sửa `packages/contracts/`, `shared/*` được sửa toàn repo).
 

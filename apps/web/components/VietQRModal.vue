@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue';
-import type { Topup, TopupPackId } from '@motion-ai/contracts';
+import type { Topup, TopupPackId } from '@flowvis/contracts';
 import { formatNumberVi, formatVndVi } from '~/utils/catalog';
 import {
   formatCountdown,

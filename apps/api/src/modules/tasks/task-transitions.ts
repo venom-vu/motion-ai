@@ -1,4 +1,4 @@
-import type { ReasonCode, TaskStatus } from '@motion-ai/contracts';
+import type { ReasonCode, TaskStatus } from '@flowvis/contracts';
 
 export const ALLOWED_TRANSITIONS: Readonly<Record<TaskStatus, readonly TaskStatus[]>> = {
   queued: ['running', 'cancelled', 'timed_out', 'failed'],

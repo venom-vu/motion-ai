@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import {
   type ImageMeta,
   type UploadConfirmResponse,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import { useApiClient } from '~/composables/useApiClient';
 import {
   resolveApiErrorMessageVi,
@@ -282,7 +282,7 @@ async function handleFileSelect(file: File): Promise<void> {
   });
   errorMessageVi.value = null;
 
-  // 1. Kiểm tra tính hợp lệ phía client bằng schema @motion-ai/contracts
+  // 1. Kiểm tra tính hợp lệ phía client bằng schema @flowvis/contracts
   status.value = 'validating';
   const validation = await validateImageFile(file);
   if (!validation.valid) {

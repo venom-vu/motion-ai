@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import type { AccountTier, Task } from '@motion-ai/contracts';
+import type { AccountTier, Task } from '@flowvis/contracts';
 import ImageUploader from '~/components/ImageUploader.vue';
 import TaskProgressCard from '~/components/TaskProgressCard.vue';
 import { useApiClient } from '~/composables/useApiClient';

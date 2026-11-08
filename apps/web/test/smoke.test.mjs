@@ -24,7 +24,7 @@ import {
   MOCK_UPLOAD_CREATE_RESPONSE,
   MOCK_WALLET_LEDGER_ITEMS,
   TOS_VERSION,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import { SLATE_CYBER_COLORS } from '../tailwind.config.ts';
 import {
   MotionApiClientError,
@@ -86,7 +86,7 @@ function collectFiles(dirPath, extensions) {
   return results;
 }
 
-describe('@motion-ai/web — Story 1.4 Nuxt 4 mobile-first & API client', () => {
+describe('@flowvis/web — Story 1.4 Nuxt 4 mobile-first & API client', () => {
   it('AC1: ghim cố định phiên bản trong package.json (Nuxt 4.6.3) và cấu hình preset cloudflare-pages', () => {
     assert.equal(CONTRACTS_PACKAGE_VERSION, '0.1.0');
 
@@ -100,7 +100,7 @@ describe('@motion-ai/web — Story 1.4 Nuxt 4 mobile-first & API client', () => 
       ...(pkgJson.devDependencies ?? {}),
     };
     for (const [depName, version] of Object.entries(allDeps)) {
-      if (depName === '@motion-ai/contracts') {
+      if (depName === '@flowvis/contracts') {
         assert.equal(version, 'workspace:*');
         continue;
       }
@@ -590,7 +590,7 @@ describe('@motion-ai/web — Story 1.4 Nuxt 4 mobile-first & API client', () => 
   });
 });
 
-describe('@motion-ai/web — Story 1.9 đăng nhập, ToS và phiên', () => {
+describe('@flowvis/web — Story 1.9 đăng nhập, ToS và phiên', () => {
   const json = (body, status = 200) =>
     new Response(JSON.stringify(body), {
       status,
@@ -896,7 +896,7 @@ describe('@motion-ai/web — Story 1.9 đăng nhập, ToS và phiên', () => {
   });
 });
 
-describe('@motion-ai/web — Story 1.10 Lịch sử credit & phân trang vô tận', () => {
+describe('@flowvis/web — Story 1.10 Lịch sử credit & phân trang vô tận', () => {
   it('isUnauthorizedError: nhận diện đúng status 401, code UNAUTHORIZED, cause 401 và loại trừ 500/mạng', () => {
     assert.equal(isUnauthorizedError({ status: 401 }), true);
     assert.equal(isUnauthorizedError({ statusCode: 401 }), true);
@@ -1430,7 +1430,7 @@ describe('@motion-ai/web — Story 1.10 Lịch sử credit & phân trang vô t�
   });
 });
 
-describe('@motion-ai/web — Header cố định, popover tài khoản và đăng nhập bằng dialog', () => {
+describe('@flowvis/web — Header cố định, popover tài khoản và đăng nhập bằng dialog', () => {
   const read = (rel) => fs.readFileSync(path.join(webRoot, rel), 'utf8');
   const json = (body, status = 200) =>
     new Response(JSON.stringify(body), {
@@ -1559,7 +1559,7 @@ describe('@motion-ai/web — Header cố định, popover tài khoản và đăn
   });
 });
 
-describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết ToS', () => {
+describe('@flowvis/web — Story 2.10 Thành phần tải ảnh có cam kết ToS', () => {
   it('kiểm tra tính hợp lệ phía client: từ chối MIME không hỗ trợ, file > 10MB, cạnh ngắn < 512px, tỷ lệ sai', async () => {
     // 1. MIME không hỗ trợ (ví dụ image/gif)
     const gifFile = {
@@ -2246,7 +2246,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
     }
   });
 
-  describe('@motion-ai/web — Story 2.11 Trang Face Swap và tiến trình xử lý', () => {
+  describe('@flowvis/web — Story 2.11 Trang Face Swap và tiến trình xử lý', () => {
     it('createMotionApiClient hỗ trợ createFaceSwapTask, getTask và cancelTask đúng schema hợp đồng', async () => {
       const calls = [];
       const mockFetch = async (input, init) => {
@@ -2724,7 +2724,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
     });
   });
 
-  describe('@motion-ai/web — Story 2.12 Trang kết quả và lịch sử Task', () => {
+  describe('@flowvis/web — Story 2.12 Trang kết quả và lịch sử Task', () => {
     it('createMotionApiClient hỗ trợ listTasks, getTaskResult, shareTask và revokeTaskShare đúng schema', async () => {
       const calls = [];
       const fakeFetch = async (url, init) => {
@@ -2745,7 +2745,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
           return new Response(
             JSON.stringify({
               token: 'tok-abc',
-              shareUrl: 'https://motion-ai.vn/share/tok-abc',
+              shareUrl: 'https://flowvis.vn/share/tok-abc',
             }),
             { status: 200, headers: { 'Content-Type': 'application/json' } },
           );
@@ -2809,7 +2809,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
       // shareTask
       const share = await client.shareTask('12345678-1234-1234-1234-123456789abc');
       assert.equal(share.token, 'tok-abc');
-      assert.equal(share.shareUrl, 'https://motion-ai.vn/share/tok-abc');
+      assert.equal(share.shareUrl, 'https://flowvis.vn/share/tok-abc');
 
       // revokeTaskShare
       const revoke = await client.revokeTaskShare('12345678-1234-1234-1234-123456789abc');

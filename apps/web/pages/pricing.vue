@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
-import type { Topup, TopupPackId } from '@motion-ai/contracts';
+import type { Topup, TopupPackId } from '@flowvis/contracts';
 import { useAuth } from '~/composables/useAuth';
 import { useAuthDialog } from '~/composables/useAuthDialog';
 import { usePricingConfig } from '~/composables/usePricingConfig';

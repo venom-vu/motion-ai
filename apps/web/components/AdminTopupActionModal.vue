@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import type { AdminTopup } from '@motion-ai/contracts';
+import type { AdminTopup } from '@flowvis/contracts';
 import { formatNumberVi, formatVndVi } from '~/utils/catalog';
 
 export type AdminTopupActionType =

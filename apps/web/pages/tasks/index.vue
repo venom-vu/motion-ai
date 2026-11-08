@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { clearNuxtData, refreshNuxtData, useAsyncData, useHead } from '#imports';
-import type { Task, TaskListResponse } from '@motion-ai/contracts';
+import type { Task, TaskListResponse } from '@flowvis/contracts';
 import { ME_KEY, useApiClient } from '~/composables/useApiClient';
 import { useAuth } from '~/composables/useAuth';
 import { useAuthDialog } from '~/composables/useAuthDialog';

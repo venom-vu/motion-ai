@@ -14,7 +14,7 @@ import {
   getApiErrorMessageVi,
   type AuthGoogleCallbackQuery,
   type UserRole,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import { PrismaService } from '../../infra/prisma.service.js';
 import { RedisService } from '../../infra/redis.service.js';
 import { GoogleOAuthService, type GoogleUserProfile } from './google-oauth.service.js';
@@ -77,7 +77,7 @@ export class AuthService {
   private getJwtSecret(): string {
     return (
       process.env.JWT_SECRET ||
-      'motion-ai-jwt-dev-secret-change-me-in-production-min-32-chars'
+      'flowvis-jwt-dev-secret-change-me-in-production-min-32-chars'
     );
   }
 

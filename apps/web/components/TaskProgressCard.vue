@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import type { Task } from '@motion-ai/contracts';
+import type { Task } from '@flowvis/contracts';
 import { useApiClient } from '~/composables/useApiClient';
 import {
   getReasonCodeMessageVi,

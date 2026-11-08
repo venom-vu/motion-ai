@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { TOS_VERSION } from '@motion-ai/contracts';
+import { TOS_VERSION } from '@flowvis/contracts';
 import { useApiClient } from '~/composables/useApiClient';
 import { resolveApiErrorMessageVi } from '~/utils/api-client';
 

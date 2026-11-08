@@ -46,7 +46,7 @@ const ORIGINAL_REDIS_URL = process.env.REDIS_URL;
 
 const DEFAULT_DATABASE_URL =
   process.env.DATABASE_URL ||
-  'postgresql://motion_user:change_me_local_password@localhost:5432/motion_ai?schema=public';
+  'postgresql://motion_user:change_me_local_password@localhost:5432/flowvis?schema=public';
 const DEFAULT_REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
 function checkTcpPort(host, port, timeoutMs = 1000) {
@@ -106,7 +106,7 @@ async function ensureInfraServicesRunning() {
   });
 }
 
-describe('@motion-ai/api infrastructure, worker, PostgreSQL 16 & Redis 7', () => {
+describe('@flowvis/api infrastructure, worker, PostgreSQL 16 & Redis 7', () => {
   before(async () => {
     process.env.DATABASE_URL = DEFAULT_DATABASE_URL;
     process.env.REDIS_URL = DEFAULT_REDIS_URL;
@@ -148,7 +148,7 @@ describe('@motion-ai/api infrastructure, worker, PostgreSQL 16 & Redis 7', () =>
       ...pkg.dependencies,
       ...pkg.devDependencies,
     })) {
-      if (name === '@motion-ai/contracts') continue;
+      if (name === '@flowvis/contracts') continue;
       assert.equal(
         /^[0-9]+\.[0-9]+\.[0-9]+$/.test(String(version)),
         true,
@@ -237,7 +237,7 @@ describe('@motion-ai/api infrastructure, worker, PostgreSQL 16 & Redis 7', () =>
 
     execFileSync(
       'docker',
-      ['build', '-f', dockerfilePath, '-t', 'motion-ai-api:test', '.'],
+      ['build', '-f', dockerfilePath, '-t', 'flowvis-api:test', '.'],
       {
         cwd: repoRoot,
         stdio: 'pipe',
@@ -372,7 +372,7 @@ describe('@motion-ai/api infrastructure, worker, PostgreSQL 16 & Redis 7', () =>
 
   it('serves GET /health returning 200 and reporting down service when PostgreSQL or Redis is unreachable', async () => {
     process.env.DATABASE_URL =
-      'postgresql://motion_user:wrong@127.0.0.1:59999/motion_ai?schema=public';
+      'postgresql://motion_user:wrong@127.0.0.1:59999/flowvis?schema=public';
     process.env.REDIS_URL = DEFAULT_REDIS_URL;
     process.env.PORT = '0';
 
@@ -459,7 +459,7 @@ describe('@motion-ai/api infrastructure, worker, PostgreSQL 16 & Redis 7', () =>
 
   it('fails prisma migrate deploy with non-zero exit code when a raw SQL migration contains invalid SQL', async () => {
     const tempDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'motion-ai-bad-migration-'),
+      path.join(os.tmpdir(), 'flowvis-bad-migration-'),
     );
     const tempSchema = `test_bad_mig_${crypto.randomUUID().replace(/-/g, '')}`;
     const baseDbUrl = new URL(DEFAULT_DATABASE_URL);
@@ -666,7 +666,7 @@ describe('@motion-ai/api infrastructure, worker, PostgreSQL 16 & Redis 7', () =>
       timeout: 900_000,
     },
     async () => {
-      const project = 'motion-ai-e2e';
+      const project = 'flowvis-e2e';
       const apiPort = '3101';
       const env = {
         ...process.env,
@@ -702,7 +702,7 @@ describe('@motion-ai/api infrastructure, worker, PostgreSQL 16 & Redis 7', () =>
           '-U',
           'motion_user',
           '-d',
-          'motion_ai',
+          'flowvis',
           '-tAc',
           "select to_regclass('public.infra_probes')",
         ]).trim();

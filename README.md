@@ -13,10 +13,10 @@ Nền tảng SaaS tạo ảnh/video AI (Face Swap, Body Retouch, Motion Control)
 ```text
 .
 ├── apps/
-│   ├── api/                  # @motion-ai/api — NestJS 12.3.2 (ESM), 2 entrypoint (main.ts & worker.ts), 8 module, 3 port
-│   └── web/                  # @motion-ai/web — Nuxt 4.6.3 (Slate Cyber UI)
+│   ├── api/                  # @flowvis/api — NestJS 12.3.2 (ESM), 2 entrypoint (main.ts & worker.ts), 8 module, 3 port
+│   └── web/                  # @flowvis/web — Nuxt 4.6.3 (Slate Cyber UI)
 ├── packages/
-│   └── contracts/            # @motion-ai/contracts — DTO, enum, schema, dữ liệu mock dùng chung
+│   └── contracts/            # @flowvis/contracts — DTO, enum, schema, dữ liệu mock dùng chung
 ├── deploy/
 │   └── compose.yml           # Khung Docker Compose cho hạ tầng triển khai
 ├── scripts/
@@ -36,7 +36,7 @@ pnpm run lint
 # Kiểm tra kiểu TypeScript (typecheck) trên toàn bộ workspace
 pnpm run typecheck
 
-# Biên dịch (build) cả 3 gói: @motion-ai/contracts, @motion-ai/api, @motion-ai/web
+# Biên dịch (build) cả 3 gói: @flowvis/contracts, @flowvis/api, @flowvis/web
 pnpm run build
 
 # Chạy toàn bộ unit test và bài test kiểm tra ranh giới nhánh
@@ -59,17 +59,17 @@ pnpm run check:boundaries
 
 ## Smoke test Face Swap (Story 2.14)
 
-Ba kịch bản smoke Face Swap (thành công, `NO_FACE`, quá hạn 180 giây được tăng tốc) nằm trong `apps/api/test/smoke-face-swap.test.mjs`, chạy bằng `RUN_COMPOSE_E2E=1 pnpm --filter @motion-ai/api test` (cần Docker). RunningHub và R2 được giả trong tiến trình test, chỉ bật khi `NODE_ENV=test`. SLA 60 giây được đo ở benchmark Epic 6, không phải ở đây. Chi tiết: `deploy/README.md`.
+Ba kịch bản smoke Face Swap (thành công, `NO_FACE`, quá hạn 180 giây được tăng tốc) nằm trong `apps/api/test/smoke-face-swap.test.mjs`, chạy bằng `RUN_COMPOSE_E2E=1 pnpm --filter @flowvis/api test` (cần Docker). RunningHub và R2 được giả trong tiến trình test, chỉ bật khi `NODE_ENV=test`. SLA 60 giây được đo ở benchmark Epic 6, không phải ở đây. Chi tiết: `deploy/README.md`.
 
 ## Chạy thử toàn bộ Epic 1 (FE nối BE) và smoke test đăng nhập
 
 FE chỉ có một chế độ `live` (không có chế độ mock). "Mock" là các hằng `MOCK_*` trong `packages/contracts`; smoke test kiểm tra chúng khớp schema và khớp hình dạng phản hồi BE thật.
 
 1. Chạy stack: `cp deploy/.env.example deploy/.env`, rồi `docker compose -f deploy/compose.yml --env-file deploy/.env up -d --build --wait` (4 container: Postgres, Redis, api, worker). API mặc định ở cổng `3001`.
-2. Chạy FE: `NUXT_PUBLIC_API_BASE_URL=http://localhost:3001 pnpm --filter @motion-ai/web run dev` (hoặc trỏ tới BE đã triển khai).
-3. Chạy test: `pnpm test` (bỏ qua smoke Docker). Smoke đầy đủ: `RUN_COMPOSE_E2E=1 pnpm --filter @motion-ai/api test` (cần Docker). Smoke giả Google bằng `GOOGLE_TOKEN_URL`/`GOOGLE_USERINFO_URL` (chỉ có tác dụng khi `NODE_ENV=test`), kiểm tra người dùng mới có 500 credit và đúng một dòng "Tặng", tài khoản thứ hai cùng thiết bị có 0 credit, rồi chạy đối soát.
+2. Chạy FE: `NUXT_PUBLIC_API_BASE_URL=http://localhost:3001 pnpm --filter @flowvis/web run dev` (hoặc trỏ tới BE đã triển khai).
+3. Chạy test: `pnpm test` (bỏ qua smoke Docker). Smoke đầy đủ: `RUN_COMPOSE_E2E=1 pnpm --filter @flowvis/api test` (cần Docker). Smoke giả Google bằng `GOOGLE_TOKEN_URL`/`GOOGLE_USERINFO_URL` (chỉ có tác dụng khi `NODE_ENV=test`), kiểm tra người dùng mới có 500 credit và đúng một dòng "Tặng", tài khoản thứ hai cùng thiết bị có 0 credit, rồi chạy đối soát.
 4. Đăng nhập Google thật là bước thủ công, chạy một lần khi có `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_CALLBACK_URL` thật (không nằm trong CI, không commit bí mật): mở FE, đăng nhập Google, kiểm tra số dư 500 và dòng "Tặng" ở trang lịch sử.
 
 ## Smoke test nạp tiền (Story 3.8)
 
-Smoke nạp tiền VietQR (`apps/api/test/smoke-topup.test.mjs`) chạy bằng `RUN_COMPOSE_E2E=1 pnpm --filter @motion-ai/api test` (cần Docker; `pnpm test` bỏ qua phần Docker nhưng vẫn kiểm tra `MOCK_*` khớp schema). FE gọi API đúng schema trong `packages/contracts`, nên smoke xác nhận ở mức hợp đồng. Biến môi trường cần có: `TOPUP_BANK_BIN`, `TOPUP_BANK_ACCOUNT_NO`, `TOPUP_BANK_ACCOUNT_NAME`, `DISCORD_WEBHOOK_URL`, `ADMIN_EMAILS` (xem `deploy/.env.example`). Chi tiết và các ghi đè chỉ dành cho `NODE_ENV=test`: `deploy/README.md`.
+Smoke nạp tiền VietQR (`apps/api/test/smoke-topup.test.mjs`) chạy bằng `RUN_COMPOSE_E2E=1 pnpm --filter @flowvis/api test` (cần Docker; `pnpm test` bỏ qua phần Docker nhưng vẫn kiểm tra `MOCK_*` khớp schema). FE gọi API đúng schema trong `packages/contracts`, nên smoke xác nhận ở mức hợp đồng. Biến môi trường cần có: `TOPUP_BANK_BIN`, `TOPUP_BANK_ACCOUNT_NO`, `TOPUP_BANK_ACCOUNT_NAME`, `DISCORD_WEBHOOK_URL`, `ADMIN_EMAILS` (xem `deploy/.env.example`). Chi tiết và các ghi đè chỉ dành cho `NODE_ENV=test`: `deploy/README.md`.

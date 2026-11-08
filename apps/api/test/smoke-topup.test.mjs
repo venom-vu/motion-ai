@@ -15,7 +15,7 @@ import {
   TOS_VERSION,
   TopupSchema,
   WalletLedgerResponseSchema,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../..');
@@ -100,7 +100,7 @@ describe('Smoke nạp tiền FE-BE trên stack Compose (Story 3.8)', () => {
       timeout: 1_200_000,
     },
     async () => {
-      const project = 'motion-ai-smoke-tp';
+      const project = 'flowvis-smoke-tp';
       const apiPort = '3104';
       const base = `http://127.0.0.1:${apiPort}`;
       const env = {

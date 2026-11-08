@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { clearNuxtData, useAsyncData } from '#imports';
-import type { WalletLedgerResponse } from '@motion-ai/contracts';
+import type { WalletLedgerResponse } from '@flowvis/contracts';
 import { useApiClient } from '~/composables/useApiClient';
 import { useAuth } from '~/composables/useAuth';
 import { useAuthDialog } from '~/composables/useAuthDialog';

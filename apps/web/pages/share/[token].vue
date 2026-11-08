@@ -152,7 +152,7 @@ const currentOrigin = computed(() => {
   if (import.meta.client && typeof window !== 'undefined') {
     return window.location.origin;
   }
-  return requestUrl?.origin || 'https://motion-ai.vn';
+  return requestUrl?.origin || 'https://flowvis.vn';
 });
 
 const ogUrl = computed(() => {
