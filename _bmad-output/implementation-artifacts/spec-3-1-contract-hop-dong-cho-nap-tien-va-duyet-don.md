@@ -70,6 +70,23 @@ context:
 - Given bảng nhãn, when tra `pending` và `needs_review`, then ra "Đang chờ duyệt" và "Cần xem xét".
 - Given mock, when chạy test hợp đồng, then mọi mock khớp schema.
 
+### Review Findings
+
+*Không có phát hiện nào cần sửa đổi (0 decision-needed, 0 patch, 0 defer, 11 rejected).*
+
+#### Rejected
+- [Rejected][False] Thiếu trường `tosVersion` trong schema đơn nạp: `tosVersion` là trường kiểm toán nội bộ lưu tại DB (bảng `topups`), không nằm trong DTO công khai theo đúng quy ước `TaskSchema` và AC2.
+- [Rejected][False] Bất biến `note` chỉ có khi `needs_review`: Bất biến phản ánh trạng thái hiện tại; lịch sử ghi chú kiểm duyệt được lưu vết ở bảng `admin_audit` khi đơn chuyển trạng thái.
+- [Rejected][False] Thiếu ràng buộc cấm `approveBy` ở trạng thái khác: `approveBy` được giữ lại ở các trạng thái sau `pending` (`approved`, `rejected`, `needs_review`) để lưu mốc hạn chót SLA.
+- [Rejected][False] Thiếu endpoint `GET /admin/topups/:id`: Không có trong đặc tả PRD/Epics/Spec 3.1; Dashboard Admin quản lý qua danh sách và các thao tác duyệt/từ chối.
+- [Rejected][Low] `TopupBaseShape` thiếu `trim` và `max` trên text fields: Schema DTO response nhận dữ liệu đã được validate chặt chẽ từ database và mutation request schema; người dùng/dev không gặp lỗi trong thực tế.
+- [Rejected][False] Mock Admin pending chỉ có `isOverdue: true`: Đạt AC4 (mỗi trạng thái có 1 mock đại diện); FE tự do override `isOverdue` trong unit test.
+- [Rejected][Low] Mock data dùng chung `createdAt`: Fixture tĩnh phục vụ kiểm thử hình dạng schema; API list không ép buộc kiểm tra sắp xếp trong schema.
+- [Rejected][Low] Thiếu kiểm tra bất biến `qrExpiresAt > createdAt`: Server luôn sinh `qrExpiresAt = createdAt + 15m`; không có nguy cơ xảy ra trong thực tế.
+- [Rejected][False] `AdminTopupListQuerySchema.status` không default `'pending'`: Để `optional` là cần thiết để Admin có thể truy vấn tất cả trạng thái (`all`); mặc định tab là logic hiển thị của FE.
+- [Rejected][Low] Sai độ dài TLV trong mock `qrPayload`: Dữ liệu mock tĩnh có chú thích CRC giả; thư viện render QR canvas ở client chỉ nhận chuỗi thô để vẽ ảnh chứ không phân tích cú pháp TLV.
+- [Rejected][False] Mã đơn `code` không có regex: Mã do server sinh ngẫu nhiên qua bộ ký tự an toàn (`CODE_ALPHABET`), client không thể gửi `code` lên.
+
 ## Implementation Notes
 
 ## Spec Change Log
