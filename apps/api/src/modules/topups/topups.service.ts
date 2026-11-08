@@ -114,9 +114,9 @@ export class TopupsService {
    * Đơn đang mở cần thông tin tài khoản thật để hiển thị QR. Đơn đã kết thúc không cần,
    * nên thiếu cấu hình không được làm hỏng lịch sử và thao tác Admin.
    */
-  private resolveBank(status: string, bank?: BankAccountConfig | null): BankAccountConfig {
+  private resolveBank(status: string, bank?: BankAccountConfig | null, lenient = false): BankAccountConfig {
     if (bank) return bank;
-    if ((OPEN_TOPUP_STATUSES as readonly string[]).includes(status)) return readBankAccountConfig();
+    if (!lenient && (OPEN_TOPUP_STATUSES as readonly string[]).includes(status)) return readBankAccountConfig();
     try {
       return readBankAccountConfig();
     } catch {
@@ -124,8 +124,8 @@ export class TopupsService {
     }
   }
 
-  toDto(row: TopupRow, bankInput?: BankAccountConfig | null): Topup {
-    const bank = this.resolveBank(row.status, bankInput);
+  toDto(row: TopupRow, bankInput?: BankAccountConfig | null, lenient = false): Topup {
+    const bank = this.resolveBank(row.status, bankInput, lenient);
     const pack = PRICING_CONFIG.topupPacks.find((p) => p.id === row.pack);
     if (!pack) throw new Error(`Gói nạp không hợp lệ: ${row.pack}`);
     const transferContent = `NAP ${row.code}`;
@@ -290,7 +290,8 @@ export class TopupsService {
 
   toAdminDto(row: TopupRow & { userId: string }, bank?: BankAccountConfig | null): AdminTopup {
     return {
-      ...this.toDto(row, bank),
+      // Admin duyệt đơn không cần QR: thiếu cấu hình không được chặn hàng chờ duyệt.
+      ...this.toDto(row, bank, true),
       userId: row.userId,
       isOverdue: row.status === 'pending' && row.approveBy !== null && row.approveBy.getTime() < Date.now(),
     };
@@ -326,7 +327,7 @@ export class TopupsService {
     tx: PrismaTransactionClient,
     id: string,
     from: readonly string[],
-    data: { status: string; bankRef?: string; rejectReason?: string; note?: string | null; approveBy?: Date },
+    data: { status: string; bankRef?: string; rejectReason?: string; note?: string | null; approveBy?: Date; overdueNotifiedAt?: null },
   ) {
     // Khóa dòng để `before` của audit đúng là trạng thái nguồn mà CAS chuyển đi (READ COMMITTED).
     const locked = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM topups WHERE id = ${id}::uuid FOR UPDATE`;
@@ -373,7 +374,7 @@ export class TopupsService {
   ): Promise<AdminTopup> {
     const sources = from === 'expired' ? ['expired'] : ['pending', 'needs_review'];
     return this.adminTransition(id, async (tx) => {
-      const before = await this.casTransition(tx, id, sources, { status: 'approved', bankRef });
+      const before = await this.casTransition(tx, id, sources, { status: 'approved', bankRef, note: null });
       const pack = PRICING_CONFIG.topupPacks.find((p) => p.id === before.pack);
       if (!pack) throw new Error(`Gói nạp không hợp lệ: ${before.pack}`);
       await this.wallet.topup(tx, before.userId, id, pack.credits, pack.id as TopupPackId);
@@ -396,7 +397,7 @@ export class TopupsService {
 
   reject(adminId: string, id: string, rejectReason: string): Promise<AdminTopup> {
     return this.adminTransition(id, async (tx) => {
-      const before = await this.casTransition(tx, id, ['pending', 'needs_review'], { status: 'rejected', rejectReason });
+      const before = await this.casTransition(tx, id, ['pending', 'needs_review'], { status: 'rejected', rejectReason, note: null });
       await this.audit.record(tx, {
         adminId,
         action: 'topup.reject',
@@ -422,7 +423,7 @@ export class TopupsService {
     return this.adminTransition(id, async (tx) => {
       // Hạn duyệt tính lại từ lúc quay về hàng chờ; giữ giá trị cũ sẽ khiến đơn quá hạn ngay.
       const approveBy = computeApproveBy(new Date());
-      const before = await this.casTransition(tx, id, ['needs_review'], { status: 'pending', note: null, approveBy });
+      const before = await this.casTransition(tx, id, ['needs_review'], { status: 'pending', note: null, approveBy, overdueNotifiedAt: null });
       await this.audit.record(tx, {
         adminId,
         action: 'topup.return_to_pending',

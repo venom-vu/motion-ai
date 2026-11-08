@@ -425,6 +425,50 @@ describe('Story 3.2: rate limit POST /topups theo người dùng', () => {
   });
 });
 
+describe('Story 3.2: bộ đếm tạo đơn và xác nhận chuyển khoản tách riêng', () => {
+  it('đã chạm giới hạn tạo đơn vẫn xác nhận được chuyển khoản', async () => {
+    process.env.DATABASE_URL = DB_URL;
+    process.env.REDIS_URL = REDIS_URL;
+    process.env.PORT = '0';
+    process.env.JWT_SECRET = 'super-secret-test-jwt-key-with-at-least-32-chars-ok';
+    process.env.FRONTEND_URL = 'http://localhost:3000';
+    process.env.TOPUP_BANK_BIN = '970422';
+    process.env.TOPUP_BANK_ACCOUNT_NO = '0123456789';
+    process.env.TOPUP_BANK_ACCOUNT_NAME = 'X';
+    process.env.TOPUP_THROTTLE_LIMIT = '2';
+    process.env.TOPUP_THROTTLE_TTL_MS = '60000';
+    const app = await bootstrapApi();
+    const pool = new pg.Pool({ connectionString: DB_URL });
+    const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+    const baseUrl = `http://127.0.0.1:${app.getHttpServer().address().port}`;
+    const jwt = app.get(JwtService);
+    const tag = crypto.randomBytes(4).toString('hex');
+    const u = await prisma.user.create({ data: { googleId: `tpc-${tag}`, email: `tpc-${tag}@motionai.vn`, tosVersion: 'tos-v7' } });
+    const token = jwt.sign({ sub: u.id, email: u.email, role: 'user' });
+    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    try {
+      const first = await fetch(`${baseUrl}/topups`, { method: 'POST', headers, body: JSON.stringify({ pack: 'pro', consent: true }) });
+      assert.equal(first.status, 201);
+      const created = await first.json();
+      const second = await fetch(`${baseUrl}/topups`, { method: 'POST', headers, body: JSON.stringify({ pack: 'pro', consent: true }) });
+      assert.equal(second.status, 201);
+      assert.equal((await fetch(`${baseUrl}/topups`, { method: 'POST', headers, body: JSON.stringify({ pack: 'pro', consent: true }) })).status, 429);
+      const confirm = await fetch(`${baseUrl}/topups/${created.id}/confirm-transfer`, { method: 'POST', headers });
+      assert.equal(confirm.status, 200);
+    } finally {
+      const rd = new Redis(REDIS_URL);
+      const keys = await rd.keys('throttle:*');
+      if (keys.length) await rd.del(...keys);
+      rd.disconnect();
+      await pool.query('DELETE FROM topups WHERE user_id=$1', [u.id]);
+      await prisma.user.delete({ where: { id: u.id } });
+      await prisma.$disconnect();
+      await pool.end().catch(() => {});
+      await app.close();
+    }
+  });
+});
+
 describe('Story 3.3: [BE] Xác nhận chuyển khoản, hạn QR và hạn duyệt', () => {
   let app, baseUrl, pool, jwt, sweeper;
   const runId = crypto.randomBytes(4).toString('hex');

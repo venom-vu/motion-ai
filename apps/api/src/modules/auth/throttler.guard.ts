@@ -77,7 +77,8 @@ export class TopupThrottlerGuard extends AuthThrottlerGuard {
       ...props,
       limit,
       ttl,
-      generateKey: (ctx, tracker, name) => props.generateKey(ctx, tracker, `topup-${name}`),
+      generateKey: (ctx, tracker, name) =>
+        props.generateKey(ctx, tracker, `topup-${ctx.getHandler().name}-${name}`),
     });
   }
 }

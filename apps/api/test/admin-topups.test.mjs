@@ -289,7 +289,32 @@ describe('Story 3.5: [BE] Duyệt và từ chối đơn, nhật ký Admin', () =
     assert.deepEqual((await audits(id)).map((a) => a.action), ['topup.needs_review', 'topup.return_to_pending']);
     // needs_review có thể từ chối
     await adm('POST', `/admin/topups/${id}/needs-review`, { note: 'n' });
-    assert.equal((await adm('POST', `/admin/topups/${id}/reject`, { rejectReason: 'r' })).status, 200);
+    const rej = await adm('POST', `/admin/topups/${id}/reject`, { rejectReason: 'r' });
+    assert.equal(rej.status, 200);
+    const rejBody = await rej.json();
+    AdminTopupSchema.parse(rejBody);
+    assert.equal(rejBody.note, null);
+  });
+
+  it('duyệt đơn needs_review: xóa note, đơn trả đúng schema', async () => {
+    const u = await mkUser();
+    const id = await mkTopup(u);
+    assert.equal((await adm('POST', `/admin/topups/${id}/needs-review`, { note: 'đối chiếu' })).status, 200);
+    const res = await adm('POST', `/admin/topups/${id}/approve`, { bankRef: ref() });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    AdminTopupSchema.parse(body);
+    assert.equal(body.note, null);
+  });
+
+  it('return-to-pending xóa cờ đã cảnh báo quá hạn để lần quá hạn mới được báo lại', async () => {
+    const u = await mkUser();
+    const id = await mkTopup(u);
+    await pool.query(`UPDATE topups SET overdue_notified_at = now() WHERE id=$1`, [id]);
+    assert.equal((await adm('POST', `/admin/topups/${id}/needs-review`, { note: 'n' })).status, 200);
+    assert.equal((await adm('POST', `/admin/topups/${id}/return-to-pending`)).status, 200);
+    const r = await pool.query('SELECT overdue_notified_at FROM topups WHERE id=$1', [id]);
+    assert.equal(r.rows[0].overdue_notified_at, null);
   });
 
   it('return-to-pending tính lại approveBy, không để đơn quá hạn ngay', async () => {
@@ -318,6 +343,11 @@ describe('Story 3.5: [BE] Duyệt và từ chối đơn, nhật ký Admin', () =
       assert.equal(rejected.status, 200);
       const list = await adm('GET', '/admin/topups?status=approved&pageSize=100');
       assert.equal(list.status, 200);
+      // Hàng chờ duyệt (đơn đang mở) cũng không được 500 khi thiếu cấu hình.
+      const open = await mkTopup(u);
+      const queue = await adm('GET', '/admin/topups?status=pending&pageSize=100');
+      assert.equal(queue.status, 200);
+      assert.ok((await queue.json()).items.some((x) => x.id === open));
     } finally {
       process.env.TOPUP_BANK_BIN = saved;
     }
