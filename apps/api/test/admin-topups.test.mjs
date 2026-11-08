@@ -95,7 +95,7 @@ describe('Story 3.5: [BE] Duyệt và từ chối đơn, nhật ký Admin', () =
     process.env.FRONTEND_URL = 'http://localhost:3000';
     process.env.TOPUP_BANK_BIN = '970422';
     process.env.TOPUP_BANK_ACCOUNT_NO = '0123456789';
-    process.env.TOPUP_BANK_ACCOUNT_NAME = 'CONG TY MOTION AI';
+    process.env.TOPUP_BANK_ACCOUNT_NAME = 'CONG TY FLOWVIS';
     await ensureInfra();
     const rd0 = new Redis(REDIS_URL);
     const stale = await rd0.keys('throttle:*');

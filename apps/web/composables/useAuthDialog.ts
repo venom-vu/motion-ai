@@ -3,9 +3,9 @@ import { useState } from '#imports';
 export type AuthDialogMode = 'login' | 'account';
 
 export function useAuthDialog() {
-  const mode = useState<AuthDialogMode | null>('motion-ai-auth-dialog', () => null);
+  const mode = useState<AuthDialogMode | null>('flowvis-auth-dialog', () => null);
   const errorVi = useState<string | null>(
-    'motion-ai-auth-dialog-error',
+    'flowvis-auth-dialog-error',
     () => null,
   );
 

@@ -1,4 +1,4 @@
-# PRD Quality Review — Motion AI
+# PRD Quality Review — flowvis
 
 ## Overall verdict
 PRD này có luận điểm rõ (phép thử mức sẵn sàng chi trả với trần GPU USD 50–100), bảng tham số và ngưỡng số cụ thể, bảng lỗi/hoàn credit đầy đủ, và kinh tế đơn vị tính ra được. Rủi ro nằm ở ba chỗ: (1) cơ chế chống lạm dụng credit dùng thử không bảo vệ được trần ngân sách mà chính PRD đặt ra; (2) phần lớn FR không có tiêu chí nghiệm thu và nhiều quy tắc validate còn mang tính chủ quan; (3) §10 Chỉ mục giả định để trống dù addendum thừa nhận mọi số liệu chi phí chưa đo, và vùng rủi ro pháp lý (người dưới 18 tuổi, deepfake, chia sẻ công khai) chỉ có một `[NOTE FOR PM]`. Đủ dùng để thảo luận với người ra quyết định, chưa đủ để chuyển thẳng sang tạo story.

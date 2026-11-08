@@ -39,7 +39,7 @@ Dùng skill BMad theo thứ tự; planning đã xong, bước tiếp theo là `b
 
 ## Kiến trúc đích (tóm tắt từ ARCHITECTURE-SPINE.md)
 
-Motion AI là SaaS tạo ảnh/video AI (Face Swap, Body Retouch, Motion Control) gọi GPU qua RunningHub, tính phí bằng credit. Đọc spine đầy đủ (các mục AD-1…AD-18) trước khi viết mã backend. Những điểm cần nhiều file mới thấy:
+flowvis là SaaS tạo ảnh/video AI (Face Swap, Body Retouch, Motion Control) gọi GPU qua RunningHub, tính phí bằng credit. Đọc spine đầy đủ (các mục AD-1…AD-18) trước khi viết mã backend. Những điểm cần nhiều file mới thấy:
 
 - **Modular monolith, ports-and-adapters**: một codebase NestJS, hai entrypoint (`api`, `worker`). Module: `auth`, `wallet`, `tasks`, `pipelines`, `topups`, `storage`, `ops`, `audit`. Port: `RunningHubPort`, `StoragePort`, `NotifierPort`. Worker không mở HTTP công khai.
 - **PostgreSQL là nguồn sự thật duy nhất** cho trạng thái Task và sổ cái credit. Redis/BullMQ chỉ điều phối và phải dựng lại được từ DB.

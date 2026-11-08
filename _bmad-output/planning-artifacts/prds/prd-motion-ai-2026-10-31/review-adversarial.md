@@ -1,4 +1,4 @@
-# Review đối kháng: PRD Motion AI (prd.md + addendum.md)
+# Review đối kháng: PRD flowvis (prd.md + addendum.md)
 
 Phạm vi: `prd.md` (updated 2026-11-01) và `addendum.md`. Không sửa PRD. Mức độ: **CRITICAL** (chặn phát hành / mất tiền / rủi ro pháp lý), **HIGH** (lỗ hổng logic rõ ràng), **MEDIUM** (mơ hồ, không test được, mâu thuẫn nhẹ), **LOW** (thẩm mỹ, đánh số).
 
@@ -130,7 +130,7 @@ Kết luận: bảng đúng về số học, nhưng **sai về phạm vi** (xem 
 - **Thứ tự và đánh số FR**: FR-20 đứng *trước* FR-5 trong §4.3; FR-14b không theo số nguyên; §0 nói "FR đánh số toàn cục" nhưng thứ tự đọc là FR-1…4, FR-20, FR-5…7, FR-8…13, FR-14, 14b, 15…19. FR-20 nên là FR-8 hoặc đặt cuối mục.
 - Bảng truy vết: SM-1 "Validates FR-1, FR-3, FR-6, FR-11, FR-12" bỏ FR-13 (duyệt tay là nút cổ chai chuyển đổi). SM-3 "Validates FR-14, FR-15" bỏ FR-16, FR-20. SM-4 "Validates FR-7, FR-16" bỏ FR-11 (rủi ro lớn nhất, F-3). SM-C2 "đối trọng của SM-3" gượng ép.
 - §4.4 FR-8/FR-14 mô tả "Release" cho `rejected`, nhưng danh sách loại bút toán FR-8 không có "thu hồi/khóa tài khoản".
-- Tên "Motion AI" tạm; "50–100 USD ≈ 1,25–2,5 triệu" dùng 25.000 VNĐ/USD khác với 25.600 ngầm trong §11.
+- Tên "flowvis" tạm; "50–100 USD ≈ 1,25–2,5 triệu" dùng 25.000 VNĐ/USD khác với 25.600 ngầm trong §11.
 - Người dùng mục tiêu: "Doanh nghiệp cần API" bị loại nhưng persona Hà (chủ shop) là dùng thương mại; ToS "chỉ dùng hình ảnh thuộc quyền sở hữu cá nhân" (FR-17) mâu thuẫn với dùng cho shop.
 - Glossary Tier: "quyết định thời lượng tối đa và độ ưu tiên" nhưng không giải thích rằng Tier còn phụ thuộc số dư (chỉ ở FR-10).
 

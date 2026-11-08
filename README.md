@@ -1,4 +1,4 @@
-# Motion AI Monorepo
+# flowvis Monorepo
 
 Nền tảng SaaS tạo ảnh/video AI (Face Swap, Body Retouch, Motion Control) xây dựng trên kiến trúc Modular Monolith (NestJS + Nuxt 4).
 

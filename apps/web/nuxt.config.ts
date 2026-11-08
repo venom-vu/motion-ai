@@ -41,7 +41,7 @@ export default defineNuxtConfig({
         lang: 'vi',
         class: 'dark',
       },
-      title: 'Motion AI — Studio Tạo Ảnh & Video AI',
+      title: 'flowvis — Tạo Ảnh & Video AI',
       meta: [
         { charset: 'utf-8' },
         {

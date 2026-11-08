@@ -125,11 +125,11 @@ const currentImageUrl = computed(() => shareState.value.imageUrl);
 
 const pageTitle = computed(() => {
   if (isRateLimited.value) {
-    return 'Hệ thống đang bận — Motion AI';
+    return 'Hệ thống đang bận — flowvis';
   }
   return isNotFound.value
-    ? 'Liên kết không còn tồn tại — Motion AI'
-    : 'Kết quả tạo ảnh AI — Motion AI';
+    ? 'Liên kết không còn tồn tại — flowvis'
+    : 'Kết quả tạo ảnh AI — flowvis';
 });
 
 const pageDescription = computed(() => {
@@ -138,7 +138,7 @@ const pageDescription = computed(() => {
   }
   return isNotFound.value
     ? 'Đường dẫn chia sẻ này không tồn tại, đã bị thu hồi hoặc đã hết hạn.'
-    : 'Xem tác phẩm AI được tạo trên Motion AI. Thử tạo ảnh hoặc video AI miễn phí!';
+    : 'Xem tác phẩm AI được tạo trên flowvis. Thử tạo ảnh hoặc video AI miễn phí!';
 });
 
 const ogImageUrl = computed(() => {
@@ -162,7 +162,7 @@ const ogUrl = computed(() => {
 useHead({
   title: pageTitle,
   meta: [
-    { property: 'og:site_name', content: 'Motion AI' },
+    { property: 'og:site_name', content: 'flowvis' },
     { property: 'og:type', content: 'website' },
     { property: 'og:title', content: () => pageTitle.value },
     { property: 'og:description', content: () => pageDescription.value },
@@ -213,7 +213,7 @@ async function handleDownload(): Promise<void> {
     const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = blobUrl;
-    a.download = `motion-ai-shared-${token.value.slice(0, 10)}.png`;
+    a.download = `flowvis-shared-${token.value.slice(0, 10)}.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -234,8 +234,8 @@ async function handleShareLink(): Promise<void> {
   if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
     try {
       await navigator.share({
-        title: 'Kết quả tạo ảnh AI — Motion AI',
-        text: 'Xem tác phẩm AI được tạo trên Motion AI:',
+        title: 'Kết quả tạo ảnh AI — flowvis',
+        text: 'Xem tác phẩm AI được tạo trên flowvis:',
         url,
       });
       showToast('Đã mở bảng chia sẻ thành công!');
@@ -301,7 +301,7 @@ async function handleShareLink(): Promise<void> {
           data-testid="back-home-button"
         >
           <Icon name="lucide:arrow-left" class="h-4 w-4" aria-hidden="true" />
-          <span>Về trang chủ Motion AI</span>
+          <span>Về trang chủ flowvis</span>
         </NuxtLink>
       </div>
     </div>
@@ -334,7 +334,7 @@ async function handleShareLink(): Promise<void> {
           data-testid="back-home-button"
         >
           <Icon name="lucide:arrow-left" class="h-4 w-4" aria-hidden="true" />
-          <span>Về trang chủ Motion AI</span>
+          <span>Về trang chủ flowvis</span>
         </NuxtLink>
       </div>
     </div>
@@ -361,7 +361,7 @@ async function handleShareLink(): Promise<void> {
               <Icon name="lucide:sparkles" class="h-4 w-4" aria-hidden="true" />
             </span>
             <span class="text-xs font-medium text-cyber-text sm:text-sm">
-              Tác phẩm AI từ Motion AI
+              Tác phẩm AI từ flowvis
             </span>
           </div>
 
@@ -380,7 +380,7 @@ async function handleShareLink(): Promise<void> {
           <img
             v-if="currentImageUrl"
             :src="currentImageUrl"
-            alt="Kết quả tạo ảnh AI — Motion AI"
+            alt="Kết quả tạo ảnh AI — flowvis"
             class="max-h-[75vh] w-full max-w-full rounded-xl object-contain shadow-md"
             data-testid="share-result-image"
             @error="handleImageError"
@@ -414,7 +414,7 @@ async function handleShareLink(): Promise<void> {
         <NuxtLink
           to="/"
           class="touch-target flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-cyber-cyan px-6 py-3.5 text-center text-sm font-semibold text-zinc-950 shadow-lg shadow-cyber-cyan/20 transition hover:opacity-90 hover:shadow-cyber-cyan/30"
-          data-testid="try-motion-ai-button"
+          data-testid="try-flowvis-button"
         >
           <Icon name="lucide:sparkles" class="h-4 w-4" aria-hidden="true" />
           <span>Thử tạo ảnh tương tự miễn phí</span>

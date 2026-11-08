@@ -157,7 +157,7 @@ describe('Story 3.2: [BE] Tạo đơn nạp và mã VietQR', () => {
     process.env.FRONTEND_URL = 'http://localhost:3000';
     process.env.TOPUP_BANK_BIN = '970422';
     process.env.TOPUP_BANK_ACCOUNT_NO = '0123456789';
-    process.env.TOPUP_BANK_ACCOUNT_NAME = 'CONG TY MOTION AI';
+    process.env.TOPUP_BANK_ACCOUNT_NAME = 'CONG TY FLOWVIS';
     process.env.TOPUP_THROTTLE_LIMIT = '1000';
     await ensureInfra();
     // Khối rate-limit của lần chạy trước có thể còn khóa (cùng IP, TTL 60s).
@@ -535,7 +535,7 @@ describe('Story 3.3: [BE] Xác nhận chuyển khoản, hạn QR và hạn duy�
     process.env.FRONTEND_URL = 'http://localhost:3000';
     process.env.TOPUP_BANK_BIN = '970422';
     process.env.TOPUP_BANK_ACCOUNT_NO = '0123456789';
-    process.env.TOPUP_BANK_ACCOUNT_NAME = 'CONG TY MOTION AI';
+    process.env.TOPUP_BANK_ACCOUNT_NAME = 'CONG TY FLOWVIS';
     process.env.TOPUP_THROTTLE_LIMIT = '1000';
     await ensureInfra();
     const rd0 = new Redis(REDIS_URL);
@@ -798,7 +798,7 @@ describe('Story 3.4: [BE] Thông báo Discord cho Admin', () => {
     process.env.FRONTEND_URL = 'http://localhost:3000';
     process.env.TOPUP_BANK_BIN = '970422';
     process.env.TOPUP_BANK_ACCOUNT_NO = '0123456789';
-    process.env.TOPUP_BANK_ACCOUNT_NAME = 'CONG TY MOTION AI';
+    process.env.TOPUP_BANK_ACCOUNT_NAME = 'CONG TY FLOWVIS';
     process.env.TOPUP_THROTTLE_LIMIT = '1000';
     fake = http.createServer((req, res) => {
       const chunks = [];
@@ -854,7 +854,7 @@ describe('Story 3.4: [BE] Thông báo Discord cho Admin', () => {
     for (const needle of [code, '99.000đ', 'pro', 'giờ VN']) assert.ok(parsed.content.includes(needle), needle);
     assert.ok(!parsed.content.includes('{'), 'không còn dòng JSON');
     assert.ok(!/\dT\d{2}:\d{2}.*Z/.test(parsed.content), 'không dùng giờ UTC dạng ISO');
-    for (const bad of [u.email, 'jwt', u.token, '0123456789', 'CONG TY MOTION AI', 'secret-token-xyz', 'Bearer'])
+    for (const bad of [u.email, 'jwt', u.token, '0123456789', 'CONG TY FLOWVIS', 'secret-token-xyz', 'Bearer'])
       assert.ok(!reqs[0].body.includes(bad), bad);
   });
 

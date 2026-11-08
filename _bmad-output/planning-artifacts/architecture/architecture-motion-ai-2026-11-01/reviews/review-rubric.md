@@ -1,4 +1,4 @@
-# Review ARCHITECTURE-SPINE.md (Motion AI) theo checklist "good spine"
+# Review ARCHITECTURE-SPINE.md (flowvis) theo checklist "good spine"
 
 Ngày review: 2026-11-01. Đối chiếu với `prd.md` (FR-1..FR-22, NFR). Không sửa spine.
 

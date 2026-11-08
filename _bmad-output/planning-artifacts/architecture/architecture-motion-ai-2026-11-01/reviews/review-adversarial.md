@@ -3,7 +3,7 @@ type: review-adversarial
 target: ARCHITECTURE-SPINE.md
 date: 2026-11-01
 ---
-# Review đối kháng — Architecture Spine Motion AI
+# Review đối kháng — Architecture Spine flowvis
 
 **Phương pháp:** với mỗi lỗ hổng, dựng hai đơn vị (hai engineer / hai code path) đều tuân thủ từng chữ của mọi AD nhưng build ra hệ thống không tương thích hoặc sai tiền. Mỗi lỗ hổng đã lý giải lại từ văn bản AD, không suy đoán.
 

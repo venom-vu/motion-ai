@@ -10,7 +10,7 @@ pnpm --filter @motion-ai/api run prisma:migrate:deploy
 
 ## 2. Tạo migration mới có kèm câu lệnh SQL thô (`CHECK`, partial unique index...)
 
-Một số ràng buộc dữ liệu của Motion AI (như `CHECK (balance >= 0)` hoặc chỉ mục duy nhất một phần `CREATE UNIQUE INDEX ... WHERE ...` theo AD-2) không thể khai báo trực tiếp trong `schema.prisma`. Quy trình chuẩn:
+Một số ràng buộc dữ liệu của flowvis (như `CHECK (balance >= 0)` hoặc chỉ mục duy nhất một phần `CREATE UNIQUE INDEX ... WHERE ...` theo AD-2) không thể khai báo trực tiếp trong `schema.prisma`. Quy trình chuẩn:
 
 1. Tạo thư mục migration rỗng (hoặc sinh từ thay đổi schema nhưng chưa áp dụng):
    ```bash

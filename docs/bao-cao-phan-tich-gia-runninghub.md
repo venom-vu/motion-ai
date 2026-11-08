@@ -1,8 +1,8 @@
-# Báo Cáo Toàn Diện: Phân Tích Bảng Giá Mới RunningHub & Tác Động Tới Motion AI
+# Báo Cáo Toàn Diện: Phân Tích Bảng Giá Mới RunningHub & Tác Động Tới flowvis
 
 > **Ngày lập báo cáo:** 07/11/2026  
 > **Tỷ giá tham chiếu:** $1\text{ USD} = 25.500\text{ VNĐ}$  
-> **Mục tiêu:** Bóc tách toàn bộ cơ cấu giá mới của RunningHub, quy đổi chi tiết sang VNĐ, phân tích ưu nhược điểm từng loại phí và xác định chiến lược tối ưu chi phí hạ tầng cho Motion AI.
+> **Mục tiêu:** Bóc tách toàn bộ cơ cấu giá mới của RunningHub, quy đổi chi tiết sang VNĐ, phân tích ưu nhược điểm từng loại phí và xác định chiến lược tối ưu chi phí hạ tầng cho flowvis.
 
 ---
 
@@ -148,14 +148,14 @@ classDiagram
 
 ---
 
-## 4. Tác Động Kinh Tế Trực Tiếp Tới Motion AI (Unit Economics)
+## 4. Tác Động Kinh Tế Trực Tiếp Tới flowvis (Unit Economics)
 
-Hệ thống Motion AI bán credit cho người dùng theo 3 gói nạp VietQR:
+Hệ thống flowvis bán credit cho người dùng theo 3 gói nạp VietQR:
 * **Gói Starter (49.000 VNĐ = 5.000 credit):** Thu **980 VNĐ / 100 credit**.
 * **Gói Pro (99.000 VNĐ = 12.000 credit):** Thu **825 VNĐ / 100 credit**.
 * **Gói Creator (199.000 VNĐ = 30.000 credit):** Thu **663 VNĐ / 100 credit**.
 
-### 4.1. Tác Vụ Ảnh Tĩnh: Face Swap & Body Retouch (Giá bán: 100 credit Motion AI)
+### 4.1. Tác Vụ Ảnh Tĩnh: Face Swap & Body Retouch (Giá bán: 100 credit flowvis)
 * Thời gian xử lý: **3 – 5 giây GPU**.
 
 | Máy chạy trên RunningHub | Giá vốn GPU / ảnh (VNĐ) | Doanh thu tối thiểu (Gói Creator) | Biên lợi nhuận gộp (Gross Margin) | Đánh giá rủi ro |
@@ -169,9 +169,9 @@ Hệ thống Motion AI bán credit cho người dùng theo 3 gói nạp VietQR:
 
 ---
 
-### 4.2. Tác Vụ Video: Motion Control (Giá bán: 50 credit Motion AI / giây video)
+### 4.2. Tác Vụ Video: Motion Control (Giá bán: 50 credit flowvis / giây video)
 * Tiêu hao GPU theo PRD: **1 giây video đầu ra cần ~13 giây GPU**.
-* Doanh thu Motion AI thu về mỗi giây video:
+* Doanh thu flowvis thu về mỗi giây video:
   * Starter: **490,0 VNĐ / giây**
   * Pro: **412,5 VNĐ / giây**
   * Creator: **331,5 VNĐ / giây**
@@ -208,7 +208,7 @@ Hệ thống Motion AI bán credit cho người dùng theo 3 gói nạp VietQR:
    * Không mua subscription hàng tháng Consumer. Nạp tiền trực tiếp vào Ví RunningHub (\$50 – \$100 ban đầu).
    * Hưởng trọn vẹn **100 API Concurrency**, bảo đảm hệ thống không bao giờ bị nghẽn lệnh.
 2. **Tiến hành đo kiểm thực tế tại Pre-launch Benchmark (PRD §12):**
-   * Kiểm tra xem workflow ComfyUI của Motion AI khi chạy tham số mặc định (`instanceType: 'default'`) trên RunningHub sẽ ăn vào máy nào (Standard hay Plus) và tiêu hao thực tế bao nhiêu USD/giây.
+   * Kiểm tra xem workflow ComfyUI của flowvis khi chạy tham số mặc định (`instanceType: 'default'`) trên RunningHub sẽ ăn vào máy nào (Standard hay Plus) và tiêu hao thực tế bao nhiêu USD/giây.
 3. **Kích hoạt "Kế hoạch B" về giá nếu rơi vào máy Plus:**
    * Nếu benchmark xác nhận chạy máy Plus (giá vốn ~108,7 VNĐ/giây video):
      * **Phương án 1:** Nâng biểu phí Motion Control từ **50 lên 60 credit / giây video** (Gói Creator thu 398 VNĐ/s $\rightarrow$ kéo biên gộp lên **72,7%** an toàn).

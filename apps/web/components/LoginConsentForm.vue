@@ -32,7 +32,7 @@ watch(acceptedTos, (accepted) => {
   }
 });
 
-const DEVICE_ID_KEY = 'motion-ai-device-id';
+const DEVICE_ID_KEY = 'flowvis-device-id';
 
 function getDeviceId(): string {
   try {

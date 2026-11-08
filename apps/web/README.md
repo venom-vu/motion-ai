@@ -1,6 +1,6 @@
 # @motion-ai/web — Giao diện Nuxt 4 Mobile-First & Desktop Adaptive (Slate Cyber)
 
-Ứng dụng Frontend của **Motion AI** được xây dựng trên **Nuxt `4.6.3`**, tích hợp hệ màu **Slate Cyber** (Tailwind CSS `3.4.19`), bộ icon vector **Lucide** (`@nuxt/icon` `2.6.2` + `@iconify-json/lucide` `1.2.150`), và client API có kiểu sinh từ gói hợp đồng chung `@motion-ai/contracts`.
+Ứng dụng Frontend của **flowvis** được xây dựng trên **Nuxt `4.6.3`**, tích hợp hệ màu **Slate Cyber** (Tailwind CSS `3.4.19`), bộ icon vector **Lucide** (`@nuxt/icon` `2.6.2` + `@iconify-json/lucide` `1.2.150`), và client API có kiểu sinh từ gói hợp đồng chung `@motion-ai/contracts`.
 
 ## 1. Cấu hình triển khai Cloudflare Pages (`cloudflare-pages`)
 

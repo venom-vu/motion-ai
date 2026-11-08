@@ -1,19 +1,19 @@
 ---
-title: Motion AI
+title: flowvis
 created: 2026-10-31
 updated: 2026-11-01
 status: final
 ---
-# PRD: Motion AI
+# PRD: flowvis
 *Tên tạm — cần xác nhận.*
 
 ## 0. Mục đích tài liệu
-PRD kỹ thuật cho bản MVP thương mại của Motion AI, dành cho PM, người ra quyết định ngân sách và các workflow downstream (UX, kiến trúc, epics). Tài liệu chỉ chuẩn hóa spec và luồng dữ liệu, không chứa code. Cấu trúc: Glossary làm gốc từ vựng, tính năng gom nhóm với FR đánh số toàn cục, giả định gắn thẻ `[ASSUMPTION]` ngay tại chỗ và được tổng hợp ở §10. Chi phí GPU và chi tiết kỹ thuật nằm trong `addendum.md`. Đặc tả thiết kế giao diện & trải nghiệm người dùng hoàn chỉnh (DESIGN.md, EXPERIENCE.md và mockups) nằm tại `_bmad-output/planning-artifacts/ux-designs/ux-motion-ai-2026-11-01/`.
+PRD kỹ thuật cho bản MVP thương mại của flowvis, dành cho PM, người ra quyết định ngân sách và các workflow downstream (UX, kiến trúc, epics). Tài liệu chỉ chuẩn hóa spec và luồng dữ liệu, không chứa code. Cấu trúc: Glossary làm gốc từ vựng, tính năng gom nhóm với FR đánh số toàn cục, giả định gắn thẻ `[ASSUMPTION]` ngay tại chỗ và được tổng hợp ở §10. Chi phí GPU và chi tiết kỹ thuật nằm trong `addendum.md`. Đặc tả thiết kế giao diện & trải nghiệm người dùng hoàn chỉnh (DESIGN.md, EXPERIENCE.md và mockups) nằm tại `_bmad-output/planning-artifacts/ux-designs/ux-motion-ai-2026-11-01/`.
 
 ## 1. Tầm nhìn
-Motion AI là web responsive (ưu tiên mobile web) cho phép người dùng Việt Nam tạo ảnh/video AI chỉ bằng một lần bấm: ghép khuôn mặt, chỉnh dáng cơ thể, và điều khiển chuyển động nhân vật theo video mẫu. Việc xử lý chạy trên RunningHub qua API, không giữ server GPU nhàn rỗi.
+flowvis là web responsive (ưu tiên mobile web) cho phép người dùng Việt Nam tạo ảnh/video AI chỉ bằng một lần bấm: ghép khuôn mặt, chỉnh dáng cơ thể, và điều khiển chuyển động nhân vật theo video mẫu. Việc xử lý chạy trên RunningHub qua API, không giữ server GPU nhàn rỗi.
 
-Hiện nay người dùng phải thuê làm ngoài (30.000–100.000 VNĐ/ảnh, 50.000–150.000 VNĐ/clip) hoặc dùng app nước ngoài không có thanh toán nội địa. Motion AI trả kết quả trong vài chục giây đến vài phút, trả bằng credit nạp qua VietQR.
+Hiện nay người dùng phải thuê làm ngoài (30.000–100.000 VNĐ/ảnh, 50.000–150.000 VNĐ/clip) hoặc dùng app nước ngoài không có thanh toán nội địa. flowvis trả kết quả trong vài chục giây đến vài phút, trả bằng credit nạp qua VietQR.
 
 MVP là một phép thử thương mại: kiểm chứng mức sẵn sàng chi trả với ngân sách GPU tối đa USD 50–100.
 

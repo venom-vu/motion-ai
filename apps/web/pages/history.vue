@@ -18,7 +18,7 @@ const { isAuthenticated, sessionChecked } = useAuth();
 const { open: openAuthDialog } = useAuthDialog();
 
 const ledgerAsync = useAsyncData<WalletLedgerResponse>(
-  'motion-ai-wallet-ledger',
+  'flowvis-wallet-ledger',
   () => client.getWalletLedger({ pageSize: 20 }),
 );
 
@@ -62,7 +62,7 @@ watch(accessToken, (newToken, oldToken) => {
   // Chỉ làm mới khi trạng thái đăng nhập đổi; xoay vòng token không được xóa các trang đã cuộn.
   if (Boolean(newToken) !== Boolean(oldToken)) {
     if (!newToken) {
-      clearNuxtData('motion-ai-wallet-ledger');
+      clearNuxtData('flowvis-wallet-ledger');
       pagination.reset();
     }
     if (ledgerAsync.pending.value) {

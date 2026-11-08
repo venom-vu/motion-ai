@@ -8,13 +8,13 @@ sources:
 updated: 2026-11-01
 ---
 
-# Motion AI — Experience Spine (EXPERIENCE.md)
+# flowvis — Experience Spine (EXPERIENCE.md)
 
 > Bản hợp đồng trải nghiệm người dùng (_hoạt động ra sao_: kiến trúc thông tin, hành vi linh kiện, quy tắc trạng thái, tương tác và các hành trình nhân vật). Tài liệu này tham chiếu các token thị giác từ `DESIGN.md` qua cú pháp `{path.to.token}`. Cả hai tài liệu là chuẩn cao nhất khi có xung đột với bất kỳ mockup nào.
 
 ## Foundation
 
-**Motion AI** là ứng dụng web di động hướng tới sự tinh gọn (**Mobile-First Responsive Web**), phát triển trên nền tảng **Nuxt 4 (Vue 3, Vite, Tailwind CSS, shadcn-vue)** và triển khai trên Cloudflare Pages.
+**flowvis** là ứng dụng web di động hướng tới sự tinh gọn (**Mobile-First Responsive Web**), phát triển trên nền tảng **Nuxt 4 (Vue 3, Vite, Tailwind CSS, shadcn-vue)** và triển khai trên Cloudflare Pages.
 
 - **Môi trường hoạt động:** Tối ưu hóa theo kiến trúc **Mobile-First kết hợp Full Desktop Adaptive**: mượt mà trên trình duyệt di động (Safari iOS, Chrome Android từ `{breakpoints.mobile}` 360px với vùng thao tác trong **Thumb Zone**), đồng thời trên màn hình máy tính (`>= {breakpoints.desktop}` 1024px) sử dụng **Top Header + Kho Thẻ Tính Năng Có Ảnh Minh Họa toàn màn hình** (không dùng Sidebar cho User, mở rộng thoải mái lên hàng chục tính năng AI; khi click vào một thẻ tính năng sẽ mở **Dialog làm việc** của tính năng đó). Riêng trang Admin (`/admin`) dùng Sidebar tối giản phong cách Vercel.
 - **Hệ thống thiết kế:** Kế thừa bộ khung linh kiện của shadcn-vue, áp dụng lớp nhận diện thương hiệu từ `DESIGN.md` (bảng màu `{colors.bg-base}` và điểm nhấn `{colors.primary}`, `{colors.accent}`).
@@ -32,7 +32,7 @@ Hệ thống bao gồm 8 màn hình / bề mặt tương tác cốt lõi (thích
 | **Modal Nạp Nhanh VietQR** | Popup tại chỗ khi thiếu credit hoặc bấm Nạp | `lucide:zap` | Hiển thị mã VietQR động với đúng số tiền và cú pháp `NAP <MÃ_GIAO_DỊCH>`, bộ đếm ngược 15 phút (`lucide:clock`), nút xác nhận "Tôi đã chuyển khoản". Giữ nguyên dữ liệu form đang làm dở. → [vietqr-modal.html](file:///Users/huy_vq/Desktop/motion-ai/_bmad-output/planning-artifacts/ux-designs/ux-motion-ai-2026-11-01/mockups/vietqr-modal.html) |
 | **Lịch Sử Tác Vụ** | `/tasks` (Nav: Lịch sử) | `lucide:history` | Danh sách ảnh/video đã tạo (phân trang/cuộn vô tận), thẻ trạng thái `Đang tạo...`, `Hoàn thành`, `Thất bại (Đã hoàn credit)`. Mobile: 1–2 cột; Desktop: lưới 3–4 cột. |
 | **Bảng Giá & Gói Cước** | `/pricing` (Nav: Gói cước) | `lucide:credit-card` | Bảng so sánh 4 gói cước (FREE 0đ, Starter 49k, Pro 99k, Creator 199k), thể hiện rõ thời lượng video tối đa (5s - 10s - 15s - 20s) và mức độ ưu tiên hàng đợi. Desktop dàn ngang 4 thẻ gói cước song song. |
-| **Trang Chia Sẻ Ngoài** | `/share/:token` (Mở từ link ngoài) | `lucide:share-2` | Trang xem nhanh ảnh/video render, crawler-friendly với Open Graph tags cho Zalo/Facebook, kèm nút kêu gọi "Thử tạo video tương tự miễn phí trên Motion AI". |
+| **Trang Chia Sẻ Ngoài** | `/share/:token` (Mở từ link ngoài) | `lucide:share-2` | Trang xem nhanh ảnh/video render, crawler-friendly với Open Graph tags cho Zalo/Facebook, kèm nút kêu gọi "Thử tạo video tương tự miễn phí trên flowvis". |
 | **Tài Khoản & Pháp Lý** | `/profile` (Nav: Tôi) | `lucide:user` | Thông tin Google OAuth, số dư credit khả dụng, lịch sử biến động sổ cái, link Điều khoản dịch vụ (`/terms`), Chính sách bảo mật (`/privacy`), nút "Báo cáo vi phạm". |
 | **Quản Trị & Vận Hành Admin** | `/admin` (Chỉ hiển thị cho role `admin`) | `lucide:shield-check` | Giao diện tối giản **phong cách Vercel** với Left Sidebar đơn giản (`220px`), hàng 4 ô chỉ số kỹ thuật và bảng duyệt đơn nạp VietQR (nhập `bank_ref` duy nhất), giám sát ngắt mạch, số dư RunningHub, khóa tài khoản, gỡ nội dung R2 và nhật ký `admin_audit`. → Desktop: [desktop-vietqr-admin.html](file:///Users/huy_vq/Desktop/motion-ai/_bmad-output/planning-artifacts/ux-designs/ux-motion-ai-2026-11-01/mockups/desktop-vietqr-admin.html) |
 
@@ -116,7 +116,7 @@ Toàn bộ thông điệp giao diện (Microcopy) sử dụng tiếng Việt t�
 
 ### Flow 1: Linh (22t, TikToker) — Ghép mặt 1 chạm theo trend
 
-1. **Khởi động:** Linh mở link Motion AI từ bio TikTok trên điện thoại Safari, thấy giao diện Studio Dark Studio hiện đại.
+1. **Khởi động:** Linh mở link flowvis từ bio TikTok trên điện thoại Safari, thấy giao diện Studio Dark Studio hiện đại.
 2. **Thao tác:** Chọn tab "Ghép mặt" (`lucide:scan-face`), tải 1 ảnh selfie chụp góc thẳng và 1 ảnh meme/trend đang hot trên mạng.
 3. **Xác nhận:** Thấy nhãn "Chi phí: 100 credit", tick chọn cam kết điều khoản (`lucide:check`) và bấm nút tím "Tạo ảnh ghép mặt".
 4. **Trải nghiệm chờ:** Hệ thống báo "Đang biến hóa... (khoảng 30s)", tài khoản giữ 100 credit.
@@ -124,7 +124,7 @@ Toàn bộ thông điệp giao diện (Microcopy) sử dụng tiếng Việt t�
 
 ### Flow 2: Hà (28t, Chủ shop thời trang online) — Chỉnh dáng & Trượt so sánh Before/After
 
-1. **Khởi động:** Hà vào Motion AI trên điện thoại để chỉnh loạt ảnh mẫu lookbook vừa chụp ở studio nhưng cần bóp nhẹ vòng eo để tôn phom đầm.
+1. **Khởi động:** Hà vào flowvis trên điện thoại để chỉnh loạt ảnh mẫu lookbook vừa chụp ở studio nhưng cần bóp nhẹ vòng eo để tôn phom đầm.
 2. **Thao tác:** Vào tab "Chỉnh dáng" (`lucide:sparkles`), tải ảnh người mẫu toàn thân, kéo nhẹ thanh trượt Body Retouch lên mức 5 ("Tự nhiên").
 3. **Thực thi:** Bấm nút "Tạo ảnh chỉnh dáng (100 cr)".
 4. **Đỉnh điểm (Climax Beat):** Màn hình hiển thị kết quả với **Thanh trượt chia đôi Before/After** (`lucide:arrow-left-right`). Hà dùng ngón tay cái vuốt qua vuốt lại, ngạc nhiên thấy vòng eo thon gọn tự nhiên mà đường vân vải và nền gạch phía sau không hề bị méo mó.
@@ -140,7 +140,7 @@ Toàn bộ thông điệp giao diện (Microcopy) sử dụng tiếng Việt t�
 
 ### Flow 4: Nam (Người dùng mới) — Nhận 500 cr trải nghiệm & Đăng ký Google
 
-1. **Khởi động:** Nam truy cập qua link chia sẻ của bạn bè `/share/tk_dance99`, ấn tượng với chất lượng video và bấm nút "Thử tạo video tương tự miễn phí trên Motion AI".
+1. **Khởi động:** Nam truy cập qua link chia sẻ của bạn bè `/share/tk_dance99`, ấn tượng với chất lượng video và bấm nút "Thử tạo video tương tự miễn phí trên flowvis".
 2. **Đăng ký:** Nam đăng nhập 1 chạm qua Google OAuth, nhận ngay 500 credit khởi nghiệp vào ví.
 3. **Sáng tạo:** Nam tạo thử 1 ảnh Face Swap (100 cr) và 1 video Motion 5s (250 cr), hài lòng tuyệt đối với tốc độ và giao diện tiếng Việt dễ hiểu.
 4. **Gắn bó:** Khi nhận thấy hệ thống minh bạch tài chính (hoàn tiền nếu lỗi, không ép mua gói đắt), Nam lưu trang web vào màn hình chính điện thoại (Add to Home Screen) để sử dụng lâu dài.

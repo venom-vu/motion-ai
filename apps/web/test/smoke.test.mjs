@@ -3396,7 +3396,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
         );
         assert.match(successHtml, /data-testid="share-success-view"/);
         assert.match(successHtml, /data-testid="share-result-image"/);
-        assert.match(successHtml, /data-testid="try-motion-ai-button"/);
+        assert.match(successHtml, /data-testid="try-flowvis-button"/);
         assert.match(successHtml, /href="\/"/);
         assert.match(successHtml, /data-testid="download-share-image-button"/);
         assert.match(successHtml, /Tải ảnh HD/);
@@ -3422,7 +3422,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
         assert.match(notFoundHtml, /data-testid="share-not-found-view"/);
         assert.match(notFoundHtml, /Liên kết không còn tồn tại/);
         assert.match(notFoundHtml, /data-testid="back-home-button"/);
-        assert.match(sharePageSfc, /Về trang chủ Motion AI/);
+        assert.match(sharePageSfc, /Về trang chủ flowvis/);
         assert.doesNotMatch(notFoundHtml, /data-testid="share-success-view"/);
         assert.doesNotMatch(notFoundHtml, /data-testid="share-result-image"/);
 

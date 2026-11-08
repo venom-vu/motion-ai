@@ -25,7 +25,7 @@ review_loop_iteration: 0
   - Chế độ live: SSR fetch kiểm tra `GET /s/<token>` từ API backend (`NUXT_PUBLIC_API_BASE_URL` hoặc cấu hình runtime) bằng phương thức `HEAD` kết hợp `redirect: 'manual'` để xác định tính hợp lệ của token mà không tự động chuyển hướng sang presigned URL của R2.
   - Phân định rõ trạng thái không tìm thấy (404 / token sai định dạng) và trạng thái bị giới hạn tần suất (429 `RATE_LIMITED` từ `ShareThrottlerGuard`).
   - Khi token không tồn tại hoặc đã thu hồi, gọi `setResponseStatus(event, 404, 'Not Found')` trong SSR, hiển thị giao diện thông báo "Liên kết không còn tồn tại", bổ sung `<meta name="robots" content="noindex, nofollow">` và lược bỏ thẻ `og:image`.
-  - Thẻ Open Graph SSR: `og:site_name: 'Motion AI'`, `og:type: 'website'`, `og:title`, `og:description`, `og:image` (trỏ tới `${apiBaseUrl}/s/${token}`), `og:url` (sử dụng `useRequestURL().origin`), `twitter:card: 'summary_large_image'`.
+  - Thẻ Open Graph SSR: `og:site_name: 'flowvis'`, `og:type: 'website'`, `og:title`, `og:description`, `og:image` (trỏ tới `${apiBaseUrl}/s/${token}`), `og:url` (sử dụng `useRequestURL().origin`), `twitter:card: 'summary_large_image'`.
   - Giao diện Slate Cyber chuẩn mực: tông màu `cyber-surface`, `cyber-bg`, `cyber-border`, `cyber-cyan`, `cyber-text`, `cyber-muted`, zero emoji trong UI chrome, vùng chạm tối thiểu 48px, không lộ bất kỳ thông tin nào của chủ Task. Nút CTA điều hướng về trang chủ studio `/`.
   - Hỗ trợ tải ảnh HD (fetch blob kiểm tra `res.ok` trước khi tải), sao chép liên kết chia sẻ (tích hợp Web Share API và clipboard với thông báo tự động ẩn sau 3 giây, hỗ trợ `role="status"` và `aria-live="polite"`).
 - Cập nhật trang `apps/web/pages/tasks/[id].vue`: bảo đảm `handleShare()` truyền đúng `webShareUrl` (`${window.location.origin}/share/${res.token}`) cho cả `navigator.share()` và clipboard, đồng thời dùng tên pipeline động tiếng Việt.
@@ -38,7 +38,7 @@ review_loop_iteration: 0
 - Finding 3 ($fetch.raw HEAD followed 302 into R2 presigned GET causing 403 SignatureDoesNotMatch): `patch` — Đã thêm `redirect: 'manual'` trong `pages/share/[token].vue` để giữ nguyên phản hồi 302 từ API.
 - Finding 4 (HTTP 429 rate limit grouped into notFound): `patch` — Đã tách biệt trạng thái `isRateLimited` và thêm giao diện cảnh báo thử lại khi bị giới hạn tần suất.
 - Finding 5 (watchEffect skipped when asyncError present): `patch` — Đã cập nhật `watchEffect` xử lý `asyncError.value` đặt `notFound: true`.
-- Finding 6 (Missing og:type and og:site_name): `patch` — Đã bổ sung `og:type: 'website'` và `og:site_name: 'Motion AI'`.
+- Finding 6 (Missing og:type and og:site_name): `patch` — Đã bổ sung `og:type: 'website'` và `og:site_name: 'flowvis'`.
 - Finding 7 (Dead og:image and missing robots: noindex on 404): `patch` — Đã bỏ `og:image` trên 404 và gắn `<meta name="robots" content="noindex, nofollow">`.
 - Finding 8 (Hardcoded domain in ogUrl): `patch` — Đã sử dụng `useRequestURL().origin` kết hợp `window.location.origin` linh hoạt cho dev/staging/prod.
 - Finding 9 (Missing res.ok check in handleDownload): `patch` — Đã bổ sung kiểm tra `res.ok` trước khi chuyển blob và tải file.

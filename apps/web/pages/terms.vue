@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { TOS_VERSION } from '@motion-ai/contracts';
 
-useHead({ title: 'Điều khoản dịch vụ - Motion AI' });
+useHead({ title: 'Điều khoản dịch vụ - flowvis' });
 </script>
 
 <template>
@@ -17,7 +17,7 @@ useHead({ title: 'Điều khoản dịch vụ - Motion AI' });
     <section class="space-y-2">
       <h2 class="font-semibold text-cyber-text">1. Điều kiện sử dụng</h2>
       <p>
-        Bạn xác nhận đủ 18 tuổi trở lên khi tạo tài khoản và sử dụng Motion AI.
+        Bạn xác nhận đủ 18 tuổi trở lên khi tạo tài khoản và sử dụng flowvis.
         Việc đồng ý Điều khoản được ghi nhận một lần khi đăng nhập; khi Điều
         khoản thay đổi phiên bản, bạn sẽ được yêu cầu đồng ý lại.
       </p>

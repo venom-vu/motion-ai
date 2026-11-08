@@ -414,7 +414,7 @@ const MOCK_TOPUP_BASE = {
   credits: 12_000,
   bankCode: '970436',
   accountNumber: '0123456789',
-  accountName: 'CONG TY MOTION AI',
+  accountName: 'CONG TY FLOWVIS',
   qrExpiresAt: '2026-11-07T03:15:00.000Z',
   createdAt: '2026-11-07T03:00:00.000Z',
   updatedAt: '2026-11-07T03:00:00.000Z',

@@ -7,7 +7,7 @@ import { useAuthDialog } from '~/composables/useAuthDialog';
 import { resolveApiErrorMessageVi } from '~/utils/api-client';
 
 useHead({
-  title: 'Hoán Đổi Khuôn Mặt (Face Swap) — Motion AI',
+  title: 'Hoán Đổi Khuôn Mặt (Face Swap) — flowvis',
   meta: [
     {
       name: 'description',

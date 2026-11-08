@@ -1,10 +1,10 @@
 ---
-name: Motion AI
+name: flowvis
 type: architecture-spine
 purpose: build-substrate
 altitude: initiative
 paradigm: modular monolith, ports-and-adapters, DB-authoritative state machine
-scope: Motion AI MVP, whole system (web FE, API, worker, data, RunningHub integration, hosting)
+scope: flowvis MVP, whole system (web FE, API, worker, data, RunningHub integration, hosting)
 status: final
 created: 2026-11-01
 updated: 2026-11-01
@@ -16,7 +16,7 @@ companions:
   - _bmad-output/planning-artifacts/ux-designs/ux-motion-ai-2026-11-01/DESIGN.md
   - _bmad-output/planning-artifacts/ux-designs/ux-motion-ai-2026-11-01/EXPERIENCE.md
 ---
-# Architecture Spine — Motion AI
+# Architecture Spine — flowvis
 
 ## Design Paradigm
 **Modular monolith, ports-and-adapters**, một codebase NestJS chạy hai entrypoint (`api`, `worker`). Trạng thái Task và sổ cái credit nằm trong PostgreSQL và là nguồn sự thật duy nhất; Redis/BullMQ chỉ là phương tiện điều phối, mất đi vẫn dựng lại được từ DB.
