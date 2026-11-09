@@ -259,6 +259,11 @@ describe('@flowvis/web — Story 4.4 Trang Body Retouch và thanh mức điều 
         const runningHtml = await renderCard(MOCK_BODY_RETOUCH_TASK_RUNNING);
         assert.match(runningHtml, /data-testid="task-running-state"/);
         assert.match(runningHtml, /Đang xử lý Chỉnh sửa vóc dáng\.\.\./);
+        assert.match(
+          runningHtml,
+          /AI đang phân tích tỷ lệ cơ thể và tinh chỉnh vóc dáng theo mức độ đã chọn/,
+        );
+        assert.doesNotMatch(runningHtml, /phân tích khuôn mặt/);
         assert.doesNotMatch(runningHtml, /data-testid="cancel-task-button"/);
 
         // 3. Succeeded: hiển thị tiêu đề theo prop pipelineLabelVi ("Chỉnh sửa vóc dáng thành công!")
@@ -1040,9 +1045,13 @@ describe('@flowvis/web — Story 4.4 Trang Body Retouch và thanh mức điều 
       assert.match(bodyRetouchRaw, /cyber-violet/);
       assert.match(bodyRetouchRaw, /Icon name="lucide:/);
       assert.match(bodyRetouchRaw, /:aria-valuetext="intensityLabelVi"/);
+      assert.match(bodyRetouchRaw, /role="alert"/);
+      assert.match(bodyRetouchRaw, /aria-live="assertive"/);
 
       const fwdRaw = read('components/FeatureWorkspaceDialog.vue');
       assert.match(fwdRaw, /:aria-valuetext="intensityLabelVi"/);
+      assert.match(fwdRaw, /role="alert"/);
+      assert.match(fwdRaw, /aria-live="assertive"/);
     });
   });
 });

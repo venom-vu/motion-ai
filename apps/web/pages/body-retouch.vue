@@ -330,6 +330,8 @@ function handleReset(): void {
       <div
         v-if="submitErrorVi"
         data-testid="submit-error-banner"
+        role="alert"
+        aria-live="assertive"
         class="rounded-xl border border-cyber-danger/40 bg-cyber-danger/10 p-4 text-xs text-cyber-danger"
       >
         <div class="flex items-center gap-2">

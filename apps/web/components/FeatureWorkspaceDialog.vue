@@ -479,6 +479,8 @@ onBeforeUnmount(() => {
           <div
             v-if="submitErrorVi"
             data-testid="workspace-submit-error-banner"
+            role="alert"
+            aria-live="assertive"
             class="rounded-xl border border-cyber-danger/40 bg-cyber-danger/10 p-3 text-xs text-cyber-danger"
           >
             {{ submitErrorVi }}

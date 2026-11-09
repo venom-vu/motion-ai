@@ -302,8 +302,11 @@ onBeforeUnmount(() => {
       </div>
 
       <p class="text-xs leading-relaxed text-cyber-muted sm:text-sm">
-        AI đang phân tích khuôn mặt, căn chỉnh góc xoay và tái tạo biểu cảm chi
-        tiết. Quá trình này thường diễn ra trong khoảng 10–25 giây.
+        {{
+          localTask?.pipeline === 'body_retouch'
+            ? 'AI đang phân tích tỷ lệ cơ thể và tinh chỉnh vóc dáng theo mức độ đã chọn. Quá trình này thường diễn ra trong khoảng 10–25 giây.'
+            : 'AI đang phân tích khuôn mặt, căn chỉnh góc xoay và tái tạo biểu cảm chi tiết. Quá trình này thường diễn ra trong khoảng 10–25 giây.'
+        }}
       </p>
 
       <div
