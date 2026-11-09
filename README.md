@@ -61,6 +61,10 @@ pnpm run check:boundaries
 
 Ba kịch bản smoke Face Swap (thành công, `NO_FACE`, quá hạn 180 giây được tăng tốc) nằm trong `apps/api/test/smoke-face-swap.test.mjs`, chạy bằng `RUN_COMPOSE_E2E=1 pnpm --filter @flowvis/api test` (cần Docker). RunningHub và R2 được giả trong tiến trình test, chỉ bật khi `NODE_ENV=test`. SLA 60 giây được đo ở benchmark Epic 6, không phải ở đây. Chi tiết: `deploy/README.md`.
 
+## Smoke test Body Retouch (Story 4.6)
+
+Smoke `apps/api/test/smoke-body-retouch.test.mjs` chạy bằng `RUN_COMPOSE_E2E=1 pnpm --filter @flowvis/api test` (cần Docker). Bốn kịch bản: thành công `intensity` 8, `NO_POSE`, chạy chung hàng đợi với Face Swap (không quá 2 đồng thời), ảnh gốc hết hạn (`sourceUrl` là `null`), rồi đối soát. Smoke chỉ gọi HTTP API thật, không đo SLA 60 giây (thuộc Epic 6). Lưu ý: ít nhất một ảnh nhạy cảm trong 1-2 ảnh của benchmark Epic 6 phải chạy qua Body Retouch (pipeline dễ chạm bộ lọc nội dung, ánh xạ `CONTENT_BLOCKED` do Epic 6 điền). Chi tiết: `deploy/README.md`.
+
 ## Chạy thử toàn bộ Epic 1 (FE nối BE) và smoke test đăng nhập
 
 FE chỉ có một chế độ `live` (không có chế độ mock). "Mock" là các hằng `MOCK_*` trong `packages/contracts`; smoke test kiểm tra chúng khớp schema và khớp hình dạng phản hồi BE thật.

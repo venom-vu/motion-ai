@@ -45,6 +45,10 @@ Script đặt CORS chỉ cho `FRONTEND_URL` (PUT/GET/HEAD) và lifecycle: `in-ra
 
 Presigned PUT ký kèm `Content-Type` và `Content-Length`: client phải PUT đúng `Content-Type` trả về trong `headers` và body có độ dài đúng bằng `sizeBytes` đã khai báo (không dùng chunked/stream), nếu không R2 trả 403.
 
+## Smoke test Body Retouch (Story 4.6)
+
+`apps/api/test/smoke-body-retouch.test.mjs` dựng stack bốn container (project `flowvis-smoke-bd`, api `3105`, Postgres `15436`, Redis `16383`); RunningHub giả (`3197`), S3/R2 giả (`3198`), Google giả (`3199`) chạy trong tiến trình test. Chạy: `RUN_COMPOSE_E2E=1 pnpm --filter @flowvis/api test`. Kịch bản: thành công `intensity` 8 (500 -> 400, RH nhận `smoke-workflow-body-reshape` với node `10/image` và `20/intensity` = `8`, `/result` có `sourceUrl`), `NO_POSE` (failed, RELEASED, thông báo Body Retouch), chung hàng đợi với Face Swap (không quá 2 Task đồng thời, mỗi Task một HOLD và một CAPTURED), ảnh gốc hết hạn (xóa đối tượng `in/` khỏi S3 giả nên `sourceUrl` là `null`), rồi `reconcile.js`. Benchmark Epic 6 phải có ít nhất một ảnh nhạy cảm chạy qua Body Retouch.
+
 ## Smoke test nạp tiền (Story 3.8)
 
 `apps/api/test/smoke-topup.test.mjs` dựng stack bốn container (project `flowvis-smoke-tp`, api `3104`, Postgres `15435`, Redis `16382`). Google giả (cổng `3199`) và Discord webhook giả (cổng `3196`) chạy trong tiến trình test. Chạy: `RUN_COMPOSE_E2E=1 pnpm --filter @flowvis/api test` (cần Docker). Kịch bản: đường thành công (Discord nhận đúng 1 thông báo, +12.000 credit, Tier Pro, đúng 1 dòng `TOPUP`), `bank_ref` trùng, xác nhận lúc 23:30 giờ VN (`approve_by` 08:15 hôm sau, quá hạn QR vẫn `pending`), QR hết hạn (`expired`, `TOPUP_QR_EXPIRED`), hai Admin duyệt song song, rồi `reconcile.js`.
