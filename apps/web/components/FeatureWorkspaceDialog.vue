@@ -6,7 +6,16 @@ import TaskProgressCard from '~/components/TaskProgressCard.vue';
 import { useApiClient } from '~/composables/useApiClient';
 import { useAuthDialog } from '~/composables/useAuthDialog';
 import { usePricingConfig } from '~/composables/usePricingConfig';
-import { resolveApiErrorMessageVi } from '~/utils/api-client';
+import {
+  ApiErrorCode,
+  INTENSITY_DEFAULT,
+  INTENSITY_LABEL_ZONES,
+  INTENSITY_MAX,
+  INTENSITY_MIN,
+  IntensitySchema,
+  getIntensityLabelVi,
+  resolveApiErrorMessageVi,
+} from '~/utils/api-client';
 import {
   calculateFeatureEstimatedCredits,
   formatNumberVi,
@@ -36,6 +45,7 @@ const emit = defineEmits<{
       uploadedKey?: string | null;
       sourceKey?: string | null;
       targetKey?: string | null;
+      intensity?: number;
     },
   ];
 }>();
@@ -46,12 +56,21 @@ const { refreshAll } = usePricingConfig();
 
 const compareSplitPercent = ref<number>(50);
 const selectedSeconds = ref<number>(1);
+const intensity = ref<number>(INTENSITY_DEFAULT);
 const uploadedKey = ref<string | null>(null);
 const sourceKey = ref<string | null>(null);
 const targetKey = ref<string | null>(null);
 const activeTask = ref<Task | null>(null);
 const isSubmitting = ref<boolean>(false);
 const submitErrorVi = ref<string | null>(null);
+
+const intensityLabelVi = computed<string>(
+  () => getIntensityLabelVi(intensity.value) ?? 'Tự nhiên',
+);
+
+const isValidIntensity = computed<boolean>(
+  () => IntensitySchema.safeParse(intensity.value).success,
+);
 
 const maxSeconds = computed<number>(() => {
   return props.feature?.tierCapSeconds ?? 1;
@@ -61,6 +80,7 @@ watch(
   () => props.feature,
   (nextFeature) => {
     compareSplitPercent.value = 50;
+    intensity.value = INTENSITY_DEFAULT;
     uploadedKey.value = null;
     sourceKey.value = null;
     targetKey.value = null;
@@ -82,14 +102,24 @@ watch(
       document.body.style.overflow = isOpen ? 'hidden' : '';
     }
     if (!isOpen) {
+      intensity.value = INTENSITY_DEFAULT;
       uploadedKey.value = null;
       sourceKey.value = null;
       targetKey.value = null;
-        activeTask.value = null;
+      activeTask.value = null;
       submitErrorVi.value = null;
     }
   },
   { immediate: true },
+);
+
+// Xóa lỗi cũ khi người dùng thay đổi dữ liệu đầu vào hoặc mức intensity
+watch(
+  [uploadedKey, sourceKey, targetKey, intensity],
+  () => {
+    submitErrorVi.value = null;
+  },
+  { flush: 'sync' },
 );
 
 const isAuthenticated = computed<boolean>(() => {
@@ -120,11 +150,25 @@ const canSubmit = computed<boolean>(() => {
   if (props.feature?.id === 'face-swap') {
     return Boolean(sourceKey.value && targetKey.value);
   }
+  if (props.feature?.id === 'body-retouch') {
+    return Boolean(uploadedKey.value && isValidIntensity.value);
+  }
   return Boolean(uploadedKey.value);
 });
 
 async function handleSubmit(): Promise<void> {
-  if (!props.feature || !canSubmit.value || isSubmitting.value) {
+  if (!props.feature || isSubmitting.value) {
+    return;
+  }
+
+  if (props.feature.id === 'body-retouch' && !isValidIntensity.value) {
+    submitErrorVi.value = resolveApiErrorMessageVi(
+      ApiErrorCode.VALIDATION_FAILED,
+    );
+    return;
+  }
+
+  if (!canSubmit.value) {
     return;
   }
 
@@ -144,6 +188,29 @@ async function handleSubmit(): Promise<void> {
         estimatedCredits: estimatedCredits.value,
         sourceKey: sourceKey.value,
         targetKey: targetKey.value,
+      });
+    } catch (error: unknown) {
+      submitErrorVi.value = resolveApiErrorMessageVi(error);
+    } finally {
+      isSubmitting.value = false;
+    }
+  } else if (props.feature.id === 'body-retouch') {
+    isSubmitting.value = true;
+    submitErrorVi.value = null;
+    try {
+      const parsedIntensity = IntensitySchema.parse(intensity.value);
+      const task = await client.createBodyRetouchTask({
+        imageKey: uploadedKey.value!,
+        intensity: parsedIntensity,
+      });
+      activeTask.value = task;
+      void refreshAll();
+      emit('submit', {
+        featureId: props.feature.id,
+        seconds: selectedSeconds.value,
+        estimatedCredits: estimatedCredits.value,
+        uploadedKey: uploadedKey.value,
+        intensity: parsedIntensity,
       });
     } catch (error: unknown) {
       submitErrorVi.value = resolveApiErrorMessageVi(error);
@@ -224,9 +291,10 @@ onBeforeUnmount(() => {
 
         <div class="flex items-center gap-2">
           <NuxtLink
-            v-if="feature.id === 'face-swap'"
-            to="/face-swap"
-            class="touch-target hidden items-center gap-1.5 rounded-xl border border-cyber-border bg-cyber-bg px-3 py-2 text-xs font-semibold text-cyber-muted transition hover:border-cyber-cyan hover:text-cyber-cyan sm:inline-flex"
+            v-if="feature.id === 'face-swap' || feature.id === 'body-retouch'"
+            :to="feature.id === 'body-retouch' ? '/body-retouch' : '/face-swap'"
+            data-testid="workspace-open-standalone-link"
+            class="touch-target inline-flex min-h-[48px] items-center gap-1.5 rounded-xl border border-cyber-border bg-cyber-bg px-3 py-2 text-xs font-semibold text-cyber-muted transition hover:border-cyber-cyan hover:text-cyber-cyan"
             @click="emit('close')"
           >
             <Icon name="lucide:maximize-2" class="h-3.5 w-3.5" />
@@ -249,7 +317,11 @@ onBeforeUnmount(() => {
       <div v-if="activeTask" class="p-4 sm:p-6">
         <TaskProgressCard
           :task="activeTask"
-          pipeline-label-vi="Hoán đổi khuôn mặt"
+          :pipeline-label-vi="
+            feature.id === 'body-retouch'
+              ? 'Chỉnh sửa vóc dáng'
+              : 'Hoán đổi khuôn mặt'
+          "
           @update:task="activeTask = $event"
           @retry="activeTask = null"
           @completed="void refreshAll()"
@@ -340,9 +412,73 @@ onBeforeUnmount(() => {
             />
           </div>
 
+          <!-- Thanh trượt mức điều chỉnh vóc dáng (Body Retouch: intensity 1..10, bước 1, mặc định 5) -->
+          <div
+            v-if="feature.id === 'body-retouch'"
+            data-testid="workspace-intensity-section"
+            class="space-y-3 rounded-xl border border-cyber-border bg-cyber-bg/60 p-4"
+          >
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <label
+                for="workspace-intensity-range"
+                class="flex items-center gap-2 text-sm font-semibold text-cyber-text"
+              >
+                <Icon name="lucide:sliders-horizontal" class="h-4 w-4 text-cyber-cyan" />
+                <span>Mức điều chỉnh vóc dáng</span>
+              </label>
+              <span
+                data-testid="workspace-intensity-badge"
+                class="inline-flex items-center gap-1.5 rounded-full border border-cyber-cyan/40 bg-cyber-cyan/15 px-3 py-1 font-mono text-xs font-bold text-cyber-cyan"
+              >
+                <span data-testid="workspace-intensity-value">Mức {{ intensity }}/{{ INTENSITY_MAX }}</span>
+                <span>•</span>
+                <span data-testid="workspace-intensity-label">{{ intensityLabelVi }}</span>
+              </span>
+            </div>
+
+            <input
+              id="workspace-intensity-range"
+              v-model.number="intensity"
+              type="range"
+              :min="INTENSITY_MIN"
+              :max="INTENSITY_MAX"
+              step="1"
+              data-testid="workspace-intensity-slider"
+              aria-label="Mức điều chỉnh vóc dáng từ 1 đến 10"
+              :aria-valuenow="intensity"
+              :aria-valuemin="INTENSITY_MIN"
+              :aria-valuemax="INTENSITY_MAX"
+              :aria-valuetext="intensityLabelVi"
+              class="touch-target min-h-[48px] w-full cursor-pointer accent-cyber-cyan"
+            />
+
+            <div
+              data-testid="workspace-intensity-zones"
+              class="grid grid-cols-3 gap-2 text-center text-[11px]"
+            >
+              <div
+                v-for="zone in INTENSITY_LABEL_ZONES"
+                :key="zone.label"
+                :data-testid="`workspace-intensity-zone-${zone.min}-${zone.max}`"
+                class="rounded-lg border px-2 py-1.5 transition"
+                :class="[
+                  intensity >= zone.min && intensity <= zone.max
+                    ? 'border-cyber-cyan/50 bg-cyber-cyan/15 font-semibold text-cyber-cyan'
+                    : 'border-cyber-border/60 bg-cyber-surface/40 text-cyber-muted',
+                ]"
+              >
+                <div class="font-mono text-[10px]">
+                  {{ zone.min }}–{{ zone.max }}
+                </div>
+                <div>{{ zone.label }}</div>
+              </div>
+            </div>
+          </div>
+
           <!-- Banner lỗi nếu có -->
           <div
             v-if="submitErrorVi"
+            data-testid="workspace-submit-error-banner"
             class="rounded-xl border border-cyber-danger/40 bg-cyber-danger/10 p-3 text-xs text-cyber-danger"
           >
             {{ submitErrorVi }}

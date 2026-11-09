@@ -329,7 +329,7 @@ onBeforeUnmount(() => {
           </span>
           <div>
             <h3 class="font-display text-sm font-bold text-cyber-emerald sm:text-base">
-              Hoán đổi khuôn mặt thành công!
+              {{ pipelineLabelVi }} thành công!
             </h3>
             <p class="text-xs text-cyber-muted">
               Hình ảnh chất lượng cao đã sẵn sàng
