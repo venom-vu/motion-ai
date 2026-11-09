@@ -198,14 +198,16 @@ function dismissCreateError(): void {
           "
         >
           <div class="space-y-3">
-            <div class="flex items-center justify-between">
-              <h2 class="font-display text-lg font-bold text-cyber-text">
+            <div class="flex items-center justify-between gap-2">
+              <h2 class="whitespace-nowrap font-display text-lg font-bold text-cyber-text">
                 Hạng {{ tierItem.tier }}
               </h2>
               <span
-                class="rounded-full border border-cyber-border bg-cyber-bg px-2.5 py-0.5 font-mono text-xs text-cyber-muted"
+                v-if="tierItem.tier === currentTier"
+                :data-testid="`tier-current-badge-${tierItem.tier}`"
+                class="shrink-0 whitespace-nowrap rounded-full border border-cyber-violet/40 bg-cyber-violet/15 px-2.5 py-0.5 font-mono text-xs font-semibold text-cyber-violet"
               >
-                Ưu tiên #{{ tierItem.priority }}
+                Hiện tại
               </span>
             </div>
 
@@ -217,7 +219,7 @@ function dismissCreateError(): void {
               class="space-y-2 border-t border-cyber-border pt-3 text-xs text-cyber-muted"
             >
               <li class="flex items-center gap-2">
-                <Icon name="lucide:coins" class="h-4 w-4 text-cyber-cyan" />
+                <span aria-hidden="true">-</span>
                 <span>
                   Số lượng:
                   <strong class="font-mono text-cyber-text">
@@ -226,11 +228,20 @@ function dismissCreateError(): void {
                 </span>
               </li>
               <li class="flex items-center gap-2">
-                <Icon name="lucide:timer" class="h-4 w-4 text-cyber-violet" />
+                <span aria-hidden="true">-</span>
                 <span>
-                  Trần video Motion:
+                  Video tối đa:
                   <strong class="font-mono text-cyber-text">
                     {{ formatNumberVi(tierItem.maxVideoSeconds) }} giây
+                  </strong>
+                </span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span aria-hidden="true">-</span>
+                <span>
+                  Thứ tự ưu tiên:
+                  <strong class="font-mono text-cyber-text">
+                    #{{ tierItem.priority }}
                   </strong>
                 </span>
               </li>

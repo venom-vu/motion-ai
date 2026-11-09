@@ -1027,6 +1027,12 @@ export const useApiClient = () => ({
         assert.match(guestHtml, /Nạp gói Pro qua VietQR/);
         assert.match(guestHtml, /Nạp gói Creator qua VietQR/);
         assert.match(guestHtml, /Hạng mặc định khi đăng ký/);
+        assert.match(guestHtml, /data-testid="tier-current-badge-FREE"/);
+        assert.match(guestHtml, /Hiện tại/);
+        assert.doesNotMatch(guestHtml, /data-testid="tier-current-badge-Starter"/);
+        assert.doesNotMatch(guestHtml, /data-testid="tier-current-badge-Pro"/);
+        assert.doesNotMatch(guestHtml, /data-testid="tier-current-badge-Creator"/);
+        assert.match(guestHtml, /Thứ tự ưu tiên:/);
         assert.doesNotMatch(guestHtml, /data-testid="pricing-topup-history"/);
 
         // 2. Khi đã đăng nhập: hiển thị thêm Lịch Sử Đơn Nạp Credit ngay trên trang pricing
