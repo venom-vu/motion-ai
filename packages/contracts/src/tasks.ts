@@ -1,14 +1,13 @@
 import { z } from 'zod';
 import { ConfirmedUploadKeySchema } from './uploads.js';
 
-export const TASK_PIPELINES = ['face_swap'] as const;
+export const TASK_PIPELINES = ['face_swap', 'body_retouch'] as const;
 export type TaskPipeline = (typeof TASK_PIPELINES)[number];
 export const TaskPipelineSchema = z.enum(TASK_PIPELINES);
 
 /** Pipeline có thể ghi đè thông báo lỗi (mở rộng ở Epic 4, 5). */
 export const REASON_MESSAGE_PIPELINES = [
   ...TASK_PIPELINES,
-  'body_retouch',
   'motion_control',
 ] as const;
 export type ReasonMessagePipeline = (typeof REASON_MESSAGE_PIPELINES)[number];
@@ -82,7 +81,7 @@ export const REASON_CODE_PIPELINE_OVERRIDES_VI: Readonly<
   >
 > = {
   body_retouch: {
-    NO_POSE: 'Không nhận diện được dáng người trong ảnh, vui lòng chọn ảnh thấy rõ toàn thân.',
+    NO_POSE: 'Không tìm thấy người trong ảnh. Vui lòng chọn ảnh có người rõ thân.',
   },
   motion_control: {
     NO_POSE:
@@ -188,6 +187,43 @@ export const FaceSwapCreateRequestSchema = z
 export type FaceSwapCreateRequest = z.infer<typeof FaceSwapCreateRequestSchema>;
 export const FaceSwapCreateResponseSchema = TaskSchema;
 export type FaceSwapCreateResponse = Task;
+
+/** Mức điều chỉnh Body Retouch: số nguyên 1–10, mặc định 5. */
+export const INTENSITY_MIN = 1;
+export const INTENSITY_MAX = 10;
+export const INTENSITY_DEFAULT = 5;
+export const IntensitySchema = z
+  .number({ invalid_type_error: 'Mức điều chỉnh phải là số nguyên từ 1 đến 10.' })
+  .int('Mức điều chỉnh phải là số nguyên từ 1 đến 10.')
+  .min(INTENSITY_MIN, 'Mức điều chỉnh tối thiểu là 1.')
+  .max(INTENSITY_MAX, 'Mức điều chỉnh tối đa là 10.')
+  .default(INTENSITY_DEFAULT);
+export type Intensity = z.infer<typeof IntensitySchema>;
+
+/** Ba vùng nhãn của thanh mức điều chỉnh (min/max gồm cả hai đầu). */
+export const INTENSITY_LABEL_ZONES = [
+  { min: 1, max: 3, label: 'Uốn nhẹ dáng' },
+  { min: 4, max: 7, label: 'Tự nhiên' },
+  { min: 8, max: 10, label: 'Đường cong tối đa' },
+] as const;
+
+/** Nhãn tiếng Việt theo mức; ngoài 1–10 hoặc không nguyên trả `null`. */
+export function getIntensityLabelVi(n: number): string | null {
+  if (!Number.isInteger(n)) return null;
+  const zone = INTENSITY_LABEL_ZONES.find((zone) => n >= zone.min && n <= zone.max);
+  return zone ? zone.label : null;
+}
+
+/** POST /tasks/body-retouch — không nhận credit/consent từ client (ToS đồng ý khi đăng nhập). */
+export const BodyRetouchCreateRequestSchema = z
+  .object({
+    imageKey: ConfirmedUploadKeySchema,
+    intensity: IntensitySchema,
+  })
+  .strict();
+export type BodyRetouchCreateRequest = z.input<typeof BodyRetouchCreateRequestSchema>;
+export const BodyRetouchCreateResponseSchema = TaskSchema;
+export type BodyRetouchCreateResponse = Task;
 
 /** GET /tasks — phân trang cursor, mới nhất trước. */
 export const TaskListQuerySchema = z.object({

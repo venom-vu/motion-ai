@@ -90,6 +90,17 @@ import {
   TopupSchema,
   TopupStatusSchema,
   getTopupStatusLabelVi,
+  BodyRetouchCreateRequestSchema,
+  BodyRetouchCreateResponseSchema,
+  IntensitySchema,
+  INTENSITY_MIN,
+  INTENSITY_MAX,
+  INTENSITY_DEFAULT,
+  getIntensityLabelVi,
+  TASK_PIPELINES,
+  MOCK_BODY_RETOUCH_CREATE_REQUEST,
+  MOCK_BODY_RETOUCH_TASKS_BY_STATUS,
+  MOCK_BODY_RETOUCH_RESULT_RESPONSE,
 } from '../dist/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -849,6 +860,68 @@ describe('@flowvis/contracts', () => {
       assert.equal(getReasonCodeMessageVi('NO_FACE', 'body_retouch'), getReasonCodeMessageVi('NO_FACE'));
       assert.equal(getReasonCodeMessageVi('FOO'), 'Tác vụ không thành công. Vui lòng thử lại sau.');
       for (const c of REASON_CODES) assert.ok(getReasonCodeMessageVi(c).length > 0);
+    });
+  });
+
+  describe('Epic 4 contracts', () => {
+    const KEY = 'in/10000000-0000-4000-8000-000000000001/60000000-0000-4000-8000-000000000001';
+
+    it('exports pipelines and intensity constants', () => {
+      assert.deepEqual([...TASK_PIPELINES], ['face_swap', 'body_retouch']);
+      assert.deepEqual([INTENSITY_MIN, INTENSITY_MAX, INTENSITY_DEFAULT], [1, 10, 5]);
+    });
+
+    it('parses valid request and defaults intensity to 5', () => {
+      assert.equal(BodyRetouchCreateRequestSchema.parse({ imageKey: KEY, intensity: 8 }).intensity, 8);
+      assert.equal(BodyRetouchCreateRequestSchema.parse({ imageKey: KEY }).intensity, 5);
+      for (const n of [1, 10]) assert.ok(IntensitySchema.safeParse(n).success);
+    });
+
+    it('rejects invalid intensity with Vietnamese error on intensity', () => {
+      for (const v of [0, 11, 5.5, '5', null]) {
+        const r = BodyRetouchCreateRequestSchema.safeParse({ imageKey: KEY, intensity: v });
+        assert.equal(r.success, false);
+        assert.deepEqual(r.error.issues[0].path, ['intensity']);
+        assert.match(r.error.issues[0].message, /[ăâêôơưđáàạ]/);
+      }
+    });
+
+    it('rejects bad imageKey and unknown fields', () => {
+      for (const body of [
+        { imageKey: KEY.replace('in/', 'in-raw/'), intensity: 5 },
+        { intensity: 5 },
+      ]) {
+        const r = BodyRetouchCreateRequestSchema.safeParse(body);
+        assert.equal(r.success, false);
+        assert.deepEqual(r.error.issues[0].path, ['imageKey']);
+      }
+      assert.equal(BodyRetouchCreateRequestSchema.safeParse({ imageKey: KEY, consent: true }).success, false);
+      assert.equal(BodyRetouchCreateRequestSchema.safeParse({ imageKey: KEY, credits: 1 }).success, false);
+    });
+
+    it('labels intensity zones', () => {
+      const exp = { 1: 'Uốn nhẹ dáng', 3: 'Uốn nhẹ dáng', 4: 'Tự nhiên', 7: 'Tự nhiên', 8: 'Đường cong tối đa', 10: 'Đường cong tối đa' };
+      for (const [n, l] of Object.entries(exp)) assert.equal(getIntensityLabelVi(Number(n)), l);
+      for (const n of [0, 11, 5.5, NaN]) assert.equal(getIntensityLabelVi(n), null);
+    });
+
+    it('has per-pipeline NO_POSE messages', () => {
+      const body = getReasonCodeMessageVi('NO_POSE', 'body_retouch');
+      assert.equal(body, 'Không tìm thấy người trong ảnh. Vui lòng chọn ảnh có người rõ thân.');
+      assert.notEqual(body, getReasonCodeMessageVi('NO_POSE', 'motion_control'));
+      assert.notEqual(body, getReasonCodeMessageVi('NO_POSE'));
+    });
+
+    it('mocks match schemas', () => {
+      assert.ok(BodyRetouchCreateRequestSchema.safeParse(MOCK_BODY_RETOUCH_CREATE_REQUEST).success);
+      assert.deepEqual(Object.keys(MOCK_BODY_RETOUCH_TASKS_BY_STATUS).sort(), [...TASK_STATUSES].sort());
+      for (const t of Object.values(MOCK_BODY_RETOUCH_TASKS_BY_STATUS)) {
+        assert.equal(t.pipeline, 'body_retouch');
+        assert.ok(BodyRetouchCreateResponseSchema.safeParse(t).success);
+      }
+      assert.equal(MOCK_BODY_RETOUCH_TASKS_BY_STATUS.failed.reasonCode, 'NO_POSE');
+      const r = TaskResultResponseSchema.parse(MOCK_BODY_RETOUCH_RESULT_RESPONSE);
+      assert.ok(r.sourceUrl);
     });
   });
 

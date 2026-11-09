@@ -7,6 +7,7 @@ import {
   type AuthRefreshResponse,
 } from './auth.js';
 import type {
+  BodyRetouchCreateRequest,
   FaceSwapCreateRequest,
   Task,
   TaskListResponse,
@@ -404,6 +405,66 @@ export const MOCK_TASK_SHARE_RESPONSE: TaskShareResponse = {
 };
 export const MOCK_TASK_SHARE_REVOKE_RESPONSE: TaskShareRevokeResponse = {
   revoked: true,
+};
+
+/* ------------------------- Epic 4: Body Retouch ------------------------- */
+
+export const MOCK_BODY_RETOUCH_CREATE_REQUEST: BodyRetouchCreateRequest = {
+  imageKey: `in/${MOCK_USER_ID}/60000000-0000-4000-8000-000000000001`,
+  intensity: 8,
+};
+
+const mockBodyRetouchBase = { ...mockTaskBase, pipeline: 'body_retouch' } as const;
+
+export const MOCK_BODY_RETOUCH_TASK_QUEUED: Task = {
+  ...mockBodyRetouchBase,
+  id: '71000000-0000-4000-8000-000000000001',
+  status: 'queued',
+  queuePosition: 2,
+};
+export const MOCK_BODY_RETOUCH_TASK_RUNNING: Task = {
+  ...mockBodyRetouchBase,
+  id: '71000000-0000-4000-8000-000000000002',
+  status: 'running',
+};
+export const MOCK_BODY_RETOUCH_TASK_SUCCEEDED: Task = {
+  ...mockBodyRetouchBase,
+  id: '71000000-0000-4000-8000-000000000003',
+  status: 'succeeded',
+  resultKey: `out/${MOCK_USER_ID}/81000000-0000-4000-8000-000000000003`,
+};
+export const MOCK_BODY_RETOUCH_TASK_FAILED: Task = {
+  ...mockBodyRetouchBase,
+  id: '71000000-0000-4000-8000-000000000004',
+  status: 'failed',
+  reasonCode: 'NO_POSE',
+};
+export const MOCK_BODY_RETOUCH_TASK_TIMED_OUT: Task = {
+  ...mockBodyRetouchBase,
+  id: '71000000-0000-4000-8000-000000000005',
+  status: 'timed_out',
+  reasonCode: 'FREE_WAIT_EXPIRED',
+};
+export const MOCK_BODY_RETOUCH_TASK_CANCELLED: Task = {
+  ...mockBodyRetouchBase,
+  id: '71000000-0000-4000-8000-000000000006',
+  status: 'cancelled',
+  reasonCode: 'USER_CANCEL',
+};
+
+export const MOCK_BODY_RETOUCH_TASKS_BY_STATUS: Record<TaskStatus, Task> = {
+  queued: MOCK_BODY_RETOUCH_TASK_QUEUED,
+  running: MOCK_BODY_RETOUCH_TASK_RUNNING,
+  succeeded: MOCK_BODY_RETOUCH_TASK_SUCCEEDED,
+  failed: MOCK_BODY_RETOUCH_TASK_FAILED,
+  timed_out: MOCK_BODY_RETOUCH_TASK_TIMED_OUT,
+  cancelled: MOCK_BODY_RETOUCH_TASK_CANCELLED,
+};
+
+/** Kết quả Body Retouch có ảnh gốc (so sánh trước/sau). */
+export const MOCK_BODY_RETOUCH_RESULT_RESPONSE: TaskResultResponse = {
+  resultUrl: 'https://cdn.example.test/out/signed-body-retouch-result.jpg',
+  sourceUrl: 'https://cdn.example.test/in/signed-body-retouch-source.jpg',
 };
 
 /* ------------------------- Epic 3: nạp tiền ------------------------- */

@@ -62,3 +62,10 @@ Gói hợp đồng dùng chung (Shared Contracts) giữa Backend (`@flowvis/api`
 - Endpoint Admin: `GET /admin/topups` (lọc `status`, cursor), `POST /admin/topups/{id}/approve`, `approve-expired` (`bankRef`), `reject` (`rejectReason`), `needs-review` (`note`), `return-to-pending` (body rỗng).
 - Mã lỗi API mới: `TOPUP_LIMIT`, `BANK_REF_DUPLICATE`, `TOPUP_STATE_INVALID`, `TOPUP_QR_EXPIRED`.
 - Mock: `MOCK_TOPUPS_BY_STATUS`, `MOCK_TOPUP_LIST_RESPONSE`, `MOCK_ADMIN_TOPUPS_BY_STATUS`, `MOCK_ADMIN_TOPUP_LIST_RESPONSE`.
+
+### 7. Body Retouch (Epic 4: `src/tasks.ts`)
+
+- `TASK_PIPELINES` = `face_swap`, `body_retouch`. `IntensitySchema`: số nguyên 1–10, mặc định 5 (`INTENSITY_MIN/MAX/DEFAULT`); nhãn ba vùng qua `INTENSITY_LABEL_ZONES` và `getIntensityLabelVi(n)` (1–3 "Uốn nhẹ dáng", 4–7 "Tự nhiên", 8–10 "Đường cong tối đa"; ngoài khoảng trả `null`).
+- Endpoint: `POST /tasks/body-retouch` (`BodyRetouchCreateRequestSchema` `{ imageKey, intensity }` `.strict()`, không nhận `consent`/credit; `BodyRetouchCreateResponseSchema` = `TaskSchema`). Các endpoint đọc, hủy, kết quả, chia sẻ dùng chung với Face Swap.
+- `NO_POSE` của `body_retouch`: "Không tìm thấy người trong ảnh. Vui lòng chọn ảnh có người rõ thân."
+- Mock: `MOCK_BODY_RETOUCH_CREATE_REQUEST`, `MOCK_BODY_RETOUCH_TASKS_BY_STATUS` (6 trạng thái), `MOCK_BODY_RETOUCH_RESULT_RESPONSE` (có `sourceUrl`).
