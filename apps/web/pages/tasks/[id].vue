@@ -128,15 +128,6 @@ async function handleRefreshResult(): Promise<void> {
   await resultAsync.refresh();
 }
 
-watch(
-  () => resultAsync.data.value,
-  (newData) => {
-    if (newData) {
-      imageRefreshAttempts.value = 0;
-    }
-  },
-);
-
 function handleImageError(_payload: { type: 'source' | 'result'; error: Event }): void {
   if (resultAsync.pending.value) return;
   // Tự động thử lấy lại URL ký mới tối đa 1 lần để tránh vòng lặp vô hạn
@@ -515,7 +506,7 @@ function handleCreateNewTask(): void {
         Ảnh kết quả đã quá thời hạn lưu trữ 30 ngày và đã được dọn dẹp tự động khỏi máy chủ theo chính sách bảo mật của hệ thống.
       </p>
       <NuxtLink
-        :to="currentTask?.pipeline === 'body_retouch' ? '/body-retouch' : '/face-swap'"
+        :to="getPipelineRoute(currentTask?.pipeline)"
         class="touch-target mt-5 inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl bg-cyber-violet px-6 py-2.5 text-xs font-semibold text-cyber-text transition hover:bg-cyber-violet/90"
       >
         <Icon name="lucide:sparkles" class="h-4 w-4" />
@@ -543,11 +534,16 @@ function handleCreateNewTask(): void {
         </div>
         <button
           type="button"
-          class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-1.5 rounded-xl border border-cyber-danger/50 bg-cyber-danger/20 px-4 py-2 text-xs font-semibold text-cyber-danger transition hover:bg-cyber-danger/30"
+          :disabled="resultAsync.pending.value"
+          class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-1.5 rounded-xl border border-cyber-danger/50 bg-cyber-danger/20 px-4 py-2 text-xs font-semibold text-cyber-danger transition hover:bg-cyber-danger/30 disabled:cursor-not-allowed disabled:opacity-50"
           @click="handleRefreshResult"
         >
-          <Icon name="lucide:refresh-cw" class="h-4 w-4" />
-          <span>Lấy lại link mới</span>
+          <Icon
+            :name="resultAsync.pending.value ? 'lucide:loader-circle' : 'lucide:refresh-cw'"
+            class="h-4 w-4"
+            :class="{ 'animate-spin': resultAsync.pending.value }"
+          />
+          <span>{{ resultAsync.pending.value ? 'Đang làm mới...' : 'Lấy lại link mới' }}</span>
         </button>
       </div>
 
@@ -651,7 +647,7 @@ function handleCreateNewTask(): void {
             </button>
 
             <NuxtLink
-              :to="currentTask?.pipeline === 'body_retouch' ? '/body-retouch' : '/face-swap'"
+              :to="getPipelineRoute(currentTask?.pipeline)"
               class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-surface px-4 py-2.5 text-xs font-bold text-cyber-text transition hover:border-cyber-violet"
             >
               <Icon name="lucide:sparkles" class="h-4 w-4 text-cyber-violet" />

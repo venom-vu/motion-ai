@@ -189,3 +189,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-5-fe-so-sanh-truoc-sau.md`
   summary: Khắc phục race condition ENOENT trong hàm collectFiles của smoke.test.mjs khi quét các file .ts tạm sinh ra từ các test suite chạy song song
   evidence: smoke.test.mjs:456 quét toàn bộ webRoot bao gồm test/ trong khi các suite khác tạo và xóa file tạm trong test/ dẫn tới lỗi đọc file không tồn tại
+
+## Deferred from: code review of spec-4-5-fe-so-sanh-truoc-sau.md (2026-11-09)
+
+- Nút Quay lại / Lịch sử tại `apps/web/pages/tasks/[id].vue:318` vi phạm WCAG 2.5.3 (Label in Name) do `aria-label="Quay lại"` không chứa chuỗi văn bản hiển thị trực quan `<span>Lịch sử</span>` (vấn đề pre-existing kế thừa từ Story 2.12).

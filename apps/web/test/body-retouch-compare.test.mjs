@@ -430,6 +430,7 @@ describe('@flowvis/web — Story 4.5: [FE] So sánh trước/sau (BeforeAfterSpl
       assert.match(html, /data-testid="slider-divider"/);
       assert.match(html, /data-testid="slider-knob"/);
       assert.match(html, /role="slider"/);
+      assert.match(html, /aria-orientation="horizontal"/);
       assert.match(html, /aria-label="Thanh trượt so sánh trước sau"/);
       assert.match(html, /aria-valuemin="0"/);
       assert.match(html, /aria-valuemax="100"/);
@@ -437,6 +438,17 @@ describe('@flowvis/web — Story 4.5: [FE] So sánh trước/sau (BeforeAfterSpl
       assert.match(html, /aria-valuetext="50% ảnh kết quả, 50% ảnh gốc"/);
       assert.match(html, /h-9 w-9/); // Núm 36px
       assert.match(html, /icon-lucide-arrow-left-right/);
+
+      // Kiểm thử vị trí lệch tâm (asymmetric 25%): 75% kết quả, 25% gốc
+      const html25 = await renderToString(
+        createSliderApp({
+          sourceUrl: MOCK_BODY_RETOUCH_RESULT_RESPONSE.sourceUrl,
+          resultUrl: MOCK_BODY_RETOUCH_RESULT_RESPONSE.resultUrl,
+          sliderPosition: 25,
+        }),
+      );
+      assert.match(html25, /aria-valuenow="25"/);
+      assert.match(html25, /aria-valuetext="75% ảnh kết quả, 25% ảnh gốc"/);
 
       // Thanh gợi ý trượt ngang
       assert.match(html, /data-testid="slider-hint-bar"/);
@@ -509,6 +521,7 @@ describe('@flowvis/web — Story 4.5: [FE] So sánh trước/sau (BeforeAfterSpl
       resultData = MOCK_BODY_RETOUCH_RESULT_RESPONSE,
       shareData = null,
       resultErrorVi = null,
+      downloadErrorVi = null,
       imageLoadFailed = false,
     } = {}) => {
       const app = createSSRApp({
@@ -531,7 +544,7 @@ describe('@flowvis/web — Story 4.5: [FE] So sánh trước/sau (BeforeAfterSpl
             isRevokingShare: false,
             shareToastMessage: null,
             shareErrorVi: null,
-            downloadErrorVi: null,
+            downloadErrorVi,
             isDownloading: false,
             imageLoadFailed,
             getPipelineLabelVi,
@@ -641,6 +654,22 @@ describe('@flowvis/web — Story 4.5: [FE] So sánh trước/sau (BeforeAfterSpl
       assert.doesNotMatch(html, /href="\/body-retouch"/);
     });
 
+    it('khi motion_control succeeded: nút CTA dẫn tới /motion-control với nhãn Điều khiển chuyển động', async () => {
+      const taskMotionControl = {
+        ...MOCK_BODY_RETOUCH_TASK_SUCCEEDED,
+        id: '12345678-1234-4000-8000-000000000002',
+        pipeline: 'motion_control',
+      };
+      const html = await renderToString(
+        createTasksIdApp({ task: taskMotionControl }),
+      );
+
+      assert.match(html, /href="\/motion-control"/);
+      assert.match(html, /Tạo tác vụ Điều khiển chuyển động khác/);
+      assert.doesNotMatch(html, /href="\/face-swap"/);
+      assert.doesNotMatch(html, /href="\/body-retouch"/);
+    });
+
     it('khi body_retouch hết hạn 30 ngày (isExpired): hiển thị thông báo hết hạn và nút dẫn tới /body-retouch', async () => {
       const html = await renderToString(
         createTasksIdApp({
@@ -658,6 +687,23 @@ describe('@flowvis/web — Story 4.5: [FE] So sánh trước/sau (BeforeAfterSpl
       assert.doesNotMatch(html, /data-testid="mock-before-after-slider"/);
     });
 
+    it('khi motion_control hết hạn 30 ngày: hiển thị thông báo hết hạn và nút dẫn tới /motion-control', async () => {
+      const html = await renderToString(
+        createTasksIdApp({
+          task: {
+            ...MOCK_BODY_RETOUCH_TASK_SUCCEEDED,
+            pipeline: 'motion_control',
+          },
+          isExpiredVal: true,
+          resultData: null,
+        }),
+      );
+
+      assert.match(html, /data-testid="retention-expired-view"/);
+      assert.match(html, /href="\/motion-control"/);
+      assert.match(html, /Tạo tác vụ Điều khiển chuyển động mới/);
+    });
+
     it('khi ảnh lỗi hoặc link hết hạn: hiển thị banner lỗi và nút "Lấy lại link mới"', async () => {
       const html = await renderToString(
         createTasksIdApp({
@@ -669,6 +715,18 @@ describe('@flowvis/web — Story 4.5: [FE] So sánh trước/sau (BeforeAfterSpl
       assert.match(html, /data-testid="result-fetch-error"/);
       assert.match(html, /Không thể tải ảnh kết quả/);
       assert.match(html, /Lấy lại link mới/);
+    });
+
+    it('khi downloadErrorVi có giá trị: hiển thị alert banner download-error', async () => {
+      const html = await renderToString(
+        createTasksIdApp({
+          task: MOCK_BODY_RETOUCH_TASK_SUCCEEDED,
+          downloadErrorVi: 'Không thể tải ảnh kết quả. Vui lòng thử lại sau.',
+        }),
+      );
+
+      assert.match(html, /data-testid="download-error"/);
+      assert.match(html, /Không thể tải ảnh kết quả\. Vui lòng thử lại sau\./);
     });
   });
 
@@ -751,6 +809,10 @@ export const useAsyncData = (key, fn) => {
         error: ref(null),
         refresh: async () => {
           refreshCount += 1;
+          resultAsync.data.value = {
+            ...resultData,
+            resultUrl: `https://flowvis-test.r2.cloudflarestorage.com/out/test_${refreshCount}.png`,
+          };
           if (onRefresh) await onRefresh(refreshCount);
         },
       };
@@ -894,6 +956,29 @@ export const useAsyncData = (key, fn) => {
         globalThis.fetch = originalFetch;
         globalThis.document = originalDocument;
         globalThis.URL = originalUrl;
+      }
+    });
+
+    it('handleDownloadImage hiển thị downloadErrorVi và reset isDownloading khi lỗi tải không thể phục hồi', async () => {
+      const { instance, resultAsync } = initTasksIdSetup();
+
+      const originalFetch = globalThis.fetch;
+      try {
+        globalThis.fetch = async () => {
+          throw new TypeError('Network error / CORS blocked');
+        };
+
+        resultAsync.data.value = {
+          resultUrl: 'https://cdn.example.test/out/broken.png',
+          sourceUrl: 'https://cdn.example.test/in/source.png',
+        };
+
+        await instance.handleDownloadImage();
+
+        assert.equal(instance.isDownloading.value, false);
+        assert.ok(instance.downloadErrorVi.value);
+      } finally {
+        globalThis.fetch = originalFetch;
       }
     });
 

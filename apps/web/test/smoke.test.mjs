@@ -458,12 +458,17 @@ describe('@flowvis/web — Story 1.4 Nuxt 4 mobile-first & API client', () => {
     const emojiRegex = /\p{Extended_Pictographic}/u;
     for (const filePath of sourceFiles) {
       if (!fs.existsSync(filePath)) continue;
-      const content = fs.readFileSync(filePath, 'utf8');
-      assert.equal(
-        emojiRegex.test(content),
-        false,
-        `Phát hiện ký tự emoji UTF-8 bị cấm trong file: ${path.relative(webRoot, filePath)}`,
-      );
+      try {
+        const content = fs.readFileSync(filePath, 'utf8');
+        assert.equal(
+          emojiRegex.test(content),
+          false,
+          `Phát hiện ký tự emoji UTF-8 bị cấm trong file: ${path.relative(webRoot, filePath)}`,
+        );
+      } catch (err) {
+        if (err && err.code === 'ENOENT') continue;
+        throw err;
+      }
     }
   });
 
@@ -3205,6 +3210,8 @@ describe('@flowvis/web — Story 2.10 Thành phần tải ảnh có cam kết To
                 getPipelineLabelVi: () => 'Hoán đổi khuôn mặt',
                 formatTaskTimestampVi: () => '06/11/2026 19:30',
                 getTaskStatusLabelVi: () => (isSucceeded ? 'Hoàn thành' : 'Thất bại'),
+                getPipelineRoute: (p) =>
+                  p === 'body_retouch' ? '/body-retouch' : p === 'motion_control' ? '/motion-control' : '/face-swap',
                 handleGoBack: () => {},
                 handleRefreshResult: () => {},
                 handleImageError: () => {},

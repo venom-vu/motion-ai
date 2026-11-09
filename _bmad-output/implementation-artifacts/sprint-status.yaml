@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-01-2026 14:32
-last_updated: 11-09-2026 15:25
+last_updated: 11-09-2026 19:53
 project: motion-ai
 project_key: NOKEY
 tracking_system: file-system
@@ -84,7 +84,7 @@ development_status:
   4-2-be-tạo-task-body-retouch: review
   4-3-be-kết-quả-body-retouch: review
   4-4-fe-trang-body-retouch-và-thanh-mức-điều-chỉnh: done
-  4-5-fe-so-sánh-trước-sau: review
+  4-5-fe-so-sanh-truoc-sau: done
   4-6-integration-nối-fe-với-be-và-smoke-test-body-retouch: backlog
   epic-4-retrospective: optional
 

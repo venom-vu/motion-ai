@@ -65,6 +65,22 @@ context:
 - [x] `apps/web/pages/tasks/[id].vue` -- Truyền `pipeline-label-vi` cho `TaskProgressCard`, cập nhật nút điều hướng tạo tác vụ theo pipeline (`body-retouch` thay vì cố định `face-swap`), và hoàn thiện cơ chế tự làm mới link ký khi tải ảnh/tải file -- đảm bảo trải nghiệm trang kết quả trọn vẹn cho Body Retouch
 - [x] `apps/web/test/body-retouch-compare.test.mjs` -- Viết bộ kiểm thử tự động toàn diện bao phủ toàn bộ I/O Matrix, 2 chế độ so sánh 2 ảnh và 1 ảnh đơn, xử lý link hết hạn, tương tác phím/touch, các nút hành động, ranh giới 360px và không emoji -- xác minh chất lượng Story 4.5
 
+### Review Findings
+
+- [x] [Review][Patch] Vòng lặp refresh vô hạn do Watcher tự động reset imageRefreshAttempts và mock test che giấu lỗi [apps/web/pages/tasks/[id].vue:131]
+- [x] [Review][Patch] Template điều hướng nút CTA dùng biểu thức ba ngôi cứng thay vì hàm getPipelineRoute [apps/web/pages/tasks/[id].vue:518]
+- [x] [Review][Patch] Bổ sung kiểm thử biên cho downloadErrorVi và tỷ lệ bất đối xứng aria-valuetext [apps/web/test/body-retouch-compare.test.mjs:804]
+- [x] [Review][Patch] Chống race condition ENOENT triệt để trong smoke.test.mjs [apps/web/test/smoke.test.mjs:460]
+- [x] [Review][Patch] Bổ sung thuộc tính trợ năng và ngăn chặn kéo ảnh mặc định trên BeforeAfterSplitSlider & nút Lấy lại link mới [apps/web/components/BeforeAfterSplitSlider.vue:166]
+- [x] [Review][Defer] Vi phạm WCAG 2.5.3 (Label in Name) trên nút Quay lại / Lịch sử [apps/web/pages/tasks/[id].vue:318] — deferred: pre-existing từ Story 2.12
+
+#### Rejected Findings
+- [false] handleImageError cần bật imageLoadFailed khi ảnh gốc sourceUrl lỗi: lỗi ảnh gốc đã có graceful degradation sang 1 ảnh kết quả với nhãn "Ảnh gốc đã hết hạn lưu"; bật imageLoadFailed sẽ che mất toàn bộ ảnh kết quả AI hợp lệ.
+- [false] Dead zones trong BeforeAfterSplitSlider với object-contain: do ràng buộc đặc tả kỹ thuật quy định 2 ảnh luôn khớp tỷ lệ qua object-contain.
+- [false] Vi phạm ranh giới check:boundaries do commit _bmad-output/: trên nhánh shared/* hiện tại lệnh check:boundaries pass 100%.
+- [low] Vị trí thông báo downloadErrorVi, Vue warning khi gọi setup() ngoài instance, và timeout 1500ms revokeObjectURL: không ảnh hưởng runtime hoặc là vấn đề nhỏ không đáng thêm độ phức tạp.
+- [rejected] spec-4-5-fe-so-sanh-truoc-sau.md mẫu aria-valuetext cũ: không sửa file đặc tả đang review theo quy tắc bmad.
+
 **Acceptance Criteria:**
 - Given Task `body_retouch` `succeeded` và `sourceUrl` có giá trị, when mở trang kết quả `tasks/[id]`, then hiển thị thành phần so sánh hai ảnh chồng nhau với thanh kéo ngang (ảnh gốc một bên, ảnh kết quả một bên), núm kéo 36px chứa vector icon `lucide:arrow-left-right`, hai ảnh cùng kích thước căn khớp không méo, kéo bằng ngón tay mượt trên di động (`touchAction: pan-y`) và khi thả tay thanh giữ nguyên vị trí.
 - Given thanh trượt so sánh, when thao tác bằng bàn phím (ArrowLeft/Down, ArrowRight/Up, Home, End), then thanh trượt di chuyển theo bước 5% hoặc về hai đầu (0%, 100%), cập nhật giá trị `aria-valuenow` và `aria-valuetext` cho trình đọc màn hình.
