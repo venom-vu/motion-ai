@@ -91,6 +91,8 @@ async function img(w, h, format = 'jpeg') {
   return sharp({ create: { width: w, height: h, channels: 3, background: '#808080' } })[format]().toBuffer();
 }
 
+process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+
 describe('Story 2.2: [BE] Tải ảnh lên R2 an toàn', () => {
   let app, baseUrl, pool, prisma, jwt;
   const runId = crypto.randomBytes(4).toString('hex');

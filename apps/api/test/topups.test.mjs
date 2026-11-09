@@ -69,6 +69,8 @@ function parseTlv(s) {
   return out;
 }
 
+process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+
 describe('getTopupThrottleOptions', () => {
   const KEYS = ['TOPUP_THROTTLE_LIMIT', 'TOPUP_THROTTLE_TTL_MS'];
   const saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));

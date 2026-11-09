@@ -75,6 +75,8 @@ async function ensureInfraRunning() {
   });
 }
 
+process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+
 describe('Story 1.5: [BE] Đăng nhập Google và phiên JWT', () => {
   let app;
   let baseUrl;

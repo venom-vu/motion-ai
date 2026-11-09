@@ -61,6 +61,8 @@ const realAdd = Queue.prototype.add;
 Queue.prototype.add = async function (name, data, opts) { return { id: opts?.jobId }; };
 Queue.prototype.getJob = async function () { return null; };
 
+process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+
 describe('Story 2.5: [BE] Worker xử lý Task qua RunningHub', () => {
   let app, baseUrl, pool, prisma, jwt, svc, worker;
   const runId = crypto.randomBytes(4).toString('hex');

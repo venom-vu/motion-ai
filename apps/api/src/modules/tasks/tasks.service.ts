@@ -13,6 +13,8 @@ import { InjectQueue } from '@nestjs/bullmq';
 import {
   ApiErrorCode,
   getApiErrorMessageVi,
+  BodyRetouchCreateRequestSchema,
+  type BodyRetouchCreateRequest,
   type FaceSwapCreateRequest,
   type ReasonCode,
   type Task,
@@ -360,10 +362,41 @@ export class TasksService {
   }
 
   async createFaceSwap(userId: string, req: FaceSwapCreateRequest): Promise<Task> {
-    const owned = await this.uploads.areConfirmedKeysOwnedBy(userId, [
-      req.sourceKey,
-      req.targetKey,
-    ]);
+    return this.createPipelineTask(userId, {
+      pipeline: 'face_swap',
+      amount: PRICING_CONFIG.pipelines.faceSwapCredits,
+      inputKeys: { sourceKey: req.sourceKey, targetKey: req.targetKey },
+      params: {},
+    });
+  }
+
+  async createBodyRetouch(userId: string, req: BodyRetouchCreateRequest): Promise<Task> {
+    // Phòng thủ: parse lại để áp mặc định intensity=5 và chặn giá trị sai khi gọi từ nơi khác controller.
+    const parsed = BodyRetouchCreateRequestSchema.safeParse(req);
+    if (!parsed.success) {
+      throw new BadRequestException({
+        code: ApiErrorCode.VALIDATION_FAILED,
+        message: getApiErrorMessageVi(ApiErrorCode.VALIDATION_FAILED),
+      });
+    }
+    return this.createPipelineTask(userId, {
+      pipeline: 'body_retouch',
+      amount: PRICING_CONFIG.pipelines.bodyRetouchCredits,
+      inputKeys: { imageKey: parsed.data.imageKey },
+      params: { intensity: parsed.data.intensity },
+    });
+  }
+
+  private async createPipelineTask(
+    userId: string,
+    spec: {
+      pipeline: 'face_swap' | 'body_retouch';
+      amount: number;
+      inputKeys: Record<string, string>;
+      params: Record<string, unknown>;
+    },
+  ): Promise<Task> {
+    const owned = await this.uploads.areConfirmedKeysOwnedBy(userId, Object.values(spec.inputKeys));
     if (!owned) {
       throw new BadRequestException({
         code: ApiErrorCode.VALIDATION_FAILED,
@@ -372,7 +405,7 @@ export class TasksService {
     }
 
     const taskId = crypto.randomUUID();
-    const amount = PRICING_CONFIG.pipelines.faceSwapCredits;
+    const amount = spec.amount;
 
     const { snapshot, task } = await this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<Array<{ tos_version: string; locked_at: Date | null }>>`
@@ -394,13 +427,13 @@ export class TasksService {
         data: {
           id: taskId,
           userId,
-          pipeline: 'face_swap',
+          pipeline: spec.pipeline,
           status: 'queued',
           tierSnapshot: snapshot as unknown as object,
           consent: true, // đã đồng ý ToS một lần lúc đăng nhập
           tosVersion: rows[0].tos_version,
-          inputKeys: { sourceKey: req.sourceKey, targetKey: req.targetKey },
-          params: {},
+          inputKeys: spec.inputKeys,
+          params: spec.params as object,
           holdAmount: amount,
         },
       });
@@ -441,7 +474,7 @@ export class TasksService {
     }
     return {
       id: task.id,
-      pipeline: 'face_swap',
+      pipeline: spec.pipeline,
       status: 'queued',
       queuePosition,
       creditCost: task.holdAmount,

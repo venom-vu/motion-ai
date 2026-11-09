@@ -56,6 +56,8 @@ async function ensureInfra() {
 
 
 
+process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+
 describe('Story 2.8: [BE] Ưu tiên theo Tier và hết hạn hàng đợi FREE', () => {
   let app, baseUrl, pool, prisma, jwt, svc, sweeper, queue;
   const runId = crypto.randomBytes(4).toString('hex');

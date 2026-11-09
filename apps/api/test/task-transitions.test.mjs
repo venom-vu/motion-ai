@@ -70,6 +70,8 @@ Queue.prototype.getJob = async function (id) {
   return { remove: async () => { removed.push(id); } };
 };
 
+process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+
 describe('Story 2.4: [BE] Máy trạng thái Task bằng compare-and-set', () => {
   let app, baseUrl, pool, prisma, jwt, svc;
   const runId = crypto.randomBytes(4).toString('hex');

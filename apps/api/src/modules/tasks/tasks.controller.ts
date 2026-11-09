@@ -1,11 +1,13 @@
 import { BadRequestException, Body, Controller, Delete, Get, HttpCode, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
 import {
   ApiErrorCode,
+  BodyRetouchCreateRequestSchema,
   FaceSwapCreateRequestSchema,
   TaskIdParamsSchema,
   TaskListQuerySchema,
   type Task,
   getApiErrorMessageVi,
+  type BodyRetouchCreateResponse,
   type FaceSwapCreateResponse,
   type TaskListResponse,
   type TaskResultResponse,
@@ -41,6 +43,22 @@ export class TasksController {
       });
     }
     return this.tasks.createFaceSwap(user.sub, parsed.data);
+  }
+
+  @Post('body-retouch')
+  async createBodyRetouch(
+    @CurrentUser() user: JwtUserPayload,
+    @Body() body: unknown,
+  ): Promise<BodyRetouchCreateResponse> {
+    const parsed = BodyRetouchCreateRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      const code = ApiErrorCode.VALIDATION_FAILED;
+      throw new BadRequestException({
+        code,
+        message: parsed.error.issues[0]?.message ?? getApiErrorMessageVi(code),
+      });
+    }
+    return this.tasks.createBodyRetouch(user.sub, parsed.data);
   }
 
   @Get()

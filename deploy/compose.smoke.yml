@@ -12,6 +12,7 @@ x-smoke-env: &smoke-env
   GOOGLE_USERINFO_URL: ${GOOGLE_USERINFO_URL:-http://host.docker.internal:3199/userinfo}
   RUNNINGHUB_BASE_URL: ${RUNNINGHUB_BASE_URL:-http://host.docker.internal:3197}
   RUNNINGHUB_WORKFLOW_FACESWAP: smoke-workflow-faceswap
+  RUNNINGHUB_WORKFLOW_BODY_RESHAPE: smoke-workflow-body-reshape
   RH_POLL_INTERVAL_MS: "300"
   RH_DEADLINE_MS: ${RH_DEADLINE_MS:-10000}
   RESULT_URL_ALLOW_HOSTS: host.docker.internal

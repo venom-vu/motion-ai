@@ -106,6 +106,8 @@ async function ensureInfraServicesRunning() {
   });
 }
 
+process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+
 describe('@flowvis/api infrastructure, worker, PostgreSQL 16 & Redis 7', () => {
   before(async () => {
     process.env.DATABASE_URL = DEFAULT_DATABASE_URL;

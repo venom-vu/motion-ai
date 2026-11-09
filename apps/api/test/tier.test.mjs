@@ -67,6 +67,8 @@ async function ensureInfra() {
   });
 }
 
+process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+
 describe('Story 1.7: [BE] Tier, API ví và đối soát sổ cái', () => {
   let pool;
   let prisma;

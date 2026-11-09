@@ -52,6 +52,8 @@ async function ensureInfra() {
 
 
 
+process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+
 describe('Story 2.9: [BE] Chia sẻ kết quả bằng token', () => {
   let app, baseUrl, pool, prisma, jwt, share;
   const runId = crypto.randomBytes(4).toString('hex');

@@ -7,11 +7,22 @@ export interface PipelineInputMapping {
   readonly fieldName: string;
 }
 
+export interface PipelineParamMapping {
+  /** Khóa trong tasks.params. */
+  readonly paramKey: string;
+  readonly nodeId: string;
+  readonly fieldName: string;
+}
+
 export interface PipelineConfig {
   readonly pipeline: string;
   /** Tên biến môi trường chứa workflow ID RunningHub. */
   readonly workflowEnvVar: string;
   readonly inputs: readonly PipelineInputMapping[];
+  /** Tham số từ tasks.params truyền cho workflow (giá trị dạng chuỗi). */
+  readonly params?: readonly PipelineParamMapping[];
+  /** true: thiếu biến môi trường workflow thì api/worker không khởi động. */
+  readonly requiredAtStartup?: boolean;
   /** Khóa trong tasks.input_keys của ảnh tham chiếu: ảnh kết quả phải cùng kích thước (sau xoay EXIF) với ảnh này. */
   readonly referenceInputKey?: string;
   /** Bước chuẩn bị tùy chọn (vd. cắt video); nhận bytes theo inputKey. */
@@ -28,6 +39,15 @@ export const PIPELINE_CONFIGS: Readonly<Record<string, PipelineConfig>> = {
       { inputKey: 'targetKey', nodeId: '10', fieldName: 'image' },
     ],
     referenceInputKey: 'targetKey',
+  },
+  body_retouch: {
+    pipeline: 'body_retouch',
+    workflowEnvVar: 'RUNNINGHUB_WORKFLOW_BODY_RESHAPE',
+    requiredAtStartup: true,
+    // [ASSUMPTION] nodeId/fieldName chưa được xác nhận bằng một lần chạy thật; phải đối chiếu với AI App trên RunningHub.
+    inputs: [{ inputKey: 'imageKey', nodeId: '10', fieldName: 'image' }],
+    params: [{ paramKey: 'intensity', nodeId: '20', fieldName: 'intensity' }],
+    referenceInputKey: 'imageKey',
   },
 };
 

@@ -72,6 +72,8 @@ function noisy(w, h, fmt) {
 }
 const asResponse = (buf, headers = {}) => new Response(buf, { status: 200, headers });
 
+process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+
 describe('Story 2.6: [BE] Nhập kết quả về R2 và chốt tiền', () => {
   let app, baseUrl, pool, prisma, jwt, svc, worker, ingestor;
   const runId = crypto.randomBytes(4).toString('hex');
@@ -631,6 +633,11 @@ describe('Story 2.6: [BE] Nhập kết quả về R2 và chốt tiền', () => {
   describe('cấu hình', () => {
     it('Face Swap dùng ảnh đích làm ảnh tham chiếu', () => {
       assert.equal(PIPELINE_CONFIGS.face_swap.referenceInputKey, 'targetKey');
+    });
+
+    it('Body Retouch dùng ảnh đầu vào làm ảnh tham chiếu', () => {
+      assert.equal(PIPELINE_CONFIGS.body_retouch.referenceInputKey, 'imageKey');
+      assert.ok(PIPELINE_CONFIGS.body_retouch.inputs.some((i) => i.inputKey === 'imageKey'));
     });
 
     it('configure-bucket có lifecycle out/ 30 ngày', () => {

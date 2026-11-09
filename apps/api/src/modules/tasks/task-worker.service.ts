@@ -221,6 +221,12 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
         this.logger.log(`Task ${taskId}: đã upload ${m.inputKey} (${bytes.length} byte) -> ${name}`);
         nodeInfo.push({ nodeId: m.nodeId, fieldName: m.fieldName, fieldValue: name });
       }
+      const params = (row.params ?? {}) as Record<string, unknown>;
+      for (const m of config.params ?? []) {
+        const v = params[m.paramKey];
+        if (v === undefined || v === null) continue;
+        nodeInfo.push({ nodeId: m.nodeId, fieldName: m.fieldName, fieldValue: String(v) });
+      }
     } catch (err) {
       if (signal.aborted) return;
       this.logger.warn(`Upload RunningHub lỗi cho Task ${taskId}: ${String(err)}`);

@@ -63,6 +63,8 @@ Queue.prototype.add = async function (name, data, opts) {
   return { id: opts?.jobId };
 };
 
+process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+
 describe('Story 2.3: [BE] Tạo Task Face Swap và xếp vào hàng đợi', () => {
   let app, baseUrl, pool, prisma, jwt;
   const runId = crypto.randomBytes(4).toString('hex');
