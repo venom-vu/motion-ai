@@ -5,13 +5,14 @@ import net from 'node:net';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { NestFactory } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import pg from 'pg';
 import { Queue } from 'bullmq';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../dist/generated/prisma/client.js';
 import { bootstrapApi } from '../dist/main.js';
-import { PipelinesService } from '../dist/modules/pipelines/index.js';
+import { PipelinesModule } from '../dist/modules/pipelines/index.js';
 import { ApiErrorCode, TaskSchema } from '@flowvis/contracts';
 import { WalletService } from '../dist/modules/wallet/index.js';
 import { TasksService, TaskWorkerService, WORKER_CONCURRENCY } from '../dist/modules/tasks/index.js';
@@ -233,11 +234,16 @@ describe('Story 4.2: [BE] Tạo Task Body Retouch', () => {
     const saved = process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE;
     delete process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE;
     try {
-      // api và worker cùng nạp PipelinesModule; lỗi ném từ onModuleInit làm NestFactory thoát khi bootstrap.
-      assert.throws(() => app.get(PipelinesService).onModuleInit(), /RUNNINGHUB_WORKFLOW_BODY_RESHAPE/);
+      // api và worker cùng nạp PipelinesModule; vòng đời Nest phải tự gọi onModuleInit và làm khởi động thất bại.
+      await assert.rejects(
+        NestFactory.createApplicationContext(PipelinesModule, { logger: false, abortOnError: false }),
+        /RUNNINGHUB_WORKFLOW_BODY_RESHAPE/,
+      );
     } finally {
-      process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE = saved;
+      if (saved === undefined) delete process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE;
+      else process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE = saved;
     }
-    assert.doesNotThrow(() => app.get(PipelinesService).onModuleInit());
+    const ctx = await NestFactory.createApplicationContext(PipelinesModule, { logger: false, abortOnError: false });
+    await ctx.close();
   });
 });

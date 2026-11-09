@@ -193,3 +193,15 @@
 ## Deferred from: code review of spec-4-5-fe-so-sanh-truoc-sau.md (2026-11-09)
 
 - Nút Quay lại / Lịch sử tại `apps/web/pages/tasks/[id].vue:318` vi phạm WCAG 2.5.3 (Label in Name) do `aria-label="Quay lại"` không chứa chuỗi văn bản hiển thị trực quan `<span>Lịch sử</span>` (vấn đề pre-existing kế thừa từ Story 2.12).
+
+## Deferred from: code review of spec-4-1-contract-hop-dong-cho-body-retouch.md (2026-11-09)
+
+- `_bmad-output/implementation-artifacts/epic-4-context.md` ghi `POST /tasks/body-retouch` nhận `consent`, trong khi spec 4.1 (frozen) và code `.strict()` loại `consent`. Cần đối chiếu và cập nhật file ngữ cảnh để Story 4.2/4.6 không hiểu nhầm (chưa tự kiểm chứng trực tiếp trong file).
+
+## Deferred from: code review of spec-4-2-be-tao-task-body-retouch.md (2026-11-09)
+
+- `apps/api/src/modules/pipelines/pipeline-config.ts:58`: `nodeId`/`fieldName` của `body_retouch` (`10`/`image`, `20`/`intensity`) còn `[ASSUMPTION]`, chưa xác nhận trên RunningHub thật. Cần một lần chạy thật (smoke Story 4.6) để đối chiếu; test hiện tại chỉ phản chiếu cấu hình qua `rh` giả.
+
+## Deferred from: code review of spec-4-3-be-ket-qua-body-retouch.md (2026-11-09)
+
+- `apps/api/test/body-retouch-result.test.mjs`: chưa có test đường lỗi nhập kết quả cho `body_retouch` (tải HTTP 4xx/5xx, body không phải ảnh, `putObject` lỗi, `ingest` gọi hai lần, hủy giữa chừng). Mã nhập kết quả dùng chung với Face Swap từ Epic 2, nên nên phủ ở một story test chung.

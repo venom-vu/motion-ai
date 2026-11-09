@@ -882,7 +882,7 @@ describe('@flowvis/contracts', () => {
         const r = BodyRetouchCreateRequestSchema.safeParse({ imageKey: KEY, intensity: v });
         assert.equal(r.success, false);
         assert.deepEqual(r.error.issues[0].path, ['intensity']);
-        assert.match(r.error.issues[0].message, /[ăâêôơưđáàạ]/);
+        assert.match(r.error.issues[0].message, /^Mức điều chỉnh (phải là số nguyên từ 1 đến 10|tối thiểu là 1|tối đa là 10)\.$/);
       }
     });
 

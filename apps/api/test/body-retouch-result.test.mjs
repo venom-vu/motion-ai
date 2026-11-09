@@ -236,6 +236,7 @@ describe('Story 4.3: [BE] Kết quả Body Retouch', () => {
       assert.equal(meta.width, 40);
       assert.equal(meta.height, 60);
       assert.ok(!meta.orientation || meta.orientation === 1);
+      assert.ok(meta.exif && meta.exif.toString('latin1').includes('AI Generator'), 'EXIF Software phải còn sau khi xoay');
     });
 
     it('ảnh đầu vào EXIF orientation 6, kết quả 60x40 (kích thước thô, chưa xoay): failed/OUTPUT_INVALID', async () => {
@@ -248,6 +249,9 @@ describe('Story 4.3: [BE] Kết quả Body Retouch', () => {
       assert.equal(r.status, 'failed');
       assert.equal(r.reason_code, 'OUTPUT_INVALID');
       assert.equal((await ledger(t.id, 'RELEASED')).length, 1);
+      assert.equal((await ledger(t.id, 'CAPTURED')).length, 0);
+      assert.equal(putCalls, 0);
+      assert.deepEqual(outKeys(), []);
     });
   });
 

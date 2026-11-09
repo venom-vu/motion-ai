@@ -100,3 +100,22 @@ context:
 - `pnpm --filter @flowvis/api test` -- expected: pass
 - `pnpm run lint && pnpm run typecheck && pnpm run build` -- expected: pass
 - `pnpm run check:boundaries` -- expected: chỉ báo các file `_bmad-output/**` chưa commit (ngoài mã story)
+
+### Review Findings
+
+- [x] [Review][Patch] Test khởi động chỉ gọi tay `onModuleInit()`, không chứng minh Nest gọi hook; nếu `PipelinesService` mất `implements OnModuleInit` hoặc `PipelinesModule` không được nạp thì test vẫn pass và api/worker vẫn khởi động thiếu biến [apps/api/test/body-retouch.test.mjs:519]
+- [x] [Review][Defer] `nodeId`/`fieldName` của `body_retouch` (`10`/`image`, `20`/`intensity`) còn `[ASSUMPTION]`, test chỉ phản chiếu lại chính cấu hình qua `rh` giả [apps/api/src/modules/pipelines/pipeline-config.ts:58] — deferred: cần một lần chạy thật trên RunningHub (smoke Story 4.6) để xác nhận; cùng tình trạng với `face_swap`
+
+#### Rejected
+
+- Worker bỏ qua `intensity` thiếu/`null` rồi vẫn tính phí — low, reject: `createBodyRetouch` luôn ghi `intensity` (mặc định 5), chỉ xảy ra với dòng chèn tay; thêm nhánh chặn là thêm phức tạp.
+- `String(v)` ra `[object Object]`/`NaN`, `row.params` sai kiểu — low, reject: `params` do server ghi từ schema đã kiểm.
+- Lỗi ánh xạ param nằm trong try upload — false: khối đó không có đường ném lỗi nào cho param.
+- Biến môi trường rỗng/khoảng trắng qua được kiểm tra — false: `getWorkflowId` đã `trim()` và coi rỗng là thiếu.
+- Các manifest deploy khác thiếu biến — false: `deploy/compose.yml` và `compose.local.yml` không khai báo bất kỳ `RUNNINGHUB_*` nào (kể cả Face Swap); spec chỉ yêu cầu `.env.example` và `compose.smoke.yml`.
+- `inputKeys` rỗng/trùng bỏ qua kiểm tra sở hữu; nhánh khác chỉ xử lý `face_swap` — false: người gọi cố định khóa; grep `apps/api/src` không còn nhánh `face_swap` nào khác.
+- Migration khóa bảng, thiếu `IF EXISTS`/rollback — low, reject: bảng `tasks` nhỏ ở MVP, ràng buộc tên cố định do chính migration đầu tạo.
+- Migration không có trong Code Map của spec — reject: sửa là chỉnh spec đang review.
+- `process.env` khôi phục thành chuỗi `'undefined'` — low, reject: `??=` đầu file đảm bảo `saved` luôn có giá trị.
+- Re-parse trong service trả thông báo chung — low, reject: vẫn đúng mã `VALIDATION_FAILED`.
+- Thiếu test hàng đợi hỗn hợp/FIFO/đo 2 giây/`nodeId`; boilerplate `??=` ở ~14 file test; dọn dẹp bảng `upload`; kiểu `params` lỏng — low, reject: không gặp trong dùng thực tế, sửa là thêm test hoặc refactor.

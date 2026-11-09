@@ -94,3 +94,22 @@ context:
 - `pnpm --filter @flowvis/api test` -- expected: pass (cần `RUNNINGHUB_WORKFLOW_BODY_RESHAPE` và Redis riêng nếu có dev worker đang chạy)
 - `pnpm run lint && pnpm run typecheck && pnpm run build` -- expected: pass
 - `pnpm run check:boundaries` -- expected: chỉ báo các file `_bmad-output/**` chưa commit (ngoài mã story)
+
+### Review Findings
+
+- [x] [Review][Patch] Test "orientation 6, kết quả 60x40" không khẳng định không còn `out/` và không ghi R2, khác với test lệch cỡ thường (có `putCalls === 0`, `outKeys()` rỗng, không CAPTURED) [apps/api/test/body-retouch-result.test.mjs:243]
+- [x] [Review][Patch] Test orientation dùng `!meta.orientation || === 1` nên vẫn pass khi metadata bị xóa hết; nên khẳng định cùng lúc EXIF `Software` còn trong ảnh đã xoay [apps/api/test/body-retouch-result.test.mjs:238]
+- [x] [Review][Defer] Chưa có test đường lỗi nhập kết quả (tải 4xx/5xx, không phải ảnh, `putObject` lỗi, `ingest` gọi hai lần, hủy giữa chừng) cho `body_retouch` — deferred: mã dùng chung với Face Swap từ Epic 2; nên phủ ở một story test chung thay vì lặp theo từng pipeline
+
+#### Rejected
+
+- Chưa test ảnh gốc quá 7 ngày theo tuổi — false: quy tắc do lifecycle R2 (`configure-bucket.ts`, `in/` xóa sau 7 ngày) thực thi; `getResult` chỉ dựa vào `head()`, test `head null` đã phủ đúng cơ chế.
+- Chỉ gọi `ingest` trực tiếp, không qua worker — low, reject: cùng mẫu Epic 2; luồng worker đã có test ở 4.2.
+- `Queue.prototype` bị ghi đè toàn cục; `process.env` không khôi phục; `after` dễ vỡ — low, reject: `node --test` chạy mỗi file một tiến trình, không rò sang file khác.
+- `ensureInfra` chạy docker/migrate trong test, không skip khi thiếu hạ tầng — low, reject: cùng mẫu mọi suite tích hợp hiện có.
+- Dọn dẹp ép `failed` mọi Task, lặp SQL ở test 409, thiếu `resetGate()` — low, reject: chỉ ảnh hưởng người dùng của lần chạy này; refactor test không sửa lỗi.
+- Test `gpu_coins` chỉ một giá trị; thiếu ca 0/NaN — low, reject: logic làm tròn thuộc Epic 2, ngoài phạm vi 4.3.
+- Thiếu test auth `/result` (401, id lạ), share (không chủ, chưa succeeded, token hết hạn, throttle) — low, reject: logic dùng chung với Face Swap, đã có test từ Epic 2.
+- Chỉ kiểm orientation 6; chuỗi con `AI Generator` trong EXIF; fake storage dễ dãi; thứ tự tạo Task/ảnh; siêu dữ liệu upload — low, reject: không gặp trong dùng thực tế, sửa là thêm test hoặc làm chặt fixture.
+- Chưa ghi Implementation Notes; `packages/contracts` đang sửa — reject: sửa là chỉnh spec; thay đổi contracts là patch review 4.1 chưa commit, không thuộc diff 4.3.
+- Verification Gap: không có khoảng trống.

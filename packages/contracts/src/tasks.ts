@@ -5,7 +5,7 @@ export const TASK_PIPELINES = ['face_swap', 'body_retouch'] as const;
 export type TaskPipeline = (typeof TASK_PIPELINES)[number];
 export const TaskPipelineSchema = z.enum(TASK_PIPELINES);
 
-/** Pipeline có thể ghi đè thông báo lỗi (mở rộng ở Epic 4, 5). */
+/** Pipeline có thể ghi đè thông báo lỗi (gồm `motion_control` của Epic 5, chưa nằm trong `TASK_PIPELINES`). */
 export const REASON_MESSAGE_PIPELINES = [
   ...TASK_PIPELINES,
   'motion_control',
@@ -210,7 +210,7 @@ export const INTENSITY_LABEL_ZONES = [
 /** Nhãn tiếng Việt theo mức; ngoài 1–10 hoặc không nguyên trả `null`. */
 export function getIntensityLabelVi(n: number): string | null {
   if (!Number.isInteger(n)) return null;
-  const zone = INTENSITY_LABEL_ZONES.find((zone) => n >= zone.min && n <= zone.max);
+  const zone = INTENSITY_LABEL_ZONES.find((item) => n >= item.min && n <= item.max);
   return zone ? zone.label : null;
 }
 

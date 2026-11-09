@@ -96,3 +96,22 @@ context:
 - `pnpm --filter @flowvis/contracts test` -- expected: pass
 - `pnpm run lint && pnpm run typecheck && pnpm run build` -- expected: pass
 - `pnpm run check:boundaries` -- expected: pass
+
+### Review Findings
+
+- [x] [Review][Patch] Test lỗi `intensity` chỉ so regex ký tự có dấu, không khẳng định đúng thông điệp (có thể lọt thông điệp sai) [packages/contracts/test/index.test.mjs:885]
+- [x] [Review][Patch] Tham số `zone` trong `find` che biến `zone` đang khai báo (đổi tên thành `z`/`item`) [packages/contracts/src/tasks.ts:213]
+- [x] [Review][Patch] Comment "mở rộng ở Epic 4, 5" ở `REASON_MESSAGE_PIPELINES` đã lỗi thời (Epic 4 xong, chỉ còn `motion_control` của Epic 5) [packages/contracts/src/tasks.ts:8]
+- [x] [Review][Defer] `epic-4-context.md` ghi endpoint nhận `consent` trong khi spec 4.1 (frozen) và code loại `consent` — deferred: sửa file ngữ cảnh agent, chưa tự kiểm chứng trực tiếp; cần đối chiếu để 4.2/4.6 không bị nhầm
+
+#### Rejected
+
+- Zod v4 làm mất `invalid_type_error` — false: `packages/contracts/package.json` ghim `zod 3.24.4`, cú pháp v3 hợp lệ.
+- `Task`/mock không mang `intensity` — false: epic lưu `intensity` trong `params` ở BE (4.2), intent 4.1 không yêu cầu.
+- Câu `NO_POSE` "rõ thân" gượng / mất gợi ý toàn thân — false: nguyên văn theo AC của Story 4.1.
+- `z.input` thay `z.infer` làm `intensity` tùy chọn — false: spec yêu cầu thiếu `intensity` thì mặc định 5, test phủ ca này.
+- README thiếu `INTENSITY_LABEL_ZONES`/`BodyRetouchCreateResponseSchema` — false: README dòng 68–69 đã liệt kê.
+- README nói `getIntensityLabelVi` trả `null` ngoài khoảng/không nguyên — false: đúng với code (`Number.isInteger`), README không nói sai.
+- Bảng vùng không kiểm tra liền mạch 1–10; thiếu test `TaskPipelineSchema`, `REASON_MESSAGE_PIPELINES` không trùng, `unrecognized_keys`, NO_POSE Face Swap — low, reject: không gặp trong dùng thực tế, sửa là thêm test.
+- `creditCost` mock có thể lệch cấu hình giá; ID mock có thể trùng — low, reject: fixture tĩnh cho FE, chưa thấy dấu hiệu va chạm.
+- Verification Gap: không có khoảng trống.
