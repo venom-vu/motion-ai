@@ -1,5 +1,5 @@
 {
-  "name": "@motion-ai/api",
+  "name": "@flowvis/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -16,7 +16,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "3.1161.0",
     "@aws-sdk/s3-request-presigner": "3.1161.0",
-    "@motion-ai/contracts": "workspace:*",
+    "@flowvis/contracts": "workspace:*",
     "@nestjs/bullmq": "12.0.0",
     "@nestjs/common": "12.3.2",
     "@nestjs/core": "12.3.2",

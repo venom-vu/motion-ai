@@ -20,7 +20,7 @@ import {
   type AuthGoogleResponse,
   type AuthLogoutResponse,
   type AuthRefreshResponse,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import { AuthService, ConsentRequiredException } from './auth.service.js';
 import { CurrentUser } from './decorators/current-user.decorator.js';
 import { Roles } from './decorators/roles.decorator.js';

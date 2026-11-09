@@ -1,4 +1,2 @@
-import { Module } from '@nestjs/common';
-
-@Module({})
-export class AuditModule {}
+export * from './audit.module.js';
+export * from './audit.service.js';

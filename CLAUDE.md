@@ -11,8 +11,8 @@ Monorepo đã được khởi tạo tại Story 1.1 (`1-1-shared-dựng-monorepo
 - **Các lệnh thật chạy từ thư mục gốc:**
   - `pnpm install`: cài đặt toàn bộ dependencies cho các workspace (`packages/contracts`, `apps/api`, `apps/web`).
   - `pnpm run lint`: chạy ESLint Flat Config kiểm tra mã nguồn toàn monorepo.
-  - `pnpm run typecheck`: kiểm tra kiểu TypeScript trên cả 3 gói (`@motion-ai/contracts`, `@motion-ai/api`, `@motion-ai/web`).
-  - `pnpm run build`: biên dịch `@motion-ai/contracts`, `@motion-ai/api` (NestJS `12.3.2` ESM) và `@motion-ai/web` (Nuxt `4.6.3`).
+  - `pnpm run typecheck`: kiểm tra kiểu TypeScript trên cả 3 gói (`@flowvis/contracts`, `@flowvis/api`, `@flowvis/web`).
+  - `pnpm run build`: biên dịch `@flowvis/contracts`, `@flowvis/api` (NestJS `12.3.2` ESM) và `@flowvis/web` (Nuxt `4.6.3`).
   - `pnpm test`: chạy bộ unit test kiểm tra ranh giới nhánh (`scripts/check-branch-boundaries.test.mjs`) và test của từng gói.
   - `pnpm run check:boundaries`: kiểm tra ranh giới đường dẫn theo tiền tố nhánh (`fe/*` chỉ sửa `apps/web/`, `be/*` chỉ sửa `apps/api/` và `deploy/`, `contract/*` chỉ sửa `packages/contracts/`, `shared/*` được sửa toàn repo).
 
@@ -39,7 +39,7 @@ Dùng skill BMad theo thứ tự; planning đã xong, bước tiếp theo là `b
 
 ## Kiến trúc đích (tóm tắt từ ARCHITECTURE-SPINE.md)
 
-Motion AI là SaaS tạo ảnh/video AI (Face Swap, Body Retouch, Motion Control) gọi GPU qua RunningHub, tính phí bằng credit. Đọc spine đầy đủ (các mục AD-1…AD-18) trước khi viết mã backend. Những điểm cần nhiều file mới thấy:
+flowvis là SaaS tạo ảnh/video AI (Face Swap, Body Retouch, Motion Control) gọi GPU qua RunningHub, tính phí bằng credit. Đọc spine đầy đủ (các mục AD-1…AD-18) trước khi viết mã backend. Những điểm cần nhiều file mới thấy:
 
 - **Modular monolith, ports-and-adapters**: một codebase NestJS, hai entrypoint (`api`, `worker`). Module: `auth`, `wallet`, `tasks`, `pipelines`, `topups`, `storage`, `ops`, `audit`. Port: `RunningHubPort`, `StoragePort`, `NotifierPort`. Worker không mở HTTP công khai.
 - **PostgreSQL là nguồn sự thật duy nhất** cho trạng thái Task và sổ cái credit. Redis/BullMQ chỉ điều phối và phải dựng lại được từ DB.

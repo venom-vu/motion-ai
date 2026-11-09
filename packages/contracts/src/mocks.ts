@@ -16,6 +16,13 @@ import type {
   TaskStatus,
 } from './tasks.js';
 import type {
+  AdminTopup,
+  AdminTopupListResponse,
+  Topup,
+  TopupListResponse,
+  TopupStatus,
+} from './topups.js';
+import type {
   UploadConfirmResponse,
   UploadCreateRequest,
   UploadCreateResponse,
@@ -321,7 +328,6 @@ export const MOCK_UPLOAD_CONFIRM_RESPONSE: UploadConfirmResponse = {
 export const MOCK_FACE_SWAP_CREATE_REQUEST: FaceSwapCreateRequest = {
   sourceKey: `in/${MOCK_USER_ID}/60000000-0000-4000-8000-000000000001`,
   targetKey: `in/${MOCK_USER_ID}/60000000-0000-4000-8000-000000000002`,
-  consent: true,
 };
 
 export const MOCK_TASK_QUEUED: Task = {
@@ -398,4 +404,108 @@ export const MOCK_TASK_SHARE_RESPONSE: TaskShareResponse = {
 };
 export const MOCK_TASK_SHARE_REVOKE_RESPONSE: TaskShareRevokeResponse = {
   revoked: true,
+};
+
+/* ------------------------- Epic 3: nạp tiền ------------------------- */
+
+const MOCK_TOPUP_BASE = {
+  pack: 'pro',
+  amountVnd: 99_000,
+  credits: 12_000,
+  bankCode: '970436',
+  accountNumber: '0123456789',
+  accountName: 'CONG TY FLOWVIS',
+  qrExpiresAt: '2026-11-07T03:15:00.000Z',
+  createdAt: '2026-11-07T03:00:00.000Z',
+  updatedAt: '2026-11-07T03:00:00.000Z',
+} as const;
+
+/** Mỗi đơn mock có `code` riêng để FE không gặp trùng khóa; CRC của `qrPayload` là giá trị giả. */
+function mockTopupIdentity(code: string) {
+  return {
+    code,
+    transferContent: `NAP ${code}`,
+    qrPayload: `00020101021238540010A00000072701240006970436011001234567890208QRIBFTTA530370454060990005802VN62110807NAP${code}6304ABCD`,
+  };
+}
+
+export const MOCK_TOPUPS_BY_STATUS: Record<TopupStatus, Topup> = {
+  awaiting_transfer: {
+    ...MOCK_TOPUP_BASE,
+    ...mockTopupIdentity('K7M2Q9XA'),
+    id: '00000000-0000-4000-8000-0000000000a1',
+    status: 'awaiting_transfer',
+  },
+  pending: {
+    ...MOCK_TOPUP_BASE,
+    ...mockTopupIdentity('P4N8T2WD'),
+    id: '00000000-0000-4000-8000-0000000000a2',
+    status: 'pending',
+    approveBy: '2026-11-07T03:30:00.000Z',
+  },
+  approved: {
+    ...MOCK_TOPUP_BASE,
+    ...mockTopupIdentity('H3J6R5ZC'),
+    id: '00000000-0000-4000-8000-0000000000a3',
+    status: 'approved',
+    approveBy: '2026-11-07T03:30:00.000Z',
+    bankRef: 'FT26311000123',
+  },
+  rejected: {
+    ...MOCK_TOPUP_BASE,
+    ...mockTopupIdentity('M9X2B7LE'),
+    id: '00000000-0000-4000-8000-0000000000a4',
+    status: 'rejected',
+    approveBy: '2026-11-07T03:30:00.000Z',
+    rejectReason: 'Không tìm thấy giao dịch tương ứng trên sao kê ngân hàng.',
+  },
+  needs_review: {
+    ...MOCK_TOPUP_BASE,
+    ...mockTopupIdentity('Q5V8D3KF'),
+    id: '00000000-0000-4000-8000-0000000000a5',
+    status: 'needs_review',
+    approveBy: '2026-11-07T03:30:00.000Z',
+    note: 'Số tiền chuyển lệch so với đơn, đang chờ đối chiếu.',
+  },
+  expired: {
+    ...MOCK_TOPUP_BASE,
+    ...mockTopupIdentity('T2C6Y4NG'),
+    id: '00000000-0000-4000-8000-0000000000a6',
+    status: 'expired',
+  },
+};
+
+export const MOCK_TOPUP_LIST_RESPONSE: TopupListResponse = {
+  items: [
+    MOCK_TOPUPS_BY_STATUS.pending,
+    MOCK_TOPUPS_BY_STATUS.awaiting_transfer,
+    MOCK_TOPUPS_BY_STATUS.approved,
+  ],
+  pageSize: 20,
+  hasMore: false,
+  nextCursor: null,
+};
+
+const MOCK_ADMIN_USER_ID = '00000000-0000-4000-8000-0000000000b1';
+
+export const MOCK_ADMIN_TOPUPS_BY_STATUS: Record<TopupStatus, AdminTopup> = Object.fromEntries(
+  (Object.keys(MOCK_TOPUPS_BY_STATUS) as TopupStatus[]).map((status) => [
+    status,
+    {
+      ...MOCK_TOPUPS_BY_STATUS[status],
+      userId: MOCK_ADMIN_USER_ID,
+      isOverdue: status === 'pending',
+    },
+  ]),
+) as Record<TopupStatus, AdminTopup>;
+
+export const MOCK_ADMIN_TOPUP_LIST_RESPONSE: AdminTopupListResponse = {
+  items: [
+    MOCK_ADMIN_TOPUPS_BY_STATUS.pending,
+    MOCK_ADMIN_TOPUPS_BY_STATUS.needs_review,
+    MOCK_ADMIN_TOPUPS_BY_STATUS.expired,
+  ],
+  pageSize: 20,
+  hasMore: false,
+  nextCursor: null,
 };

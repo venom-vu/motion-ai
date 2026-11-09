@@ -13,7 +13,7 @@ import {
   type PricingConfigResponse,
   type UserRole,
   type WalletLedgerResponse,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import { PrismaService } from '../../infra/prisma.service.js';
 import { PRICING_CONFIG } from '../wallet/tier.js';
 import { WalletService } from '../wallet/wallet.service.js';

@@ -23,7 +23,7 @@ const repoRoot = path.resolve(apiRoot, '../..');
 const composePath = path.join(repoRoot, 'deploy', 'compose.yml');
 const DB_URL =
   process.env.DATABASE_URL ||
-  'postgresql://motion_user:change_me_local_password@localhost:5432/motion_ai?schema=public';
+  'postgresql://motion_user:change_me_local_password@localhost:5432/flowvis?schema=public';
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
 function tcp(host, port) {
@@ -79,7 +79,7 @@ describe('Story 2.5: [BE] Worker xử lý Task qua RunningHub', () => {
 
   async function newUser(balance = 5000) {
     const n = users.length;
-    const u = await prisma.user.create({ data: { googleId: `w-${runId}-${n}`, email: `w-${runId}-${n}@motionai.vn`, tosVersion: 'tos-v7' } });
+    const u = await prisma.user.create({ data: { googleId: `w-${runId}-${n}`, email: `w-${runId}-${n}@flowvis.vn`, tosVersion: 'tos-v7' } });
     users.push(u.id);
     await prisma.$transaction((t) => new WalletService().grant(t, u.id, balance));
     return { id: u.id, token: jwt.sign({ sub: u.id, email: u.email, role: 'user' }) };
@@ -91,7 +91,7 @@ describe('Story 2.5: [BE] Worker xử lý Task qua RunningHub', () => {
       await prisma.upload.create({ data: { userId: user.id, key: `in-raw/${user.id}/${uuid}`, kind: 'image', mimeType: 'image/jpeg', declaredBytes: 10, status: 'confirmed', confirmedKey: `in/${user.id}/${uuid}` } });
       keys.push(`in/${user.id}/${uuid}`);
     }
-    const res = await fetch(`${baseUrl}/tasks/face-swap`, { method: 'POST', headers: { Authorization: `Bearer ${user.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ sourceKey: keys[0], targetKey: keys[1], consent: true }) });
+    const res = await fetch(`${baseUrl}/tasks/face-swap`, { method: 'POST', headers: { Authorization: `Bearer ${user.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ sourceKey: keys[0], targetKey: keys[1] }) });
     assert.equal(res.status, 201);
     return (await res.json()).id;
   }

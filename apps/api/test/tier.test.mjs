@@ -11,7 +11,7 @@ import {
   PricingConfigResponseSchema,
   TierSnapshotSchema,
   WalletLedgerResponseSchema,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import { JwtService } from '@nestjs/jwt';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -28,7 +28,7 @@ const repoRoot = path.resolve(apiRoot, '../..');
 const composePath = path.join(repoRoot, 'deploy', 'compose.yml');
 const DB_URL =
   process.env.DATABASE_URL ||
-  'postgresql://motion_user:change_me_local_password@localhost:5432/motion_ai?schema=public';
+  'postgresql://motion_user:change_me_local_password@localhost:5432/flowvis?schema=public';
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
 function checkTcpPort(host, port, timeoutMs = 1000) {
@@ -84,7 +84,7 @@ describe('Story 1.7: [BE] Tier, API ví và đối soát sổ cái', () => {
     const user = await prisma.user.create({
       data: {
         googleId: `g-t-${runId}-${n}`,
-        email: `tier-${runId}-${n}@motionai.vn`,
+        email: `tier-${runId}-${n}@flowvis.vn`,
         tosVersion: 'test',
       },
     });
@@ -102,7 +102,7 @@ describe('Story 1.7: [BE] Tier, API ví và đối soát sổ cái', () => {
     return u;
   }
   const authHeader = (u) => ({
-    Authorization: `Bearer ${jwt.sign({ sub: u, email: `tier-${runId}@motionai.vn`, role: 'user' })}`,
+    Authorization: `Bearer ${jwt.sign({ sub: u, email: `tier-${runId}@flowvis.vn`, role: 'user' })}`,
   });
 
   before(async () => {
@@ -122,6 +122,7 @@ describe('Story 1.7: [BE] Tier, API ví và đối soát sổ cái', () => {
     if (pool) {
       await pool.query('DELETE FROM ledger_entries WHERE user_id = ANY($1::uuid[])', [userIds]);
       await pool.query('DELETE FROM tasks WHERE user_id = ANY($1::uuid[])', [userIds]);
+      await pool.query('DELETE FROM topups WHERE user_id = ANY($1::uuid[])', [userIds]);
       await prisma.user.deleteMany({ where: { id: { in: userIds } } });
       await prisma.$disconnect();
     }

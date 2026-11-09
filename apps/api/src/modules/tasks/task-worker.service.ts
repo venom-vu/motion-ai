@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import type { ReasonCode } from '@motion-ai/contracts';
+import type { ReasonCode } from '@flowvis/contracts';
 import { Worker } from 'bullmq';
 import { RedisService } from '../../infra/redis.service.js';
 import {

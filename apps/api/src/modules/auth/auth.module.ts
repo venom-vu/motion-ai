@@ -13,7 +13,7 @@ import { AccountLockedGuard } from './guards/account-locked.guard.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
 import { RolesGuard } from './guards/roles.guard.js';
 import { JwtStrategy } from './jwt.strategy.js';
-import { AuthThrottlerGuard, ShareThrottlerGuard, getAuthThrottleOptions } from './throttler.guard.js';
+import { AuthThrottlerGuard, ShareThrottlerGuard, TopupThrottlerGuard, getAuthThrottleOptions } from './throttler.guard.js';
 
 @Module({
   imports: [
@@ -30,7 +30,7 @@ import { AuthThrottlerGuard, ShareThrottlerGuard, getAuthThrottleOptions } from 
       useFactory: () => ({
         secret:
           process.env.JWT_SECRET ||
-          'motion-ai-jwt-dev-secret-change-me-in-production-min-32-chars',
+          'flowvis-jwt-dev-secret-change-me-in-production-min-32-chars',
         signOptions: {
           expiresIn: 900, // 15 phút (900 giây)
         },
@@ -47,6 +47,7 @@ import { AuthThrottlerGuard, ShareThrottlerGuard, getAuthThrottleOptions } from 
     AccountLockedGuard,
     AuthThrottlerGuard,
     ShareThrottlerGuard,
+    TopupThrottlerGuard,
   ],
   exports: [
     AuthService,
@@ -57,6 +58,7 @@ import { AuthThrottlerGuard, ShareThrottlerGuard, getAuthThrottleOptions } from 
     JwtModule,
     AuthThrottlerGuard,
     ShareThrottlerGuard,
+    TopupThrottlerGuard,
   ],
 })
 export class AuthModule {}

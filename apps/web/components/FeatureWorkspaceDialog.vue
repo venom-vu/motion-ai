@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { TOS_VERSION, type AccountTier, type Task } from '@motion-ai/contracts';
+import type { AccountTier, Task } from '@flowvis/contracts';
 import ImageUploader from '~/components/ImageUploader.vue';
 import TaskProgressCard from '~/components/TaskProgressCard.vue';
 import { useApiClient } from '~/composables/useApiClient';
@@ -49,7 +49,6 @@ const selectedSeconds = ref<number>(1);
 const uploadedKey = ref<string | null>(null);
 const sourceKey = ref<string | null>(null);
 const targetKey = ref<string | null>(null);
-const acceptedConsent = ref<boolean>(false);
 const activeTask = ref<Task | null>(null);
 const isSubmitting = ref<boolean>(false);
 const submitErrorVi = ref<string | null>(null);
@@ -65,7 +64,6 @@ watch(
     uploadedKey.value = null;
     sourceKey.value = null;
     targetKey.value = null;
-    acceptedConsent.value = false;
     activeTask.value = null;
     submitErrorVi.value = null;
     if (nextFeature?.tierCapSeconds) {
@@ -87,17 +85,12 @@ watch(
       uploadedKey.value = null;
       sourceKey.value = null;
       targetKey.value = null;
-      acceptedConsent.value = false;
-      activeTask.value = null;
+        activeTask.value = null;
       submitErrorVi.value = null;
     }
   },
   { immediate: true },
 );
-
-watch([uploadedKey, sourceKey, targetKey], () => {
-  acceptedConsent.value = false;
-});
 
 const isAuthenticated = computed<boolean>(() => {
   return typeof props.userBalance === 'number';
@@ -125,9 +118,9 @@ const canSubmit = computed<boolean>(() => {
     return false;
   }
   if (props.feature?.id === 'face-swap') {
-    return Boolean(sourceKey.value && targetKey.value && acceptedConsent.value);
+    return Boolean(sourceKey.value && targetKey.value);
   }
-  return Boolean(uploadedKey.value && acceptedConsent.value);
+  return Boolean(uploadedKey.value);
 });
 
 async function handleSubmit(): Promise<void> {
@@ -142,7 +135,6 @@ async function handleSubmit(): Promise<void> {
       const task = await client.createFaceSwapTask({
         sourceKey: sourceKey.value!,
         targetKey: targetKey.value!,
-        consent: true,
       });
       activeTask.value = task;
       void refreshAll();
@@ -198,7 +190,7 @@ onBeforeUnmount(() => {
     aria-modal="true"
     :aria-labelledby="`workspace-dialog-title-${feature.id}`"
     data-testid="feature-workspace-dialog"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-cyber-bg/80 p-3 backdrop-blur-sm sm:p-6"
+    class="fixed inset-0 !m-0 z-50 flex items-center justify-center bg-cyber-bg/80 p-3 backdrop-blur-sm sm:p-6"
     @click.self="emit('close')"
   >
     <div
@@ -292,7 +284,6 @@ onBeforeUnmount(() => {
                 id-prefix="workspace-source-face"
                 label-vi="Chọn ảnh mặt nguồn"
                 description-vi="Ảnh chân dung rõ mặt, JPG/PNG/WebP ≤ 10 MB"
-                :show-tos-consent="false"
               />
             </div>
 
@@ -313,31 +304,7 @@ onBeforeUnmount(() => {
                 id-prefix="workspace-target-face"
                 label-vi="Chọn ảnh đích"
                 description-vi="Ảnh có người rõ dáng, JPG/PNG/WebP ≤ 10 MB"
-                :show-tos-consent="false"
               />
-            </div>
-
-            <!-- Checkbox ToS theo FR19 -->
-            <div class="rounded-xl border border-cyber-border bg-cyber-bg/70 p-3.5">
-              <label
-                for="workspace-face-swap-tos"
-                class="touch-target flex min-h-[48px] items-start gap-3 text-xs text-cyber-muted transition"
-                :class="{
-                  'cursor-pointer': Boolean(sourceKey && targetKey),
-                  'opacity-60 cursor-not-allowed': !sourceKey || !targetKey,
-                }"
-              >
-                <input
-                  id="workspace-face-swap-tos"
-                  v-model="acceptedConsent"
-                  :disabled="!sourceKey || !targetKey"
-                  type="checkbox"
-                  class="mt-0.5 h-4 w-4 shrink-0 accent-cyber-violet disabled:cursor-not-allowed"
-                />
-                <span class="leading-relaxed">
-                  Tôi xác nhận đủ 18 tuổi, sở hữu quyền hợp pháp đối với cả hai ảnh tải lên, những người trong ảnh đã đồng ý cho xử lý và cam kết tuân thủ Điều khoản dịch vụ (phiên bản {{ TOS_VERSION }}).
-                </span>
-              </label>
             </div>
           </div>
 
@@ -363,7 +330,6 @@ onBeforeUnmount(() => {
 
             <ImageUploader
               v-model="uploadedKey"
-              v-model:consent="acceptedConsent"
               id-prefix="workspace-input"
               :label-vi="
                 feature.titleVi

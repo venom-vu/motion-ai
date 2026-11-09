@@ -1,6 +1,6 @@
-# @motion-ai/web — Giao diện Nuxt 4 Mobile-First & Desktop Adaptive (Slate Cyber)
+# @flowvis/web — Giao diện Nuxt 4 Mobile-First & Desktop Adaptive (Slate Cyber)
 
-Ứng dụng Frontend của **Motion AI** được xây dựng trên **Nuxt `4.6.3`**, tích hợp hệ màu **Slate Cyber** (Tailwind CSS `3.4.19`), bộ icon vector **Lucide** (`@nuxt/icon` `2.6.2` + `@iconify-json/lucide` `1.2.150`), và client API có kiểu sinh từ gói hợp đồng chung `@motion-ai/contracts`.
+Ứng dụng Frontend của **flowvis** được xây dựng trên **Nuxt `4.6.3`**, tích hợp hệ màu **Slate Cyber** (Tailwind CSS `3.4.19`), bộ icon vector **Lucide** (`@nuxt/icon` `2.6.2` + `@iconify-json/lucide` `1.2.150`), và client API có kiểu sinh từ gói hợp đồng chung `@flowvis/contracts`.
 
 ## 1. Cấu hình triển khai Cloudflare Pages (`cloudflare-pages`)
 
@@ -12,9 +12,9 @@ nitro: {
 }
 ```
 
-### Kết quả kiểm chứng `pnpm --filter @motion-ai/web run build`
+### Kết quả kiểm chứng `pnpm --filter @flowvis/web run build`
 
-- **Lệnh kiểm tra:** `pnpm --filter @motion-ai/web run build` (`nuxt build`)
+- **Lệnh kiểm tra:** `pnpm --filter @flowvis/web run build` (`nuxt build`)
 - **Preset Nitro:** `cloudflare-pages`
 - **Đầu ra biên dịch xác nhận tại `apps/web/.output/public/`:**
   - `apps/web/.output/public/_worker.js/index.js`: Cloudflare Pages Worker bundle xử lý SSR và định tuyến.
@@ -23,18 +23,18 @@ nitro: {
 
 ## 2. Kết nối API
 
-FE luôn gọi backend thật tại `NUXT_PUBLIC_API_BASE_URL` (mặc định `http://localhost:8080`), parse phản hồi qua Zod schema của `@motion-ai/contracts` và ánh xạ mã lỗi `ApiErrorCode` sang tiếng Việt qua `API_ERROR_MESSAGES_VI`. Không còn chế độ mock; cần chạy `apps/api` (kèm Postgres, Redis) khi phát triển.
+FE luôn gọi backend thật tại `NUXT_PUBLIC_API_BASE_URL` (mặc định `http://localhost:8080`), parse phản hồi qua Zod schema của `@flowvis/contracts` và ánh xạ mã lỗi `ApiErrorCode` sang tiếng Việt qua `API_ERROR_MESSAGES_VI`. Không còn chế độ mock; cần chạy `apps/api` (kèm Postgres, Redis) khi phát triển.
 
 ## 3. Các lệnh phát triển
 
 Chạy từ thư mục gốc monorepo:
 
-- `pnpm --filter @motion-ai/web run dev`: Khởi chạy máy chủ phát triển Nuxt 4.
-- `pnpm --filter @motion-ai/web run lint`: Kiểm tra ESLint (phủ cả `.ts`, `.mjs` và `.vue`).
-- `pnpm --filter @motion-ai/web run typecheck`: Chạy `nuxt prepare && nuxt typecheck`.
-- `pnpm --filter @motion-ai/web run build`: Biên dịch đầu ra Cloudflare Pages tại `.output/public`.
-- `pnpm --filter @motion-ai/web run test`: Chạy bộ kiểm thử tự động trong `apps/web/test/smoke.test.mjs`.
+- `pnpm --filter @flowvis/web run dev`: Khởi chạy máy chủ phát triển Nuxt 4.
+- `pnpm --filter @flowvis/web run lint`: Kiểm tra ESLint (phủ cả `.ts`, `.mjs` và `.vue`).
+- `pnpm --filter @flowvis/web run typecheck`: Chạy `nuxt prepare && nuxt typecheck`.
+- `pnpm --filter @flowvis/web run build`: Biên dịch đầu ra Cloudflare Pages tại `.output/public`.
+- `pnpm --filter @flowvis/web run test`: Chạy bộ kiểm thử tự động trong `apps/web/test/smoke.test.mjs`.
 
 ## 4. Chạy FE với BE cục bộ và smoke test
 
-Chỉ có chế độ `live`; "mock" là các hằng `MOCK_*` trong `@motion-ai/contracts`, được kiểm tra khớp BE thật trong smoke test (`apps/api/test/smoke-login.test.mjs`). Chạy BE cục bộ (xem README gốc) rồi: `NUXT_PUBLIC_API_BASE_URL=http://localhost:3001 pnpm --filter @motion-ai/web run dev`. Đăng nhập Google thật là bước thủ công một lần khi có thông tin OAuth.
+Chỉ có chế độ `live`; "mock" là các hằng `MOCK_*` trong `@flowvis/contracts`, được kiểm tra khớp BE thật trong smoke test (`apps/api/test/smoke-login.test.mjs`). Chạy BE cục bộ (xem README gốc) rồi: `NUXT_PUBLIC_API_BASE_URL=http://localhost:3001 pnpm --filter @flowvis/web run dev`. Đăng nhập Google thật là bước thủ công một lần khi có thông tin OAuth.

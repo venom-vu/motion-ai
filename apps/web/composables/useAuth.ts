@@ -12,7 +12,7 @@ let restoring: Promise<boolean> | null = null;
 export function useAuth() {
   const { client, accessToken, setAccessToken } = useApiClient();
   const sessionChecked = useState<boolean>(
-    'motion-ai-session-checked',
+    'flowvis-session-checked',
     () => false,
   );
 

@@ -1,5 +1,17 @@
 import {
   API_ERROR_MESSAGES_VI,
+  AdminTopupApproveExpiredRequestSchema,
+  AdminTopupApproveExpiredResponseSchema,
+  AdminTopupApproveRequestSchema,
+  AdminTopupApproveResponseSchema,
+  AdminTopupListQuerySchema,
+  AdminTopupListResponseSchema,
+  AdminTopupNeedsReviewRequestSchema,
+  AdminTopupNeedsReviewResponseSchema,
+  AdminTopupRejectRequestSchema,
+  AdminTopupRejectResponseSchema,
+  AdminTopupReturnToPendingRequestSchema,
+  AdminTopupReturnToPendingResponseSchema,
   ApiErrorCode,
   AuthGoogleCallbackQuerySchema,
   AuthGoogleCallbackResponseSchema,
@@ -24,10 +36,30 @@ import {
   UploadConfirmResponseSchema,
   UploadCreateRequestSchema,
   UploadCreateResponseSchema,
+  TopupConfirmTransferResponseSchema,
+  TopupCreateRequestSchema,
+  TopupCreateResponseSchema,
+  TopupGetResponseSchema,
+  TopupIdParamsSchema,
+  TopupListQuerySchema,
+  TopupListResponseSchema,
   WalletLedgerQuerySchema,
   WalletLedgerResponseSchema,
   getApiErrorMessageVi,
   getReasonCodeMessageVi,
+  type AdminTopup,
+  type AdminTopupApproveExpiredRequest,
+  type AdminTopupApproveExpiredResponse,
+  type AdminTopupApproveRequest,
+  type AdminTopupApproveResponse,
+  type AdminTopupListQuery,
+  type AdminTopupListResponse,
+  type AdminTopupNeedsReviewRequest,
+  type AdminTopupNeedsReviewResponse,
+  type AdminTopupRejectRequest,
+  type AdminTopupRejectResponse,
+  type AdminTopupReturnToPendingRequest,
+  type AdminTopupReturnToPendingResponse,
   type AuthGoogleCallbackQuery,
   type AuthGoogleCallbackResponse,
   type AuthGoogleQuery,
@@ -47,19 +79,40 @@ import {
   type TaskResultResponse,
   type TaskShareResponse,
   type TaskShareRevokeResponse,
+  type Topup,
+  type TopupConfirmTransferResponse,
+  type TopupCreateRequest,
+  type TopupCreateResponse,
+  type TopupGetResponse,
+  type TopupListQuery,
+  type TopupListResponse,
+  type TopupStatus,
   type UploadConfirmRequest,
   type UploadConfirmResponse,
   type UploadCreateRequest,
   type UploadCreateResponse,
   type WalletLedgerQuery,
   type WalletLedgerResponse,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 
 export {
   API_ERROR_MESSAGES_VI,
   ApiErrorCode,
   getApiErrorMessageVi,
   getReasonCodeMessageVi,
+  type AdminTopup,
+  type AdminTopupApproveExpiredRequest,
+  type AdminTopupApproveExpiredResponse,
+  type AdminTopupApproveRequest,
+  type AdminTopupApproveResponse,
+  type AdminTopupListQuery,
+  type AdminTopupListResponse,
+  type AdminTopupNeedsReviewRequest,
+  type AdminTopupNeedsReviewResponse,
+  type AdminTopupRejectRequest,
+  type AdminTopupRejectResponse,
+  type AdminTopupReturnToPendingRequest,
+  type AdminTopupReturnToPendingResponse,
   type FaceSwapCreateRequest,
   type FaceSwapCreateResponse,
   type ReasonCode,
@@ -71,6 +124,14 @@ export {
   type TaskResultResponse,
   type TaskShareResponse,
   type TaskShareRevokeResponse,
+  type Topup,
+  type TopupConfirmTransferResponse,
+  type TopupCreateRequest,
+  type TopupCreateResponse,
+  type TopupGetResponse,
+  type TopupListQuery,
+  type TopupListResponse,
+  type TopupStatus,
 };
 
 export interface MotionApiClientOptions {
@@ -116,7 +177,7 @@ export class MotionApiClientError extends Error {
 
 /**
  * Chuẩn hóa mọi đối tượng lỗi API hoặc mã lỗi sang thông báo tiếng Việt thân thiện
- * thông qua bảng ánh xạ duy nhất `API_ERROR_MESSAGES_VI` của `@motion-ai/contracts`.
+ * thông qua bảng ánh xạ duy nhất `API_ERROR_MESSAGES_VI` của `@flowvis/contracts`.
  */
 export function resolveApiErrorMessageVi(errorOrCode: unknown): string {
   if (errorOrCode instanceof MotionApiClientError) {
@@ -606,6 +667,197 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
           signal: options?.signal,
         },
         (payload) => TaskShareRevokeResponseSchema.parse(payload),
+      );
+    },
+
+    async createTopup(
+      rawRequest: TopupCreateRequest,
+      options?: { signal?: AbortSignal },
+    ): Promise<TopupCreateResponse> {
+      const data = TopupCreateRequestSchema.parse(rawRequest);
+      return requestLive(
+        '/topups',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          signal: options?.signal,
+        },
+        (payload) => TopupCreateResponseSchema.parse(payload),
+      );
+    },
+
+    async confirmTopupTransfer(
+      id: string,
+      options?: { signal?: AbortSignal },
+    ): Promise<TopupConfirmTransferResponse> {
+      TopupIdParamsSchema.parse({ id });
+      return requestLive(
+        `/topups/${encodeURIComponent(id)}/confirm-transfer`,
+        {
+          method: 'POST',
+          signal: options?.signal,
+        },
+        (payload) => TopupConfirmTransferResponseSchema.parse(payload),
+      );
+    },
+
+    async getTopup(
+      id: string,
+      options?: { signal?: AbortSignal },
+    ): Promise<TopupGetResponse> {
+      TopupIdParamsSchema.parse({ id });
+      return requestLive(
+        `/topups/${encodeURIComponent(id)}`,
+        {
+          method: 'GET',
+          signal: options?.signal,
+        },
+        (payload) => TopupGetResponseSchema.parse(payload),
+      );
+    },
+
+    async listTopups(
+      rawQuery?: TopupListQuery,
+      options?: { signal?: AbortSignal },
+    ): Promise<TopupListResponse> {
+      const query = TopupListQuerySchema.parse(rawQuery ?? {});
+      const params = new URLSearchParams();
+      if (query.pageSize) {
+        params.set('pageSize', String(query.pageSize));
+      }
+      if (query.cursor) {
+        params.set('cursor', query.cursor);
+      }
+      const qs = params.toString();
+      return requestLive(
+        `/topups${qs ? `?${qs}` : ''}`,
+        {
+          method: 'GET',
+          signal: options?.signal,
+        },
+        (payload) => TopupListResponseSchema.parse(payload),
+      );
+    },
+
+    async adminListTopups(
+      rawQuery?: AdminTopupListQuery,
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminTopupListResponse> {
+      const query = AdminTopupListQuerySchema.parse(rawQuery ?? {});
+      const params = new URLSearchParams();
+      if (query.status) {
+        params.set('status', query.status);
+      }
+      if (query.pageSize) {
+        params.set('pageSize', String(query.pageSize));
+      }
+      if (query.cursor) {
+        params.set('cursor', query.cursor);
+      }
+      const qs = params.toString();
+      return requestLive(
+        `/admin/topups${qs ? `?${qs}` : ''}`,
+        {
+          method: 'GET',
+          signal: options?.signal,
+        },
+        (payload) => AdminTopupListResponseSchema.parse(payload),
+      );
+    },
+
+    async adminApproveTopup(
+      id: string,
+      rawRequest: AdminTopupApproveRequest,
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminTopupApproveResponse> {
+      TopupIdParamsSchema.parse({ id });
+      const data = AdminTopupApproveRequestSchema.parse(rawRequest);
+      return requestLive(
+        `/admin/topups/${encodeURIComponent(id)}/approve`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          signal: options?.signal,
+        },
+        (payload) => AdminTopupApproveResponseSchema.parse(payload),
+      );
+    },
+
+    async adminApproveExpiredTopup(
+      id: string,
+      rawRequest: AdminTopupApproveExpiredRequest,
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminTopupApproveExpiredResponse> {
+      TopupIdParamsSchema.parse({ id });
+      const data = AdminTopupApproveExpiredRequestSchema.parse(rawRequest);
+      return requestLive(
+        `/admin/topups/${encodeURIComponent(id)}/approve-expired`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          signal: options?.signal,
+        },
+        (payload) => AdminTopupApproveExpiredResponseSchema.parse(payload),
+      );
+    },
+
+    async adminRejectTopup(
+      id: string,
+      rawRequest: AdminTopupRejectRequest,
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminTopupRejectResponse> {
+      TopupIdParamsSchema.parse({ id });
+      const data = AdminTopupRejectRequestSchema.parse(rawRequest);
+      return requestLive(
+        `/admin/topups/${encodeURIComponent(id)}/reject`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          signal: options?.signal,
+        },
+        (payload) => AdminTopupRejectResponseSchema.parse(payload),
+      );
+    },
+
+    async adminNeedsReviewTopup(
+      id: string,
+      rawRequest: AdminTopupNeedsReviewRequest,
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminTopupNeedsReviewResponse> {
+      TopupIdParamsSchema.parse({ id });
+      const data = AdminTopupNeedsReviewRequestSchema.parse(rawRequest);
+      return requestLive(
+        `/admin/topups/${encodeURIComponent(id)}/needs-review`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          signal: options?.signal,
+        },
+        (payload) => AdminTopupNeedsReviewResponseSchema.parse(payload),
+      );
+    },
+
+    async adminReturnTopupToPending(
+      id: string,
+      rawRequest?: AdminTopupReturnToPendingRequest,
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminTopupReturnToPendingResponse> {
+      TopupIdParamsSchema.parse({ id });
+      const data = AdminTopupReturnToPendingRequestSchema.parse(rawRequest ?? {});
+      return requestLive(
+        `/admin/topups/${encodeURIComponent(id)}/return-to-pending`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data ?? {}),
+          signal: options?.signal,
+        },
+        (payload) => AdminTopupReturnToPendingResponseSchema.parse(payload),
       );
     },
   };

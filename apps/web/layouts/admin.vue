@@ -10,6 +10,11 @@ const adminNavItems = [
     icon: 'lucide:activity',
   },
   {
+    to: '/admin/topups',
+    labelVi: 'Duyệt đơn VietQR',
+    icon: 'lucide:receipt',
+  },
+  {
     to: '/pricing',
     labelVi: 'Cấu hình gói nạp',
     icon: 'lucide:credit-card',

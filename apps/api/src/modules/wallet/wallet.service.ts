@@ -17,7 +17,7 @@ import {
   type TierSnapshot,
   type TopupPackId,
   type WalletLedgerResponse,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import {
   PrismaService,
   type PrismaTransactionClient,

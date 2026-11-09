@@ -5,7 +5,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { ApiErrorCode, TOS_VERSION } from '@motion-ai/contracts';
+import { ApiErrorCode, TOS_VERSION } from '@flowvis/contracts';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../dist/generated/prisma/client.js';
@@ -21,7 +21,7 @@ const composePath = path.join(repoRoot, 'deploy', 'compose.yml');
 
 const DEFAULT_DATABASE_URL =
   process.env.DATABASE_URL ||
-  'postgresql://motion_user:change_me_local_password@localhost:5432/motion_ai?schema=public';
+  'postgresql://motion_user:change_me_local_password@localhost:5432/flowvis?schema=public';
 const DEFAULT_REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
 function checkTcpPort(host, port, timeoutMs = 1000) {
@@ -85,17 +85,17 @@ describe('Story 1.5: [BE] Đăng nhập Google và phiên JWT', () => {
   let redisService;
 
   const testRunId = crypto.randomBytes(4).toString('hex');
-  const adminEmail = `admin-${testRunId}@motionai.vn`;
-  const regularEmail = `user-${testRunId}@motionai.vn`;
-  const lockedEmail = `locked-${testRunId}@motionai.vn`;
+  const adminEmail = `admin-${testRunId}@flowvis.vn`;
+  const regularEmail = `user-${testRunId}@flowvis.vn`;
+  const lockedEmail = `locked-${testRunId}@flowvis.vn`;
 
   before(async () => {
     process.env.DATABASE_URL = DEFAULT_DATABASE_URL;
     process.env.REDIS_URL = DEFAULT_REDIS_URL;
     process.env.PORT = '0';
     process.env.JWT_SECRET = 'super-secret-test-jwt-key-with-at-least-32-chars-ok';
-    process.env.ADMIN_EMAILS = `owner@motionai.vn, ${adminEmail}, test-admin@motionai.vn`;
-    process.env.FRONTEND_URL = 'http://localhost:3000, https://motionai.vn';
+    process.env.ADMIN_EMAILS = `owner@flowvis.vn, ${adminEmail}, test-admin@flowvis.vn`;
+    process.env.FRONTEND_URL = 'http://localhost:3000, https://flowvis.vn';
     process.env.COOKIE_SECURE = 'true';
 
     await ensureInfraRunning();

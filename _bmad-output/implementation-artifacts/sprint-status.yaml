@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-01-2026 14:32
-last_updated: 11-07-2026 01:00
+last_updated: 11-08-2026 16:47
 project: motion-ai
 project_key: NOKEY
 tracking_system: file-system
@@ -68,16 +68,16 @@ development_status:
   2-14-integration-nối-fe-với-be-và-smoke-test-face-swap: done
   epic-2-retrospective: done
 
-  epic-3: backlog
-  3-1-contract-hợp-đồng-cho-nạp-tiền-và-duyệt-đơn: backlog
-  3-2-be-tạo-đơn-nạp-và-mã-vietqr: backlog
-  3-3-be-xác-nhận-chuyển-khoản-hạn-qr-và-hạn-duyệt: backlog
-  3-4-be-thông-báo-discord-cho-admin: backlog
-  3-5-be-duyệt-và-từ-chối-đơn-nhật-ký-admin: backlog
-  3-6-fe-trang-nạp-credit-và-theo-dõi-đơn: backlog
-  3-7-fe-dashboard-admin-duyệt-đơn-nạp: backlog
-  3-8-integration-nối-fe-với-be-và-smoke-test-nạp-tiền: backlog
-  epic-3-retrospective: optional
+  epic-3: done
+  3-1-contract-hợp-đồng-cho-nạp-tiền-và-duyệt-đơn: done
+  3-2-be-tạo-đơn-nạp-và-mã-vietqr: done
+  3-3-be-xác-nhận-chuyển-khoản-hạn-qr-và-hạn-duyệt: done
+  3-4-be-thông-báo-discord-cho-admin: done
+  3-5-be-duyệt-và-từ-chối-đơn-nhật-ký-admin: done
+  3-6-fe-trang-nạp-credit-và-theo-dõi-đơn: done
+  3-7-fe-dashboard-admin-duyệt-đơn-nạp: done
+  3-8-integration-nối-fe-với-be-và-smoke-test-nạp-tiền: done
+  epic-3-retrospective: done
 
   epic-4: backlog
   4-1-contract-hợp-đồng-cho-body-retouch: backlog
@@ -163,7 +163,7 @@ action_items:
     epic: 2
     action: "Xóa nhánh ?mock=/mockMode và URL giả khỏi FE, gom MOCK_* vào test"
     owner: "Dev FE"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-11-07.md"
   - id: "epic-2-retro-item-9-xem-kết-quả-job-smoke-ci-cho-commit-12c1"
     epic: 2
@@ -192,3 +192,56 @@ action_items:
     owner: "Dev FE"
     status: open
     ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-11-07.md"
+  - id: "epic-3-retro-item-13-thêm-test-mức-component-hoặc-trình-duyệt"
+    epic: 3
+    action: "Thêm test mức component hoặc trình duyệt cho luồng QR hết hạn và nút
+      Tạo mã mới, kiểm CORS và cookie với FE ở chế độ live"
+    owner: "Dev FE"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-11-08.md"
+  - id: "epic-3-retro-item-14-mở-rộng-smoke-nạp-tiền-từ-chối-đơn-disco"
+    epic: 3
+    action: "Mở rộng smoke nạp tiền: từ chối đơn, Discord lỗi, cảnh báo quá hạn đúng
+      một lần, 403 đơn người khác, giải mã qrPayload"
+    owner: "Dev BE"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-11-08.md"
+  - id: "epic-3-retro-item-15-sửa-ac-story-3-6-trong-epics-md-từ-botto"
+    epic: 3
+    action: "Sửa AC Story 3.6 trong epics.md từ Bottom Sheet sang Centered Dialog"
+    owner: "PM"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-11-08.md"
+  - id: "epic-3-retro-item-16-tách-helper-smoke-dùng-chung-vào-apps-ap"
+    epic: 3
+    action: "Tách helper smoke dùng chung vào apps/api/test/helpers và đổi cổng để
+      không trùng, trước smoke Story 4.6"
+    owner: "Dev BE"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-11-08.md"
+  - id: "epic-3-retro-item-17-thêm-kiểm-tra-tự-động-mã-story-trong-tiê"
+    epic: 3
+    action: "Thêm kiểm tra tự động mã story trong tiêu đề commit hoặc mở story riêng
+      cho thay đổi ngoài story"
+    owner: "Cả nhóm"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-11-08.md"
+  - id: "epic-3-retro-item-18-ghi-quy-ước-test-hợp-đồng-so-khóa-trên-j"
+    epic: 3
+    action: "Ghi quy ước: test hợp đồng so khóa trên JSON thô, không so sau Zod parse"
+    owner: "Dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-11-08.md"
+  - id: "epic-3-retro-item-19-xác-nhận-docs-bao-cao-phan-tich-gia-runn"
+    epic: 3
+    action: "Xác nhận docs/bao-cao-phan-tich-gia-runninghub.md có thuộc Epic 3 không,
+      chuyển hoặc xóa"
+    owner: "Chủ repo"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-11-08.md"
+  - id: "epic-3-retro-item-20-xem-kết-quả-ci-cho-nhánh-epic-3-và-đổi-t"
+    epic: 3
+    action: "Xem kết quả CI cho nhánh Epic 3 và đổi tên bước CI smoke cho đúng"
+    owner: "Dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-11-08.md"

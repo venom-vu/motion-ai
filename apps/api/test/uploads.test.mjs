@@ -21,7 +21,7 @@ const repoRoot = path.resolve(apiRoot, '../..');
 const composePath = path.join(repoRoot, 'deploy', 'compose.yml');
 const DB_URL =
   process.env.DATABASE_URL ||
-  'postgresql://motion_user:change_me_local_password@localhost:5432/motion_ai?schema=public';
+  'postgresql://motion_user:change_me_local_password@localhost:5432/flowvis?schema=public';
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
 function tcp(host, port) {
@@ -99,7 +99,7 @@ describe('Story 2.2: [BE] Tải ảnh lên R2 an toàn', () => {
   async function newUser() {
     const n = users.length;
     const u = await prisma.user.create({
-      data: { googleId: `up-${runId}-${n}`, email: `up-${runId}-${n}@motionai.vn`, tosVersion: 't' },
+      data: { googleId: `up-${runId}-${n}`, email: `up-${runId}-${n}@flowvis.vn`, tosVersion: 't' },
     });
     users.push(u.id);
     return { id: u.id, token: jwt.sign({ sub: u.id, email: u.email, role: 'user' }) };

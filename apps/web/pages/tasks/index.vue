@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { clearNuxtData, refreshNuxtData, useAsyncData, useHead } from '#imports';
-import type { Task, TaskListResponse } from '@motion-ai/contracts';
+import type { Task, TaskListResponse } from '@flowvis/contracts';
 import { ME_KEY, useApiClient } from '~/composables/useApiClient';
 import { useAuth } from '~/composables/useAuth';
 import { useAuthDialog } from '~/composables/useAuthDialog';
@@ -9,7 +9,7 @@ import { resolveApiErrorMessageVi } from '~/utils/api-client';
 import { isUnauthorizedError } from '~/utils/auth-session';
 
 useHead({
-  title: 'Lịch Sử Tác Vụ — Motion AI',
+  title: 'Lịch Sử Tác Vụ — flowvis',
   meta: [
     {
       name: 'description',
@@ -25,7 +25,7 @@ const { open: openAuthDialog } = useAuthDialog();
 const PAGE_SIZE = 20;
 
 const tasksAsync = useAsyncData<TaskListResponse>(
-  'motion-ai-tasks-list',
+  'flowvis-tasks-list',
   () => client.listTasks({ pageSize: PAGE_SIZE }),
 );
 
@@ -54,7 +54,7 @@ watch(
 watch(accessToken, (newToken, oldToken) => {
   if (Boolean(newToken) !== Boolean(oldToken)) {
     if (!newToken) {
-      clearNuxtData('motion-ai-tasks-list');
+      clearNuxtData('flowvis-tasks-list');
       items.value = [];
       nextCursor.value = null;
       hasMore.value = false;

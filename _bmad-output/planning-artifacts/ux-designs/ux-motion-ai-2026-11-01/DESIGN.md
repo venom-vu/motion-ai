@@ -120,13 +120,13 @@ components:
     iconColor: '#000000'
 ---
 
-# Motion AI — Design Spine (DESIGN.md)
+# flowvis — Design Spine (DESIGN.md)
 
 > Tiêu chuẩn nhận diện thị giác dựa trên đặc tả Google Labs. Quản lý toàn bộ khía cạnh thị giác (*nhìn ra sao*: bảng màu, typography, khoảng cách, icon vector chuẩn Lucide, linh kiện giao diện). Tài liệu này cùng với `EXPERIENCE.md` là hai hợp đồng song hành cao nhất của dự án.
 
 ## Brand & Style
 
-**Motion AI** mang định hướng phong cách **Sleek Creator Tool kết hợp Dark Studio Accent** (lấy cảm hứng từ sự tiện dụng, tốc độ của CapCut / TikTok Studio kết hợp không gian studio nghệ thuật AI tối tân). 
+**flowvis** mang định hướng phong cách **Sleek Creator Tool kết hợp Dark Studio Accent** (lấy cảm hứng từ sự tiện dụng, tốc độ của CapCut / TikTok Studio kết hợp không gian studio nghệ thuật AI tối tân). 
 
 Sản phẩm được thiết kế ưu tiên tuyệt đối cho môi trường di động (**Mobile-First**), nhắm vào các nhà sáng tạo nội dung mạng xã hội (TikTok, Instagram) và chủ shop thời trang online tại Việt Nam. Trải nghiệm mang tinh thần **1-Click AI** — không đòi hỏi người dùng phải học ComfyUI hay kỹ thuật câu lệnh (prompting) phức tạp: mở web trên điện thoại, chọn ảnh/video, tinh chỉnh trong tầm với ngón cái và bấm tạo.
 

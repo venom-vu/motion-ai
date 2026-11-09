@@ -11,8 +11,8 @@ COPY packages/contracts/src ./packages/contracts/src
 COPY apps/api/package.json apps/api/tsconfig.json apps/api/prisma.config.ts ./apps/api/
 COPY apps/api/prisma ./apps/api/prisma
 COPY apps/api/src ./apps/api/src
-RUN pnpm install --frozen-lockfile --filter . --filter @motion-ai/contracts --filter @motion-ai/api
-RUN pnpm --filter @motion-ai/contracts run build && pnpm --filter @motion-ai/api run build
+RUN pnpm install --frozen-lockfile --filter . --filter @flowvis/contracts --filter @flowvis/api
+RUN pnpm --filter @flowvis/contracts run build && pnpm --filter @flowvis/api run build
 
 FROM base AS runtime
 WORKDIR /app

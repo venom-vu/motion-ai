@@ -16,7 +16,7 @@ import {
   type UploadConfirmResponse,
   type UploadCreateRequest,
   type UploadCreateResponse,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import sharp, { type Metadata, type OutputInfo } from 'sharp';
 import { FORMAT_TO_MIME, displaySize } from './image-utils.js';
 import { PrismaService } from '../../infra/prisma.service.js';

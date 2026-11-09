@@ -1,4 +1,4 @@
-name: motion-ai
+name: flowvis
 
 services:
   postgres-16:
@@ -7,13 +7,13 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-motion_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_local_password}
-      POSTGRES_DB: ${POSTGRES_DB:-motion_ai}
+      POSTGRES_DB: ${POSTGRES_DB:-flowvis}
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-motion_user} -d $${POSTGRES_DB:-motion_ai}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-motion_user} -d $${POSTGRES_DB:-flowvis}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -50,7 +50,7 @@ services:
       - "./apps/api/node_modules/.bin/prisma migrate deploy --config apps/api/prisma.config.ts && node apps/api/dist/main.js"
     environment:
       PORT: ${PORT:-3001}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-motion_user}:${POSTGRES_PASSWORD:-change_me_local_password}@postgres-16:5432/${POSTGRES_DB:-motion_ai}?schema=public}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-motion_user}:${POSTGRES_PASSWORD:-change_me_local_password}@postgres-16:5432/${POSTGRES_DB:-flowvis}?schema=public}
       REDIS_URL: ${REDIS_URL:-redis://redis-7:6379}
     ports:
       - "${PORT:-3001}:${PORT:-3001}"
@@ -72,7 +72,7 @@ services:
     restart: unless-stopped
     command: ["node", "apps/api/dist/worker.js"]
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-motion_user}:${POSTGRES_PASSWORD:-change_me_local_password}@postgres-16:5432/${POSTGRES_DB:-motion_ai}?schema=public}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-motion_user}:${POSTGRES_PASSWORD:-change_me_local_password}@postgres-16:5432/${POSTGRES_DB:-flowvis}?schema=public}
       REDIS_URL: ${REDIS_URL:-redis://redis-7:6379}
     depends_on:
       postgres-16:

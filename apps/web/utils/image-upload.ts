@@ -7,7 +7,7 @@ import {
   MIN_IMAGE_SHORT_SIDE_PX,
   type ImageMeta,
   type ImageMimeType,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 
 export {
   IMAGE_MIME_TYPES,
@@ -137,7 +137,52 @@ export function getImageDimensions(
 }
 
 /**
- * Kiểm tra file ảnh phía client bằng ImageFileDeclarationSchema và ImageMetaSchema từ @motion-ai/contracts.
+ * Tính toán vùng cắt (crop) và kích thước đầu ra khi chụp ảnh từ luồng video camera (WebRTC),
+ * đảm bảo ảnh luôn thỏa mãn tỷ lệ khung hình tối đa (1:2 đến 2:1) và cạnh ngắn >= 512px.
+ */
+export function computeCameraCaptureDimensions(
+  videoWidth: number,
+  videoHeight: number,
+): {
+  sx: number;
+  sy: number;
+  sw: number;
+  sh: number;
+  dw: number;
+  dh: number;
+} {
+  const safeWidth = Math.max(1, Math.floor(videoWidth));
+  const safeHeight = Math.max(1, Math.floor(videoHeight));
+
+  let sx = 0;
+  let sy = 0;
+  let sw = safeWidth;
+  let sh = safeHeight;
+
+  // Cắt giữa nếu tỷ lệ khung hình vượt quá MAX_IMAGE_ASPECT_RATIO (2:1)
+  if (sw / sh > MAX_IMAGE_ASPECT_RATIO) {
+    sw = Math.max(1, Math.floor(sh * MAX_IMAGE_ASPECT_RATIO));
+    sx = Math.floor((safeWidth - sw) / 2);
+  } else if (sh / sw > MAX_IMAGE_ASPECT_RATIO) {
+    sh = Math.max(1, Math.floor(sw * MAX_IMAGE_ASPECT_RATIO));
+    sy = Math.floor((safeHeight - sh) / 2);
+  }
+
+  // Phóng tỷ lệ nếu webcam có độ phân giải thấp (ví dụ 640x480 có cạnh ngắn 480 < 512px)
+  const shortSide = Math.min(sw, sh);
+  const scale =
+    shortSide < MIN_IMAGE_SHORT_SIDE_PX
+      ? MIN_IMAGE_SHORT_SIDE_PX / shortSide
+      : 1;
+
+  const dw = Math.max(MIN_IMAGE_SHORT_SIDE_PX, Math.round(sw * scale));
+  const dh = Math.max(MIN_IMAGE_SHORT_SIDE_PX, Math.round(sh * scale));
+
+  return { sx, sy, sw, sh, dw, dh };
+}
+
+/**
+ * Kiểm tra file ảnh phía client bằng ImageFileDeclarationSchema và ImageMetaSchema từ @flowvis/contracts.
  */
 export async function validateImageFile(
   file: File | (Blob & { name?: string; width?: number; height?: number }),

@@ -24,7 +24,7 @@ import {
   MOCK_UPLOAD_CREATE_RESPONSE,
   MOCK_WALLET_LEDGER_ITEMS,
   TOS_VERSION,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import { SLATE_CYBER_COLORS } from '../tailwind.config.ts';
 import {
   MotionApiClientError,
@@ -33,6 +33,7 @@ import {
   uploadPresignedFile,
 } from '../utils/api-client.ts';
 import {
+  computeCameraCaptureDimensions,
   formatFileSizeVi,
   getImageDimensions,
   normalizeImageMimeType,
@@ -85,7 +86,7 @@ function collectFiles(dirPath, extensions) {
   return results;
 }
 
-describe('@motion-ai/web — Story 1.4 Nuxt 4 mobile-first & API client', () => {
+describe('@flowvis/web — Story 1.4 Nuxt 4 mobile-first & API client', () => {
   it('AC1: ghim cố định phiên bản trong package.json (Nuxt 4.6.3) và cấu hình preset cloudflare-pages', () => {
     assert.equal(CONTRACTS_PACKAGE_VERSION, '0.1.0');
 
@@ -99,7 +100,7 @@ describe('@motion-ai/web — Story 1.4 Nuxt 4 mobile-first & API client', () => 
       ...(pkgJson.devDependencies ?? {}),
     };
     for (const [depName, version] of Object.entries(allDeps)) {
-      if (depName === '@motion-ai/contracts') {
+      if (depName === '@flowvis/contracts') {
         assert.equal(version, 'workspace:*');
         continue;
       }
@@ -589,7 +590,7 @@ describe('@motion-ai/web — Story 1.4 Nuxt 4 mobile-first & API client', () => 
   });
 });
 
-describe('@motion-ai/web — Story 1.9 đăng nhập, ToS và phiên', () => {
+describe('@flowvis/web — Story 1.9 đăng nhập, ToS và phiên', () => {
   const json = (body, status = 200) =>
     new Response(JSON.stringify(body), {
       status,
@@ -895,7 +896,7 @@ describe('@motion-ai/web — Story 1.9 đăng nhập, ToS và phiên', () => {
   });
 });
 
-describe('@motion-ai/web — Story 1.10 Lịch sử credit & phân trang vô tận', () => {
+describe('@flowvis/web — Story 1.10 Lịch sử credit & phân trang vô tận', () => {
   it('isUnauthorizedError: nhận diện đúng status 401, code UNAUTHORIZED, cause 401 và loại trừ 500/mạng', () => {
     assert.equal(isUnauthorizedError({ status: 401 }), true);
     assert.equal(isUnauthorizedError({ statusCode: 401 }), true);
@@ -1429,7 +1430,7 @@ describe('@motion-ai/web — Story 1.10 Lịch sử credit & phân trang vô t�
   });
 });
 
-describe('@motion-ai/web — Header cố định, popover tài khoản và đăng nhập bằng dialog', () => {
+describe('@flowvis/web — Header cố định, popover tài khoản và đăng nhập bằng dialog', () => {
   const read = (rel) => fs.readFileSync(path.join(webRoot, rel), 'utf8');
   const json = (body, status = 200) =>
     new Response(JSON.stringify(body), {
@@ -1558,7 +1559,7 @@ describe('@motion-ai/web — Header cố định, popover tài khoản và đăn
   });
 });
 
-describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết ToS', () => {
+describe('@flowvis/web — Story 2.10 Thành phần tải ảnh có cam kết ToS', () => {
   it('kiểm tra tính hợp lệ phía client: từ chối MIME không hỗ trợ, file > 10MB, cạnh ngắn < 512px, tỷ lệ sai', async () => {
     // 1. MIME không hỗ trợ (ví dụ image/gif)
     const gifFile = {
@@ -1715,7 +1716,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
     }
   });
 
-  it('SSR render ImageUploader: đầy đủ các thành phần, input file accept, ToS checkbox phiên bản 2026-11-01 và touch target >= 48px', async () => {
+  it('SSR render ImageUploader: đầy đủ các thành phần, input file accept, không có ToS checkbox và touch target >= 48px', async () => {
     const uploaderSfcRaw = fs.readFileSync(
       path.join(webRoot, 'components/ImageUploader.vue'),
       'utf8',
@@ -1750,16 +1751,13 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
             descriptionVi: 'JPG, PNG, WebP ≤ 10 MB',
             idPrefix: 'test-uploader',
             disabled: false,
-            showTosConsent: true,
             isUploading: false,
             isDragging: false,
-            localConsent: false,
             TOS_VERSION,
             openLibrary: () => {},
             openCamera: () => {},
             onFileInputChange: () => {},
             onDrop: () => {},
-            updateConsent: () => {},
           };
         },
       });
@@ -1778,8 +1776,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
       assert.match(idleHtml, /data-testid="image-uploader"/);
       assert.match(idleHtml, /data-testid="open-library-button"/);
       assert.match(idleHtml, /data-testid="open-camera-button"/);
-      assert.match(idleHtml, /data-testid="image-uploader-tos-checkbox"/);
-      assert.match(idleHtml, /2026-11-01/);
+      assert.doesNotMatch(idleHtml, /image-uploader-tos-checkbox/);
       assert.match(idleHtml, /accept="image\/jpeg,image\/png,image\/webp"/);
       assert.match(idleHtml, /capture="environment"/);
       assert.match(idleHtml, /touch-target/);
@@ -1801,13 +1798,10 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
             },
             disabled: false,
             isUploading: false,
-            showTosConsent: true,
-            localConsent: true,
             TOS_VERSION,
             formatFileSizeVi,
             handleChangeImage: () => {},
             handleCancel: () => {},
-            updateConsent: () => {},
           };
         },
       });
@@ -1838,8 +1832,6 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
             idPrefix: 'test-uploading',
             uploadProgress: 65,
             currentFile: { name: 'sample.jpg', size: 1024 * 512 },
-            showTosConsent: false,
-            localConsent: false,
             TOS_VERSION,
             formatFileSizeVi,
             handleCancel: () => {},
@@ -1866,8 +1858,6 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
             status: 'error',
             idPrefix: 'test-error',
             errorMessageVi: 'Tệp không hợp lệ',
-            showTosConsent: false,
-            localConsent: false,
             TOS_VERSION,
             handleRetry: () => {},
             handleCancel: () => {},
@@ -1892,11 +1882,68 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
       assert.match(errorHtml, /data-testid="upload-error-state"/);
       assert.match(errorHtml, /data-testid="reselect-image-button"/);
       assert.match(errorHtml, /data-testid="reselect-camera-button"/);
+
+      // 5. Trạng thái mở hộp thoại chụp ảnh trực tiếp qua WebRTC Camera
+      const cameraApp = createSSRApp({
+        ssrRender,
+        setup() {
+          return {
+            status: 'idle',
+            labelVi: 'Tải ảnh khuôn mặt',
+            descriptionVi: 'JPG, PNG, WebP ≤ 10 MB',
+            idPrefix: 'test-camera',
+            disabled: false,
+            isUploading: false,
+            isDragging: false,
+            isCameraOpen: true,
+            isCameraStarting: false,
+            cameraErrorVi: null,
+            cameraFacingMode: 'user',
+            TOS_VERSION,
+            openLibrary: () => {},
+            openCamera: () => {},
+            closeCamera: () => {},
+            switchCameraFacing: () => {},
+            capturePhoto: () => {},
+            startCameraStream: () => {},
+            fallbackCameraToLibrary: () => {},
+            onFileInputChange: () => {},
+            onDrop: () => {},
+          };
+        },
+      });
+      cameraApp.component('Icon', {
+        props: ['name'],
+        ssrRender(_ctx, push) {
+          push('<span class="icon-mock"></span>');
+        },
+      });
+      const cameraHtml = await renderToString(cameraApp);
+      assert.match(cameraHtml, /data-testid="camera-capture-modal"/);
+      assert.match(cameraHtml, /data-testid="camera-video-preview"/);
+      assert.match(cameraHtml, /data-testid="capture-photo-button"/);
+      assert.match(cameraHtml, /data-testid="switch-camera-button"/);
+      assert.match(cameraHtml, /data-testid="close-camera-button"/);
     } finally {
       if (fs.existsSync(tmpUploaderFile)) {
         fs.unlinkSync(tmpUploaderFile);
       }
     }
+  });
+
+  it('computeCameraCaptureDimensions đảm bảo cạnh ngắn >= 512px và tỷ lệ khung hình <= 2:1', () => {
+    // Webcam 640x480 (cạnh ngắn 480 < 512px) được phóng lên 683x512
+    const vga = computeCameraCaptureDimensions(640, 480);
+    assert.ok(Math.min(vga.dw, vga.dh) >= 512);
+    assert.equal(vga.dh, 512);
+
+    // Khung hình siêu rộng 2400x800 (3:1 > 2:1) được cắt giữa về 1600x800
+    const ultraWide = computeCameraCaptureDimensions(2400, 800);
+    assert.equal(ultraWide.sw, 1600);
+    assert.equal(ultraWide.sh, 800);
+    assert.equal(ultraWide.sx, 400);
+    assert.equal(ultraWide.dw, 1600);
+    assert.equal(ultraWide.dh, 800);
   });
 
   it('normalizeImageMimeType chuẩn hóa đúng MIME và đuôi tệp cho thiết bị di động', () => {
@@ -1914,7 +1961,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
     );
     assert.match(dialogRaw, /ImageUploader/);
     assert.match(dialogRaw, /v-model="uploadedKey"/);
-    assert.match(dialogRaw, /v-model:consent="acceptedConsent"/);
+    assert.doesNotMatch(dialogRaw, /acceptedConsent|consent/);
     assert.match(dialogRaw, /canSubmit/);
   });
 
@@ -2140,7 +2187,6 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
               uploadedKey: canSubmitValue ? 'in/mock/sample.jpg' : null,
               sourceKey: null,
               targetKey: null,
-              acceptedConsent: canSubmitValue,
               activeTask: null,
               isSubmitting: false,
               submitErrorVi: null,
@@ -2200,7 +2246,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
     }
   });
 
-  describe('@motion-ai/web — Story 2.11 Trang Face Swap và tiến trình xử lý', () => {
+  describe('@flowvis/web — Story 2.11 Trang Face Swap và tiến trình xử lý', () => {
     it('createMotionApiClient hỗ trợ createFaceSwapTask, getTask và cancelTask đúng schema hợp đồng', async () => {
       const calls = [];
       const mockFetch = async (input, init) => {
@@ -2392,7 +2438,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
       }
     });
 
-    it('pages/face-swap.vue SSR render đầy đủ 2 uploader, giá 100 credit, ToS checkbox và nút Tạo Face Swap', async () => {
+    it('pages/face-swap.vue SSR render đầy đủ 2 uploader, giá 100 credit, không còn ToS checkbox và nút Tạo Face Swap', async () => {
       const pageRaw = fs.readFileSync(
         path.join(webRoot, 'pages/face-swap.vue'),
         'utf8',
@@ -2483,7 +2529,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
         assert.match(initialHtml, /data-testid="page-face-swap"/);
         assert.match(initialHtml, /data-testid="source-image-section"/);
         assert.match(initialHtml, /data-testid="target-image-section"/);
-        assert.match(initialHtml, /data-testid="face-swap-tos-checkbox"/);
+        assert.doesNotMatch(initialHtml, /face-swap-tos-checkbox/);
         assert.match(initialHtml, /100 Credit/);
         assert.match(initialHtml, /500 Credit/);
         assert.match(
@@ -2630,7 +2676,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
         assert.match(authHtml, /workspace-source-face/);
         assert.match(authHtml, /workspace-target-face/);
         assert.match(authHtml, /href="\/face-swap"/);
-        assert.match(authHtml, /id="workspace-face-swap-tos"/);
+        assert.doesNotMatch(authHtml, /workspace-face-swap-tos/);
 
         // 2. Kiểm tra khách chưa đăng nhập: hiển thị nút workspace-login-button
         const guestHtml = await renderToString(makeFwdApp({ isGuest: true }));
@@ -2678,7 +2724,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
     });
   });
 
-  describe('@motion-ai/web — Story 2.12 Trang kết quả và lịch sử Task', () => {
+  describe('@flowvis/web — Story 2.12 Trang kết quả và lịch sử Task', () => {
     it('createMotionApiClient hỗ trợ listTasks, getTaskResult, shareTask và revokeTaskShare đúng schema', async () => {
       const calls = [];
       const fakeFetch = async (url, init) => {
@@ -2699,7 +2745,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
           return new Response(
             JSON.stringify({
               token: 'tok-abc',
-              shareUrl: 'https://motion-ai.vn/share/tok-abc',
+              shareUrl: 'https://flowvis.vn/share/tok-abc',
             }),
             { status: 200, headers: { 'Content-Type': 'application/json' } },
           );
@@ -2763,7 +2809,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
       // shareTask
       const share = await client.shareTask('12345678-1234-1234-1234-123456789abc');
       assert.equal(share.token, 'tok-abc');
-      assert.equal(share.shareUrl, 'https://motion-ai.vn/share/tok-abc');
+      assert.equal(share.shareUrl, 'https://flowvis.vn/share/tok-abc');
 
       // revokeTaskShare
       const revoke = await client.revokeTaskShare('12345678-1234-1234-1234-123456789abc');
@@ -3350,7 +3396,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
         );
         assert.match(successHtml, /data-testid="share-success-view"/);
         assert.match(successHtml, /data-testid="share-result-image"/);
-        assert.match(successHtml, /data-testid="try-motion-ai-button"/);
+        assert.match(successHtml, /data-testid="try-flowvis-button"/);
         assert.match(successHtml, /href="\/"/);
         assert.match(successHtml, /data-testid="download-share-image-button"/);
         assert.match(successHtml, /Tải ảnh HD/);
@@ -3376,7 +3422,7 @@ describe('@motion-ai/web — Story 2.10 Thành phần tải ảnh có cam kết 
         assert.match(notFoundHtml, /data-testid="share-not-found-view"/);
         assert.match(notFoundHtml, /Liên kết không còn tồn tại/);
         assert.match(notFoundHtml, /data-testid="back-home-button"/);
-        assert.match(sharePageSfc, /Về trang chủ Motion AI/);
+        assert.match(sharePageSfc, /Về trang chủ flowvis/);
         assert.doesNotMatch(notFoundHtml, /data-testid="share-success-view"/);
         assert.doesNotMatch(notFoundHtml, /data-testid="share-result-image"/);
 

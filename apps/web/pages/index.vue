@@ -68,7 +68,7 @@ function closeWorkspace(): void {
 </script>
 
 <template>
-  <div class="space-y-6" data-testid="page-catalog">
+  <div class="flex flex-col gap-6" data-testid="page-catalog">
     <!-- Banner thông tin Kho Công Cụ AI và thông số động từ /config/pricing -->
     <section
       class="rounded-2xl border border-cyber-border bg-gradient-to-br from-cyber-surface via-slate-900 to-cyber-bg p-5 sm:p-6"

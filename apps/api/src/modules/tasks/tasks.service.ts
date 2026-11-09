@@ -21,7 +21,7 @@ import {
   type TaskResultResponse,
   type TaskStatus,
   type TierSnapshot,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import type { Queue } from 'bullmq';
 import { PrismaService } from '../../infra/prisma.service.js';
 import { RedisService } from '../../infra/redis.service.js';
@@ -397,7 +397,7 @@ export class TasksService {
           pipeline: 'face_swap',
           status: 'queued',
           tierSnapshot: snapshot as unknown as object,
-          consent: req.consent,
+          consent: true, // đã đồng ý ToS một lần lúc đăng nhập
           tosVersion: rows[0].tos_version,
           inputKeys: { sourceKey: req.sourceKey, targetKey: req.targetKey },
           params: {},

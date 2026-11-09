@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useRoute } from '#imports';
-import type { AccountTier, UserRole } from '@motion-ai/contracts';
-import { useAuthDialog } from '~/composables/useAuthDialog';
-import { formatNumberVi } from '~/utils/catalog';
+import { computed } from "vue";
+import { useRoute } from "#imports";
+import type { AccountTier, UserRole } from "@flowvis/contracts";
+import { useAuthDialog } from "~/composables/useAuthDialog";
+import { formatNumberVi } from "~/utils/catalog";
 
 const props = withDefaults(
   defineProps<{
@@ -27,20 +27,20 @@ const { open: openAuthDialog } = useAuthDialog();
 
 const baseNavItems = [
   {
-    to: '/',
-    labelVi: 'Kho Công Cụ AI',
-    icon: 'lucide:layout-grid',
+    to: "/",
+    labelVi: "Kho Công Cụ AI",
+    icon: "lucide:layout-grid",
   },
 ] as const;
 
 const navItems = computed(() => {
-  if (props.role === 'admin') {
+  if (props.role === "admin") {
     return [
       ...baseNavItems,
       {
-        to: '/admin',
-        labelVi: 'Quản Trị',
-        icon: 'lucide:terminal',
+        to: "/admin",
+        labelVi: "Quản Trị",
+        icon: "lucide:terminal",
       },
     ];
   }
@@ -50,21 +50,21 @@ const navItems = computed(() => {
 const isLoggedIn = computed<boolean>(() => Boolean(props.email));
 
 const formattedBalance = computed<string>(() => {
-  if (typeof props.balance !== 'number' || !Number.isFinite(props.balance)) {
-    return '---';
+  if (typeof props.balance !== "number" || !Number.isFinite(props.balance)) {
+    return "---";
   }
   return formatNumberVi(props.balance);
 });
 
-const tierLabel = computed<string>(() => props.tier ?? 'FREE');
+const tierLabel = computed<string>(() => props.tier ?? "FREE");
 
 function openLogin(): void {
-  openAuthDialog('login');
+  openAuthDialog("login");
 }
 
 function isActiveRoute(targetPath: string): boolean {
-  if (targetPath === '/') {
-    return route.path === '/';
+  if (targetPath === "/") {
+    return route.path === "/";
   }
   return route.path.startsWith(targetPath);
 }
@@ -80,21 +80,11 @@ function isActiveRoute(targetPath: string): boolean {
     >
       <NuxtLink
         to="/"
-        aria-label="Trang chủ Motion AI"
+        aria-label="Trang chủ flowvis"
         class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center gap-2.5 rounded-lg px-2 text-cyber-text transition hover:text-cyber-violet"
       >
-        <span
-          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-cyber-violet/50 bg-cyber-violet/15 text-cyber-violet"
-        >
-          <Icon name="lucide:sparkles" class="h-5 w-5" />
-        </span>
-        <span class="flex flex-col">
-          <span class="font-display text-base font-bold tracking-tight">
-            Motion AI
-          </span>
-          <span class="text-[11px] font-mono uppercase tracking-wider text-cyber-muted">
-            Studio AI
-          </span>
+        <span class="font-display text-2xl font-bold tracking-tight">
+          flowvis
         </span>
       </NuxtLink>
 
@@ -172,7 +162,10 @@ function isActiveRoute(targetPath: string): boolean {
           class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-surface px-4 py-2 text-xs font-medium text-cyber-text transition hover:border-cyber-violet"
           @click="openLogin"
         >
-          <Icon name="lucide:log-in" class="h-4 w-4 shrink-0 text-cyber-violet" />
+          <Icon
+            name="lucide:log-in"
+            class="h-4 w-4 shrink-0 text-cyber-violet"
+          />
           <span>Đăng nhập</span>
         </button>
       </div>

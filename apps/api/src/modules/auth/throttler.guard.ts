@@ -1,6 +1,6 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { ThrottlerGuard, type ThrottlerRequest } from '@nestjs/throttler';
-import { ApiErrorCode, getApiErrorMessageVi } from '@motion-ai/contracts';
+import { ApiErrorCode, getApiErrorMessageVi } from '@flowvis/contracts';
 import { resolveClientIp, type ClientIpRequest } from './client-ip.js';
 
 export function getAuthThrottleOptions(): { limit: number; ttl: number } {
@@ -49,6 +49,36 @@ export class ShareThrottlerGuard extends AuthThrottlerGuard {
       limit,
       ttl,
       generateKey: (ctx, tracker, name) => props.generateKey(ctx, tracker, `share-${name}`),
+    });
+  }
+}
+
+export function getTopupThrottleOptions(): { limit: number; ttl: number } {
+  const limit = Number.parseInt(process.env.TOPUP_THROTTLE_LIMIT ?? '', 10);
+  const ttl = Number.parseInt(process.env.TOPUP_THROTTLE_TTL_MS ?? '', 10);
+  return {
+    limit: Number.isFinite(limit) && limit > 0 ? limit : 10,
+    ttl: Number.isFinite(ttl) && ttl > 0 ? ttl : 60_000,
+  };
+}
+
+/** Giới hạn riêng cho route ghi `POST /topups`; không dùng chung bộ đếm với auth. */
+@Injectable()
+export class TopupThrottlerGuard extends AuthThrottlerGuard {
+  /** Theo người dùng đã xác thực (JwtAuthGuard chạy trước); người dùng sau cùng NAT không dùng chung bộ đếm. */
+  protected override async getTracker(req: Record<string, unknown>): Promise<string> {
+    const sub = (req.user as { sub?: unknown } | undefined)?.sub;
+    return typeof sub === 'string' && sub ? `user:${sub}` : super.getTracker(req);
+  }
+
+  protected override async handleRequest(props: ThrottlerRequest): Promise<boolean> {
+    const { limit, ttl } = getTopupThrottleOptions();
+    return super.handleRequest({
+      ...props,
+      limit,
+      ttl,
+      generateKey: (ctx, tracker, name) =>
+        props.generateKey(ctx, tracker, `topup-${ctx.getHandler().name}-${name}`),
     });
   }
 }

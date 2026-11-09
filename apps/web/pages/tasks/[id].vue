@@ -5,7 +5,7 @@ import type {
   Task,
   TaskResultResponse,
   TaskShareResponse,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import { useApiClient } from '~/composables/useApiClient';
 import { useAuth } from '~/composables/useAuth';
 import { useAuthDialog } from '~/composables/useAuthDialog';
@@ -31,7 +31,7 @@ const taskId = computed<string>(() => {
 });
 
 useHead({
-  title: 'Kết Quả Tác Vụ — Motion AI',
+  title: 'Kết Quả Tác Vụ — flowvis',
   meta: [
     {
       name: 'description',
@@ -42,7 +42,7 @@ useHead({
 
 // 1. Tải thông tin Task
 const taskAsync = useAsyncData<Task>(
-  `motion-ai-task-${taskId.value}`,
+  `flowvis-task-${taskId.value}`,
   () => client.getTask(taskId.value),
 );
 
@@ -63,7 +63,7 @@ const isExpired = computed<boolean>(() => {
 
 // 2. Tải kết quả (URL ký resultUrl & sourceUrl) khi task succeeded và chưa hết hạn lưu
 const resultAsync = useAsyncData<TaskResultResponse | null>(
-  `motion-ai-task-result-${taskId.value}`,
+  `flowvis-task-result-${taskId.value}`,
   async () => {
     let task = currentTask.value || taskAsync.data.value;
     if (!task && taskAsync.pending.value) {
@@ -143,7 +143,7 @@ async function handleDownloadImage(): Promise<void> {
   let url = resultAsync.data.value?.resultUrl;
   if (!url || isDownloading.value) return;
   isDownloading.value = true;
-  const fileName = `motion-ai-${currentTask.value?.pipeline || 'result'}-${taskId.value.slice(0, 8)}.png`;
+  const fileName = `flowvis-${currentTask.value?.pipeline || 'result'}-${taskId.value.slice(0, 8)}.png`;
 
   try {
     let response = await fetch(url);
@@ -194,8 +194,8 @@ async function handleShare(): Promise<void> {
     if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
         await navigator.share({
-          title: 'Kết quả tạo ảnh AI — Motion AI',
-          text: `Xem tác phẩm ${getPipelineLabelVi(currentTask.value?.pipeline || 'face_swap')} được tạo trên Motion AI:`,
+          title: 'Kết quả tạo ảnh AI — flowvis',
+          text: `Xem tác phẩm ${getPipelineLabelVi(currentTask.value?.pipeline || 'face_swap')} được tạo trên flowvis:`,
           url: webShareUrl,
         });
         sharedViaNavigator = true;

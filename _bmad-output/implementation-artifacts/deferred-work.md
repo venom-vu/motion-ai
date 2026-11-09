@@ -123,3 +123,66 @@
   summary: Điều hướng mobile bottom nav tab "Lịch sử" (`AppBottomNav.vue`) trỏ về `/history` thay vì `/tasks`.
   evidence: Cần quyết định thiết kế UX/Product xem tab "Lịch sử" trên mobile nên mở `/tasks` (Lịch sử tác vụ kèm lối vào Biến động credit) hay giữ nguyên `/history` (sổ cái ví credit).
 
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-2-be-tao-don-nap-va-ma-vietqr.md`
+  summary: Đơn `awaiting_transfer` quá `qr_expires_at` vẫn tính vào giới hạn 3 đơn mở nên người dùng bỏ dở 3 đơn bị chặn `TOPUP_LIMIT`.
+  evidence: Chưa có chuyển `awaiting_transfer→expired` ở 3.2; Story 3.3 (bộ quét) phải xử lý, kiểm tra lại khi 3.3 xong.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-2-be-tao-don-nap-va-ma-vietqr.md`
+  summary: Phản hồi đơn dùng cấu hình tài khoản nhận hiện tại thay vì tài khoản lúc tạo đơn.
+  evidence: `toDto` đọc `TOPUP_BANK_*` mỗi lần; đổi tài khoản nhận thì đơn cũ hiện QR sang tài khoản mới. Cần quyết định có snapshot vào bảng `topups` hay không.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-6-fe-trang-nap-credit-va-theo-doi-don.md`
+  summary: Giao thức webhook Discord trong `DiscordNotifierAdapter` cho phép `http:` ngoài `https:`.
+  evidence: Discord webhooks chỉ hoạt động trên HTTPS; cần siết chặt kiểm tra URL chỉ chấp nhận `https:` ở Story 3.4.
+
+## Deferred from: code review of spec-3-6-fe-trang-nap-credit-va-theo-doi-don (2026-11-07)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-6-fe-trang-nap-credit-va-theo-doi-don.md`
+  summary: Polling đơn nạp dừng im lặng sau 5 lỗi liên tiếp hoặc 401/403/404; người dùng không thấy thông báo hay nút làm mới, trạng thái hiển thị bị cũ.
+  evidence: `useTopup.ts` `startPolling` gọi `stopPolling()` không đặt thông báo lỗi; cần quyết định thiết kế UX (banner "không cập nhật được" + nút làm mới).
+
+## Deferred from: code review of spec-3-5-be-duyet-va-tu-choi-don-nhat-ky-admin (2026-11-07)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-5-be-duyet-va-tu-choi-don-nhat-ky-admin.md`
+  summary: `bankRef` chỉ được trim; khác hoa/thường hoặc khoảng trắng bên trong vẫn lọt chỉ mục unique, có thể cộng credit hai lần cho cùng một giao dịch ngân hàng.
+  evidence: `topups_bank_ref_key` so khớp chính xác; cần quyết định có chuẩn hóa (upper-case) hoặc đặt unique trên `upper(bank_ref)` hay không.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-5-be-duyet-va-tu-choi-don-nhat-ky-admin.md`
+  summary: `return-to-pending` giữ nguyên `approve_by` nên đơn có thể trở lại `pending` đã quá hạn; đơn `needs_review` không có cờ `isOverdue`.
+  evidence: Spec đóng băng ghi giữ `approve_by`; cần quyết định UX/nghiệp vụ có tính lại hạn duyệt không.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-5-be-duyet-va-tu-choi-don-nhat-ky-admin.md`
+  summary: `RolesGuard` tin role trong JWT, Admin bị hạ quyền hoặc khóa vẫn duyệt được đến khi token hết hạn (unverified).
+  evidence: Kiểm tra lại role trong DB mỗi request thuộc Epic 6.4 (khóa tài khoản); cần xác nhận khi làm story đó.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-5-be-duyet-va-tu-choi-don-nhat-ky-admin.md`
+  summary: `pnpm run reconcile` báo lệch hai user fixture `p-0840a375-9/10@motionai.vn` còn sót trong DB dev từ test cũ (tạo 2026-11-06).
+  evidence: Hai user không có bút toán hay đơn nạp nào; một test cũ (nghi `task-priority`) đặt `balance/held` trực tiếp mà không dọn; làm `reconcile` không sạch trên DB dev.
+
+## Deferred from: code review of spec-3-7-fe-dashboard-admin-duyet-don-nap (2026-11-08)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-7-fe-dashboard-admin-duyet-don-nap.md`
+  summary: Các ô chỉ số thống kê vận hành trên đỉnh trang admin phụ thuộc vào tab lọc hiện tại do thiếu endpoint backend tổng hợp.
+  evidence: Backend hiện chỉ có `GET /admin/topups` danh sách phân trang theo filter, chưa có route API tổng hợp chỉ số vận hành toàn hệ thống (thuộc phạm vi Epic 6).
+
+## Deferred from: code review of spec-3-2-be-tao-don-nap-va-ma-vietqr (2026-11-08)
+
+- Đơn `awaiting_transfer` quá `qr_expires_at` vẫn tính vào giới hạn 3 đơn (`topups.service.ts`): người dùng bỏ 3 mã QR bị `TOPUP_LIMIT` cho tới khi bộ quét hết hạn của Story 3.3 chạy. Kiểm tra lại khi 3.3 merge.
+- `toDto` lấy tài khoản nhận và `qrPayload` từ env hiện tại cho mọi đơn: đổi tài khoản làm đơn cũ hiển thị tài khoản mới; thiếu env làm `GET /topups` trả 500. Cần quyết định sản phẩm về snapshot tài khoản trên bảng `topups`.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-8-integration-noi-fe-voi-be-va-smoke-test-nap-tien.md`
+  summary: Smoke nạp tiền chưa phủ reject, Discord lỗi, cảnh báo quá hạn duyệt, 403 đơn người khác và giải mã `qrPayload`.
+  evidence: Ngoài ma trận I/O của story 3.8; các story 3.2-3.5 có test riêng nhưng chưa có ở mức stack Compose.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-8-integration-noi-fe-voi-be-va-smoke-test-nap-tien.md`
+  summary: Chưa có kiểm tra FE thật (CORS, cookie, nút "tạo mã mới" khi QR hết hạn) trên stack live.
+  evidence: Spec chỉ xác nhận ở mức hợp đồng; cần test trình duyệt (xác nhận chưa xác minh, mức medium).
+
+## Deferred from: code review Epic 3 (2026-11-08)
+
+Đã sửa trong lượt review này: `bank_ref` chuẩn hoá chữ hoa (chặn duyệt trùng `FT1`/`ft1`), kiểm tra định dạng `TOPUP_BANK_BIN`/`TOPUP_BANK_ACCOUNT_NO`, cảnh báo quá hạn có giới hạn lượt và giãn cách (cột `overdue_notify_attempts`), không gửi trùng Discord khi ghi `notified_at` lỗi, QR cũ không ghi đè QR mới, "Tạo mã mới" báo cần đồng ý ToS, test Discord (cắt 2000 ký tự, timeout), test script `pages/admin/topups.vue` và `pages/topup.vue`.
+
+- Đã quyết (2026-11-08): `returnToPending` tính lại `approve_by`; spec 3.5 đã sửa khớp code.
+- DB chưa ép bất biến trạng thái: thiếu CHECK `bank_ref` khi `approved`, `reject_reason` khi `rejected`, `note` khi `needs_review`; FK `ledger_entries_topup_id_fkey` thêm `NOT VALID` chưa `VALIDATE`; `admin_audit` chỉ append-only theo quy ước (chưa trigger/REVOKE), `admin_id` chưa có index.
+- Bốn ô thống kê trang admin chỉ đếm danh sách đang tải (đã gắn nhãn); cần endpoint tổng hợp (Epic 6).
+- `needs_review` không có hạn hay cảnh báo; đơn `expired` không từ chối được; `MAX_OPEN_TOPUPS` tính cả `needs_review`.
+- `GET /topups`, `GET /topups/:id` chưa có throttle riêng; Discord adapter chưa xử lý 429/`Retry-After`, chấp nhận `http:`.
+- Hai nguồn đồng hồ: `qrExpiresAt` và `isOverdue` dùng đồng hồ ứng dụng, các so sánh khác dùng `now()` của DB.
+- Biến test `TOPUP_FAKE_NOW`, `TOPUP_QR_TTL_MS`, `TOPUP_SWEEP_INTERVAL` chưa có trong `.env.example` (chỉ có hiệu lực khi `NODE_ENV=test`).
+- FE: `VietQRModal` thiếu focus trap/khôi phục focus, Esc đóng khi đang xác nhận; thẻ gói nạp chưa điều khiển bằng bàn phím; polling không tạm dừng khi tab ẩn; `confirmTransfer` gán `expired` cục bộ thay vì tải lại; `runAction` ném `Error` thường khi bấm kép; `qrcode` import tĩnh; `isApprovalDeferred` dựa `updatedAt` nên có thể lệch khi bộ quét cập nhật dòng.
+- Test chưa phủ: script `VietQRModal` (Esc, copy, khoá cuộn), `computeApproveBy` quanh 07:59/23:00, kiểm thử trình duyệt thật cho CORS/cookie.

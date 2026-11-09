@@ -4,7 +4,7 @@ import type {
   AccountTier,
   MeResponse,
   PricingConfigResponse,
-} from '@motion-ai/contracts';
+} from '@flowvis/contracts';
 import { useApiClient } from '~/composables/useApiClient';
 import { resolveApiErrorMessageVi } from '~/utils/api-client';
 import { isUnauthorizedError } from '~/utils/auth-session';
@@ -18,16 +18,16 @@ import {
 export function usePricingConfig() {
   const { client } = useApiClient();
   const manualErrorVi = useState<string | null>(
-    'motion-ai-manual-error-vi',
+    'flowvis-manual-error-vi',
     () => null,
   );
 
   const pricingAsync = useAsyncData<PricingConfigResponse>(
-    'motion-ai-pricing-config',
+    'flowvis-pricing-config',
     () => client.getPricingConfig(),
   );
 
-  const meAsync = useAsyncData<MeResponse>('motion-ai-me-profile', () =>
+  const meAsync = useAsyncData<MeResponse>('flowvis-me-profile', () =>
     client.getMe(),
   );
 

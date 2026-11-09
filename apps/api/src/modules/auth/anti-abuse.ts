@@ -8,7 +8,7 @@ export const SIGNUP_GRANT_MAX_PER_IP = 3;
 export const SIGNUP_GRANT_IP_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 const DEV_ANTI_ABUSE_SECRET =
-  'motion-ai-anti-abuse-dev-secret-change-me-in-production-min-32-chars';
+  'flowvis-anti-abuse-dev-secret-change-me-in-production-min-32-chars';
 const MIN_SECRET_LENGTH = 32;
 
 /**
