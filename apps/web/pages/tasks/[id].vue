@@ -124,38 +124,70 @@ const imageRefreshAttempts = ref<number>(0);
 const imageLoadFailed = ref<boolean>(false);
 async function handleRefreshResult(): Promise<void> {
   imageLoadFailed.value = false;
+  imageRefreshAttempts.value = 0;
   await resultAsync.refresh();
 }
 
+watch(
+  () => resultAsync.data.value,
+  (newData) => {
+    if (newData) {
+      imageRefreshAttempts.value = 0;
+    }
+  },
+);
+
 function handleImageError(_payload: { type: 'source' | 'result'; error: Event }): void {
+  if (resultAsync.pending.value) return;
   // Tự động thử lấy lại URL ký mới tối đa 1 lần để tránh vòng lặp vô hạn
   if (imageRefreshAttempts.value < 1) {
     imageRefreshAttempts.value += 1;
-    void handleRefreshResult();
-  } else {
+    imageLoadFailed.value = false;
+    void resultAsync.refresh();
+  } else if (_payload.type === 'result') {
     imageLoadFailed.value = true;
   }
 }
 
 // Xử lý tải ảnh về máy (ưu tiên fetch blob để tải trực tiếp)
 const isDownloading = ref<boolean>(false);
+const downloadErrorVi = ref<string | null>(null);
+
+function resolveImageExtension(mimeType?: string): string {
+  if (mimeType === 'image/jpeg') return '.jpg';
+  if (mimeType === 'image/webp') return '.webp';
+  return '.png';
+}
+
 async function handleDownloadImage(): Promise<void> {
   let url = resultAsync.data.value?.resultUrl;
   if (!url || isDownloading.value) return;
   isDownloading.value = true;
-  const fileName = `flowvis-${currentTask.value?.pipeline || 'result'}-${taskId.value.slice(0, 8)}.png`;
+  downloadErrorVi.value = null;
 
   try {
-    let response = await fetch(url);
-    if (!response.ok) {
-      // URL ký có thể đã hết hạn, thử refresh lấy lại link mới
+    let response: Response | null = null;
+    try {
+      const initialRes = await fetch(url);
+      if (initialRes.ok) {
+        response = initialRes;
+      }
+    } catch {
+      // CORS hoặc network error, response remains null để kích hoạt refresh link
+    }
+
+    if (!response) {
+      // URL ký có thể đã hết hạn hoặc CORS, thử refresh lấy lại link mới
       await handleRefreshResult();
       url = resultAsync.data.value?.resultUrl;
       if (!url) throw new Error('Không thể làm mới đường dẫn tải ảnh');
       response = await fetch(url);
       if (!response.ok) throw new Error('Không thể tải ảnh kết quả');
     }
+
     const blob = await response.blob();
+    const ext = resolveImageExtension(blob.type);
+    const fileName = `flowvis-${currentTask.value?.pipeline || 'result'}-${taskId.value.slice(0, 8)}${ext}`;
     const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = blobUrl;
@@ -165,7 +197,7 @@ async function handleDownloadImage(): Promise<void> {
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
   } catch (err) {
-    shareErrorVi.value = resolveApiErrorMessageVi(err);
+    downloadErrorVi.value = resolveApiErrorMessageVi(err);
   } finally {
     isDownloading.value = false;
   }
@@ -260,6 +292,17 @@ function handleGoBack(): void {
     void router.push('/tasks');
   }
 }
+
+function getPipelineRoute(pipeline?: string): string {
+  if (pipeline === 'body_retouch') return '/body-retouch';
+  if (pipeline === 'motion_control') return '/motion-control';
+  return '/face-swap';
+}
+
+function handleCreateNewTask(): void {
+  const target = getPipelineRoute(currentTask.value?.pipeline);
+  void router.push(target);
+}
 </script>
 
 <template>
@@ -347,6 +390,24 @@ function handleGoBack(): void {
       </button>
     </div>
 
+    <div
+      v-if="downloadErrorVi"
+      data-testid="download-error"
+      class="flex items-center justify-between rounded-xl border border-cyber-danger/40 bg-cyber-danger/10 p-3.5 text-xs text-cyber-danger"
+    >
+      <div class="flex items-center gap-2">
+        <Icon name="lucide:alert-circle" class="h-4 w-4 shrink-0" />
+        <span>{{ downloadErrorVi }}</span>
+      </div>
+      <button
+        type="button"
+        class="touch-target p-1 text-cyber-danger hover:opacity-80"
+        @click="downloadErrorVi = null"
+      >
+        <Icon name="lucide:x" class="h-4 w-4" />
+      </button>
+    </div>
+
     <!-- Trạng thái: Chưa đăng nhập -->
     <div
       v-if="isUnauthenticated"
@@ -416,7 +477,9 @@ function handleGoBack(): void {
     >
       <TaskProgressCard
         :task="currentTask"
+        :pipeline-label-vi="getPipelineLabelVi(currentTask.pipeline)"
         @update:task="(t) => currentTask = t"
+        @retry="handleCreateNewTask"
       />
     </div>
 
@@ -428,7 +491,9 @@ function handleGoBack(): void {
     >
       <TaskProgressCard
         :task="currentTask"
+        :pipeline-label-vi="getPipelineLabelVi(currentTask.pipeline)"
         :polling="false"
+        @retry="handleCreateNewTask"
       />
     </div>
 
@@ -450,11 +515,11 @@ function handleGoBack(): void {
         Ảnh kết quả đã quá thời hạn lưu trữ 30 ngày và đã được dọn dẹp tự động khỏi máy chủ theo chính sách bảo mật của hệ thống.
       </p>
       <NuxtLink
-        to="/face-swap"
+        :to="currentTask?.pipeline === 'body_retouch' ? '/body-retouch' : '/face-swap'"
         class="touch-target mt-5 inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl bg-cyber-violet px-6 py-2.5 text-xs font-semibold text-cyber-text transition hover:bg-cyber-violet/90"
       >
         <Icon name="lucide:sparkles" class="h-4 w-4" />
-        <span>Tạo tác vụ mới</span>
+        <span>{{ `Tạo tác vụ ${getPipelineLabelVi(currentTask?.pipeline || 'face_swap')} mới` }}</span>
       </NuxtLink>
     </div>
 
@@ -544,11 +609,16 @@ function handleGoBack(): void {
           <button
             type="button"
             data-testid="download-result-button"
-            class="touch-target inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyber-emerald to-cyber-cyan px-6 py-3 font-display text-sm font-bold text-black shadow-[0_6px_20px_-3px_rgba(16,185,129,0.4)] transition hover:opacity-95"
+            :disabled="isDownloading"
+            class="touch-target inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyber-emerald to-cyber-cyan px-6 py-3 font-display text-sm font-bold text-black shadow-[0_6px_20px_-3px_rgba(16,185,129,0.4)] transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
             @click="handleDownloadImage"
           >
-            <Icon name="lucide:download" class="h-5 w-5" />
-            <span>Tải Ảnh HD (Không Watermark)</span>
+            <Icon
+              :name="isDownloading ? 'lucide:loader-circle' : 'lucide:download'"
+              class="h-5 w-5"
+              :class="{ 'animate-spin': isDownloading }"
+            />
+            <span>{{ isDownloading ? 'Đang tải ảnh...' : 'Tải Ảnh HD (Không Watermark)' }}</span>
           </button>
 
           <!-- Nút phụ: Chia sẻ & Tạo tác vụ mới -->
@@ -581,11 +651,11 @@ function handleGoBack(): void {
             </button>
 
             <NuxtLink
-              to="/face-swap"
+              :to="currentTask?.pipeline === 'body_retouch' ? '/body-retouch' : '/face-swap'"
               class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-surface px-4 py-2.5 text-xs font-bold text-cyber-text transition hover:border-cyber-violet"
             >
               <Icon name="lucide:sparkles" class="h-4 w-4 text-cyber-violet" />
-              <span>Tạo tác vụ Face Swap khác</span>
+              <span>{{ `Tạo tác vụ ${getPipelineLabelVi(currentTask?.pipeline || 'face_swap')} khác` }}</span>
             </NuxtLink>
           </div>
         </div>

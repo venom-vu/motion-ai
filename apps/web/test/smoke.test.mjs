@@ -72,7 +72,8 @@ function collectFiles(dirPath, extensions) {
       entry.name === 'node_modules' ||
       entry.name === '.nuxt' ||
       entry.name === '.output' ||
-      entry.name === 'dist'
+      entry.name === 'dist' ||
+      entry.name.startsWith('.tmp')
     ) {
       continue;
     }
@@ -456,6 +457,7 @@ describe('@flowvis/web — Story 1.4 Nuxt 4 mobile-first & API client', () => {
     const sourceFiles = collectFiles(webRoot, ['.vue', '.ts', '.css']);
     const emojiRegex = /\p{Extended_Pictographic}/u;
     for (const filePath of sourceFiles) {
+      if (!fs.existsSync(filePath)) continue;
       const content = fs.readFileSync(filePath, 'utf8');
       assert.equal(
         emojiRegex.test(content),

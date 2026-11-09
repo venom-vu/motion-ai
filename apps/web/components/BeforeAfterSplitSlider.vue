@@ -36,6 +36,13 @@ watch(
   },
 );
 
+watch(
+  () => props.sourceUrl,
+  () => {
+    sourceLoadFailed.value = false;
+  },
+);
+
 const hasSource = computed<boolean>(() => {
   return (
     typeof props.sourceUrl === 'string' &&
@@ -170,7 +177,7 @@ onBeforeUnmount(() => {
               data-testid="source-expired-note"
               class="rounded border border-cyber-border bg-cyber-bg/85 px-2 py-0.5 text-[10px] text-cyber-muted backdrop-blur"
             >
-              Ảnh gốc đã hết hạn lưu (7 ngày)
+              Ảnh gốc đã hết hạn lưu
             </span>
           </div>
         </div>
@@ -237,16 +244,17 @@ onBeforeUnmount(() => {
             data-testid="slider-knob"
             role="slider"
             :aria-valuenow="Math.round(sliderPosition)"
+            :aria-valuetext="`${100 - Math.round(sliderPosition)}% ảnh kết quả, ${Math.round(sliderPosition)}% ảnh gốc`"
             aria-valuemin="0"
             aria-valuemax="100"
             aria-label="Thanh trượt so sánh trước sau"
             :disabled="disabled"
             tabindex="0"
-            class="touch-target absolute top-1/2 flex -translate-x-1/2 -translate-y-1/2 cursor-ew-resize items-center justify-center focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            class="touch-target absolute top-1/2 flex -translate-x-1/2 -translate-y-1/2 cursor-ew-resize items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyber-cyan focus-visible:ring-offset-2 focus-visible:ring-offset-cyber-bg disabled:cursor-not-allowed disabled:opacity-50"
             @keydown="handleKeydown"
           >
             <span
-              class="flex h-9 w-9 items-center justify-center rounded-full border border-cyber-cyan bg-cyber-cyan text-black shadow-[0_0_16px_rgba(6,182,212,0.8),0_4px_8px_rgba(0,0,0,0.5)] transition hover:scale-105 focus:ring-2 focus:ring-cyber-cyan"
+              class="flex h-9 w-9 items-center justify-center rounded-full border border-cyber-cyan bg-cyber-cyan text-black shadow-[0_0_16px_rgba(6,182,212,0.8),0_4px_8px_rgba(0,0,0,0.5)] transition hover:scale-105"
             >
               <Icon
                 name="lucide:arrow-left-right"

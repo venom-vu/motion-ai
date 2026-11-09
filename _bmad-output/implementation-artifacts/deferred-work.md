@@ -186,3 +186,6 @@
 - Biến test `TOPUP_FAKE_NOW`, `TOPUP_QR_TTL_MS`, `TOPUP_SWEEP_INTERVAL` chưa có trong `.env.example` (chỉ có hiệu lực khi `NODE_ENV=test`).
 - FE: `VietQRModal` thiếu focus trap/khôi phục focus, Esc đóng khi đang xác nhận; thẻ gói nạp chưa điều khiển bằng bàn phím; polling không tạm dừng khi tab ẩn; `confirmTransfer` gán `expired` cục bộ thay vì tải lại; `runAction` ném `Error` thường khi bấm kép; `qrcode` import tĩnh; `isApprovalDeferred` dựa `updatedAt` nên có thể lệch khi bộ quét cập nhật dòng.
 - Test chưa phủ: script `VietQRModal` (Esc, copy, khoá cuộn), `computeApproveBy` quanh 07:59/23:00, kiểm thử trình duyệt thật cho CORS/cookie.
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-5-fe-so-sanh-truoc-sau.md`
+  summary: Khắc phục race condition ENOENT trong hàm collectFiles của smoke.test.mjs khi quét các file .ts tạm sinh ra từ các test suite chạy song song
+  evidence: smoke.test.mjs:456 quét toàn bộ webRoot bao gồm test/ trong khi các suite khác tạo và xóa file tạm trong test/ dẫn tới lỗi đọc file không tồn tại
