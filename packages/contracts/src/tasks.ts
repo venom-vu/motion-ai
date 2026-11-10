@@ -1,15 +1,23 @@
 import { z } from 'zod';
 import { ConfirmedUploadKeySchema } from './uploads.js';
 
-export const TASK_PIPELINES = ['face_swap', 'body_retouch'] as const;
+/** Giá Motion Control: 50 credit mỗi giây (nơi duy nhất giữ hằng 50 phía mã nguồn). */
+export function motionPrice(seconds: number): number {
+  if (!Number.isInteger(seconds) || seconds <= 0) {
+    throw new RangeError('Số giây phải là số nguyên dương.');
+  }
+  return 50 * seconds;
+}
+
+/** Số giây Trim tối thiểu của Motion Control. */
+export const MOTION_MIN_TRIM_SECONDS = 3;
+
+export const TASK_PIPELINES = ['face_swap', 'body_retouch', 'motion_control'] as const;
 export type TaskPipeline = (typeof TASK_PIPELINES)[number];
 export const TaskPipelineSchema = z.enum(TASK_PIPELINES);
 
-/** Pipeline có thể ghi đè thông báo lỗi (gồm `motion_control` của Epic 5, chưa nằm trong `TASK_PIPELINES`). */
-export const REASON_MESSAGE_PIPELINES = [
-  ...TASK_PIPELINES,
-  'motion_control',
-] as const;
+/** Pipeline có thể ghi đè thông báo lỗi. */
+export const REASON_MESSAGE_PIPELINES = TASK_PIPELINES;
 export type ReasonMessagePipeline = (typeof REASON_MESSAGE_PIPELINES)[number];
 
 export const TASK_STATUSES = [
@@ -84,8 +92,8 @@ export const REASON_CODE_PIPELINE_OVERRIDES_VI: Readonly<
     NO_POSE: 'Không tìm thấy người trong ảnh. Vui lòng chọn ảnh có người rõ thân.',
   },
   motion_control: {
-    NO_POSE:
-      'Không nhận diện được chuyển động của người trong video, vui lòng chọn video thấy rõ người.',
+    NO_POSE: 'Không nhận diện được chuyển động cơ thể trong video mẫu',
+    NO_FACE: 'Không nhận diện được nhân vật trong ảnh. Vui lòng chọn ảnh toàn thân rõ người.',
   },
 };
 
@@ -107,8 +115,7 @@ export function getReasonCodeMessageVi(
 }
 
 /** Task với các bất biến trạng thái / reasonCode / queuePosition / resultKey. */
-export const TaskSchema = z
-  .object({
+const TaskBaseSchema = z.object({
     id: z.string().uuid(),
     pipeline: TaskPipelineSchema,
     status: TaskStatusSchema,
@@ -125,8 +132,12 @@ export const TaskSchema = z
     creditCost: z.number().int().positive(),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
-  })
-  .superRefine((t, ctx) => {
+  });
+
+function refineTask(
+  t: z.infer<typeof TaskBaseSchema>,
+  ctx: z.RefinementCtx,
+): void {
     const issue = (path: string, message: string) =>
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
     const hasReason = t.reasonCode != null;
@@ -171,7 +182,9 @@ export const TaskSchema = z
     if (t.status !== 'succeeded' && t.resultKey != null) {
       issue('resultKey', 'resultKey chỉ có khi Task succeeded');
     }
-  });
+}
+
+export const TaskSchema = TaskBaseSchema.superRefine(refineTask);
 export type Task = z.infer<typeof TaskSchema>;
 
 export const TaskIdParamsSchema = z.object({ id: z.string().uuid() });
@@ -225,6 +238,104 @@ export type BodyRetouchCreateRequest = z.input<typeof BodyRetouchCreateRequestSc
 export const BodyRetouchCreateResponseSchema = TaskSchema;
 export type BodyRetouchCreateResponse = Task;
 
+/** POST /tasks/motion — giá, Cap và độ dài do server quyết định; không nhận credit/consent. */
+const TrimSecondSchema = (label: string) =>
+  z
+    .number({ invalid_type_error: `${label} phải là số nguyên giây.` })
+    .int(`${label} phải là số nguyên giây.`)
+    .nonnegative(`${label} không được âm.`);
+export const MotionCreateRequestSchema = z
+  .object({
+    characterKey: ConfirmedUploadKeySchema,
+    videoKey: ConfirmedUploadKeySchema,
+    trimStart: TrimSecondSchema('Điểm bắt đầu cắt'),
+    trimEnd: TrimSecondSchema('Điểm kết thúc cắt'),
+  })
+  .strict();
+export type MotionCreateRequest = z.infer<typeof MotionCreateRequestSchema>;
+/** Task Motion kèm `price` (bằng `creditCost`, = `motionPrice(số giây)`). */
+export const MotionCreateResponseSchema = TaskBaseSchema.extend({
+  pipeline: z.literal('motion_control'),
+  price: z.number().int().positive(),
+}).superRefine((t, ctx) => {
+  refineTask(t, ctx);
+  if (t.price !== t.creditCost) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['price'],
+      message: 'price phải bằng creditCost',
+    });
+  }
+  if (t.price % motionPrice(1) !== 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['price'],
+      message: 'price Motion phải là bội của giá mỗi giây',
+    });
+  }
+});
+export type MotionCreateResponse = z.infer<typeof MotionCreateResponseSchema>;
+
+/** `details.reason` của VALIDATION_FAILED cho video/Trim. */
+export const VALIDATION_REASONS = [
+  'VIDEO_UNREADABLE',
+  'VIDEO_TOO_SHORT',
+  'TRIM_TOO_SHORT',
+  'TRIM_EXCEEDS_CAP',
+  'TRIM_OUT_OF_VIDEO',
+  'TRIM_NOT_WHOLE_SECOND',
+] as const;
+export type ValidationReason = (typeof VALIDATION_REASONS)[number];
+export const ValidationReasonSchema = z.enum(VALIDATION_REASONS);
+
+export const ValidationDetailsSchema = z
+  .object({
+    reason: ValidationReasonSchema,
+    cap: z.number().int().positive().optional(),
+  })
+  .superRefine((d, ctx) => {
+    if (d.reason === 'TRIM_EXCEEDS_CAP' && d.cap == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['cap'],
+        message: 'TRIM_EXCEEDS_CAP bắt buộc có cap',
+      });
+    }
+    if (d.reason !== 'TRIM_EXCEEDS_CAP' && d.cap != null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['cap'],
+        message: 'cap chỉ dùng cho TRIM_EXCEEDS_CAP',
+      });
+    }
+  });
+export type ValidationDetails = z.infer<typeof ValidationDetailsSchema>;
+
+export const VALIDATION_REASON_MESSAGES_VI: Readonly<Record<ValidationReason, string>> = {
+  VIDEO_UNREADABLE: 'Không đọc được video. Vui lòng chọn video MP4 hoặc MOV khác.',
+  VIDEO_TOO_SHORT: `Video quá ngắn, cần dài ít nhất ${MOTION_MIN_TRIM_SECONDS} giây.`,
+  TRIM_TOO_SHORT: `Đoạn cắt cần dài ít nhất ${MOTION_MIN_TRIM_SECONDS} giây.`,
+  TRIM_EXCEEDS_CAP: 'Gói của bạn cho phép tối đa {cap} giây',
+  TRIM_OUT_OF_VIDEO: 'Đoạn cắt nằm ngoài độ dài của video.',
+  TRIM_NOT_WHOLE_SECOND: 'Đoạn cắt phải tính theo từng giây nguyên.',
+};
+
+const API_VALIDATION_FALLBACK_VI = 'Dữ liệu không hợp lệ.';
+
+export function getValidationReasonMessageVi(
+  reason: ValidationReason | (string & {}) | null | undefined,
+  cap?: number | null,
+): string {
+  if (!reason || !Object.prototype.hasOwnProperty.call(VALIDATION_REASON_MESSAGES_VI, reason)) {
+    return API_VALIDATION_FALLBACK_VI;
+  }
+  if (reason === 'TRIM_EXCEEDS_CAP' && cap == null) return API_VALIDATION_FALLBACK_VI;
+  return VALIDATION_REASON_MESSAGES_VI[reason as ValidationReason].replace(
+    '{cap}',
+    cap == null ? '' : String(cap),
+  );
+}
+
 /** GET /tasks — phân trang cursor, mới nhất trước. */
 export const TaskListQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
@@ -266,10 +377,32 @@ export const TaskCancelResponseSchema = TaskSchema;
 export type TaskCancelResponse = Task;
 
 /** GET /tasks/{id}/result — CONFLICT nếu Task chưa succeeded. */
-export const TaskResultResponseSchema = z.object({
-  resultUrl: z.string().url(),
-  sourceUrl: z.string().url().nullable(),
-});
+export const MEDIA_TYPES = ['image', 'video'] as const;
+export const MediaTypeSchema = z.enum(MEDIA_TYPES);
+export type MediaType = z.infer<typeof MediaTypeSchema>;
+
+/** Video có `posterUrl` và `durationSeconds`; ảnh không có. `sourceUrl` của Motion luôn rỗng. */
+export const TaskResultResponseSchema = z
+  .object({
+    /** Vắng mặt nghĩa là `image` (tương thích BE Epic 2–4 cho đến khi 5.6 điền trường này). */
+    mediaType: MediaTypeSchema.optional(),
+    resultUrl: z.string().url(),
+    sourceUrl: z.string().url().nullable(),
+    posterUrl: z.string().url().optional(),
+    durationSeconds: z.number().int().positive().optional(),
+  })
+  .superRefine((r, ctx) => {
+    const issue = (path: string, message: string) =>
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
+    if (r.mediaType === 'video') {
+      if (r.posterUrl == null) issue('posterUrl', 'Kết quả video bắt buộc có posterUrl');
+      if (r.durationSeconds == null) issue('durationSeconds', 'Kết quả video bắt buộc có durationSeconds');
+      if (r.sourceUrl != null) issue('sourceUrl', 'Kết quả video không có sourceUrl');
+    } else {
+      if (r.posterUrl != null) issue('posterUrl', 'Kết quả ảnh không có posterUrl');
+      if (r.durationSeconds != null) issue('durationSeconds', 'Kết quả ảnh không có durationSeconds');
+    }
+  });
 export type TaskResultResponse = z.infer<typeof TaskResultResponseSchema>;
 
 /** POST /tasks/{id}/share, DELETE /tasks/{id}/share */
@@ -284,3 +417,31 @@ export type TaskShareRevokeResponse = z.infer<typeof TaskShareRevokeResponseSche
 /** GET /s/{token} — thành công là chuyển hướng (không có body); 404 dùng ApiError. */
 export const SharePublicParamsSchema = z.object({ token: z.string().min(1) });
 export type SharePublicParams = z.infer<typeof SharePublicParamsSchema>;
+
+/** GET /s/{token}/info */
+export const ShareInfoResponseSchema = z
+  .object({
+    mediaType: MediaTypeSchema,
+    durationSeconds: z.number().int().positive().optional(),
+  })
+  .superRefine((r, ctx) => {
+    if (r.mediaType === 'video' && r.durationSeconds == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['durationSeconds'],
+        message: 'Chia sẻ video bắt buộc có durationSeconds',
+      });
+    }
+    if (r.mediaType === 'image' && r.durationSeconds != null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['durationSeconds'],
+        message: 'Chia sẻ ảnh không có durationSeconds',
+      });
+    }
+  });
+export type ShareInfoResponse = z.infer<typeof ShareInfoResponseSchema>;
+
+/** GET /s/{token}/poster — thành công là chuyển hướng (không có body); 404 dùng ApiError. */
+export const SharePosterParamsSchema = SharePublicParamsSchema;
+export type SharePosterParams = SharePublicParams;

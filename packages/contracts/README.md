@@ -69,3 +69,14 @@ Gói hợp đồng dùng chung (Shared Contracts) giữa Backend (`@flowvis/api`
 - Endpoint: `POST /tasks/body-retouch` (`BodyRetouchCreateRequestSchema` `{ imageKey, intensity }` `.strict()`, không nhận `consent`/credit; `BodyRetouchCreateResponseSchema` = `TaskSchema`). Các endpoint đọc, hủy, kết quả, chia sẻ dùng chung với Face Swap.
 - `NO_POSE` của `body_retouch`: "Không tìm thấy người trong ảnh. Vui lòng chọn ảnh có người rõ thân."
 - Mock: `MOCK_BODY_RETOUCH_CREATE_REQUEST`, `MOCK_BODY_RETOUCH_TASKS_BY_STATUS` (6 trạng thái), `MOCK_BODY_RETOUCH_RESULT_RESPONSE` (có `sourceUrl`).
+
+### 8. Motion Control (Epic 5: `src/uploads.ts`, `src/tasks.ts`, `src/wallet.ts`)
+
+- Pipeline `motion_control` nằm trong `TASK_PIPELINES`. `motionPrice(seconds)` = 50 × số giây nguyên (từ chối số không nguyên hoặc <= 0); là nơi duy nhất giữ hằng 50 phía mã nguồn.
+- `GET /config/pricing`: `pipelines.motionControlCreditsPerSecond` (50), `pipelines.motionControlMinSeconds` (3, tùy chọn trong schema cho tới khi BE 5.3 trả), Cap theo Tier ở `tiers[].maxVideoSeconds` (5, 10, 15, 20).
+- `POST /uploads` nhận thêm video (`video/mp4`, `video/quicktime`, tối đa 100 MB; `UploadCreateRequestSchema` là union ảnh/video). Confirm video trả `UploadConfirmVideoResponseSchema` `{ key, video: VideoMeta }` (`durationSeconds`, `width`, `height`).
+- `POST /tasks/motion`: `MotionCreateRequestSchema` `{ characterKey, videoKey, trimStart, trimEnd }` `.strict()` (số nguyên giây, không `consent`/credit); `MotionCreateResponseSchema` = Task kèm `price`.
+- `VALIDATION_FAILED` `details.reason` thuộc `VALIDATION_REASONS` (6 giá trị); `ValidationDetailsSchema` bắt buộc `cap` với `TRIM_EXCEEDS_CAP`; thông báo qua `getValidationReasonMessageVi(reason, cap)`.
+- `GET /tasks/{id}/result` thêm `mediaType` (`image`|`video`; vắng mặt hiểu là ảnh), `posterUrl` và `durationSeconds` (chỉ video); `sourceUrl` Motion luôn `null`. `GET /s/{token}/info` (`ShareInfoResponseSchema`) và `GET /s/{token}/poster` (chuyển hướng, không body).
+- `NO_POSE`/`NO_FACE` riêng cho `motion_control` qua `getReasonCodeMessageVi(code, 'motion_control')`.
+- Mock: `MOCK_MOTION_CREATE_REQUEST`, `MOCK_MOTION_TASKS_BY_STATUS` (6 trạng thái), `MOCK_UPLOAD_VIDEO_CONFIRM_RESPONSE`, `MOCK_MOTION_RESULT_RESPONSE`, `MOCK_SHARE_INFO_*`.

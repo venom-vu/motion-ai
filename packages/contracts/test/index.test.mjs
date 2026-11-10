@@ -4,6 +4,20 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
+  motionPrice,
+  MotionCreateRequestSchema,
+  MotionCreateResponseSchema,
+  MOCK_MOTION_CREATE_REQUEST,
+  MOCK_MOTION_TASKS_BY_STATUS,
+  MOCK_MOTION_RESULT_RESPONSE,
+  MOCK_UPLOAD_VIDEO_CONFIRM_RESPONSE,
+  MOCK_SHARE_INFO_VIDEO_RESPONSE,
+  MOCK_SHARE_INFO_IMAGE_RESPONSE,
+  ShareInfoResponseSchema,
+  UploadConfirmVideoResponseSchema,
+  VALIDATION_REASONS,
+  ValidationDetailsSchema,
+  getValidationReasonMessageVi,
   API_ERROR_MESSAGES_VI,
   MAX_OPEN_TOPUPS,
   TopupConfirmTransferRequestSchema,
@@ -867,7 +881,7 @@ describe('@flowvis/contracts', () => {
     const KEY = 'in/10000000-0000-4000-8000-000000000001/60000000-0000-4000-8000-000000000001';
 
     it('exports pipelines and intensity constants', () => {
-      assert.deepEqual([...TASK_PIPELINES], ['face_swap', 'body_retouch']);
+      assert.deepEqual([...TASK_PIPELINES], ['face_swap', 'body_retouch', 'motion_control']);
       assert.deepEqual([INTENSITY_MIN, INTENSITY_MAX, INTENSITY_DEFAULT], [1, 10, 5]);
     });
 
@@ -1040,6 +1054,101 @@ describe('@flowvis/contracts', () => {
       for (const c of ['TOPUP_LIMIT', 'BANK_REF_DUPLICATE', 'TOPUP_STATE_INVALID', 'TOPUP_QR_EXPIRED']) {
         assert.ok(API_ERROR_MESSAGES_VI[c].length > 0);
       }
+    });
+  });
+
+  describe('Epic 5 contracts', () => {
+    const K = MOCK_MOTION_CREATE_REQUEST;
+
+    it('prices motion at 50 per whole second', () => {
+      assert.equal(motionPrice(1), 50);
+      assert.equal(motionPrice(20), 1000);
+      for (const bad of [0, -1, 1.5, NaN]) assert.throws(() => motionPrice(bad));
+      assert.ok(TASK_PIPELINES.includes('motion_control'));
+    });
+
+    it('validates motion create request', () => {
+      assert.equal(MotionCreateRequestSchema.safeParse(K).success, true);
+      for (const v of [1.5, -1, '2']) {
+        const r = MotionCreateRequestSchema.safeParse({ ...K, trimStart: v });
+        assert.equal(r.success, false);
+        assert.ok(r.error.issues.some((i) => i.path[0] === 'trimStart'));
+      }
+      for (const f of ['credits', 'price', 'consent']) {
+        assert.equal(MotionCreateRequestSchema.safeParse({ ...K, [f]: 1 }).success, false);
+      }
+    });
+
+    it('validates video upload declaration and confirm', () => {
+      const mb = 1024 * 1024;
+      assert.equal(UploadCreateRequestSchema.safeParse({ mimeType: 'video/mp4', sizeBytes: 100 * mb }).success, true);
+      assert.equal(UploadCreateRequestSchema.safeParse({ mimeType: 'video/quicktime', sizeBytes: mb }).success, true);
+      assert.equal(UploadCreateRequestSchema.safeParse({ mimeType: 'video/webm', sizeBytes: mb }).success, false);
+      assert.equal(UploadCreateRequestSchema.safeParse({ mimeType: 'video/mp4', sizeBytes: 100 * mb + 1 }).success, false);
+      assert.equal(UploadCreateRequestSchema.safeParse({ mimeType: 'image/png', sizeBytes: mb }).success, true);
+      assert.equal(UploadConfirmVideoResponseSchema.safeParse(MOCK_UPLOAD_VIDEO_CONFIRM_RESPONSE).success, true);
+    });
+
+    it('review fixes', () => {
+      const gif = UploadCreateRequestSchema.safeParse({ mimeType: 'image/gif', sizeBytes: 1000 });
+      assert.equal(gif.error.issues[0].message, 'Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP.');
+      const webm = UploadCreateRequestSchema.safeParse({ mimeType: 'video/webm', sizeBytes: 1000 });
+      assert.equal(webm.error.issues[0].message, 'Chỉ hỗ trợ video MP4 hoặc MOV.');
+      assert.equal(UploadCreateRequestSchema.safeParse(null).success, false);
+      assert.equal(getValidationReasonMessageVi('TRIM_EXCEEDS_CAP'), 'Dữ liệu không hợp lệ.');
+      assert.equal(
+        MotionCreateResponseSchema.safeParse({ ...MOCK_MOTION_TASKS_BY_STATUS.running, pipeline: 'face_swap' }).success,
+        false,
+      );
+      assert.equal(
+        TaskResultResponseSchema.safeParse({ ...MOCK_MOTION_RESULT_RESPONSE, sourceUrl: 'https://x.test/a.mp4' }).success,
+        false,
+      );
+    });
+
+    it('validates video results and share info', () => {
+      assert.equal(TaskResultResponseSchema.safeParse(MOCK_MOTION_RESULT_RESPONSE).success, true);
+      const { posterUrl, durationSeconds: _d, ...noExtra } = MOCK_MOTION_RESULT_RESPONSE;
+      const r1 = TaskResultResponseSchema.safeParse(noExtra);
+      assert.equal(r1.success, false);
+      assert.ok(r1.error.issues.some((i) => i.path[0] === 'posterUrl'));
+      assert.ok(r1.error.issues.some((i) => i.path[0] === 'durationSeconds'));
+      const r2 = TaskResultResponseSchema.safeParse({ ...MOCK_BODY_RETOUCH_RESULT_RESPONSE, posterUrl });
+      assert.equal(r2.success, false);
+      assert.equal(TaskResultResponseSchema.safeParse(MOCK_BODY_RETOUCH_RESULT_RESPONSE).success, true);
+      assert.equal(ShareInfoResponseSchema.safeParse(MOCK_SHARE_INFO_VIDEO_RESPONSE).success, true);
+      assert.equal(ShareInfoResponseSchema.safeParse(MOCK_SHARE_INFO_IMAGE_RESPONSE).success, true);
+      assert.equal(ShareInfoResponseSchema.safeParse({ mediaType: 'video' }).success, false);
+    });
+
+    it('validates reasons and messages', () => {
+      assert.equal(VALIDATION_REASONS.length, 6);
+      for (const reason of VALIDATION_REASONS) {
+        const d = reason === 'TRIM_EXCEEDS_CAP' ? { reason, cap: 10 } : { reason };
+        assert.equal(ValidationDetailsSchema.safeParse(d).success, true, reason);
+        assert.ok(getValidationReasonMessageVi(reason, 10).length > 0);
+      }
+      assert.equal(ValidationDetailsSchema.safeParse({ reason: 'NOPE' }).success, false);
+      assert.equal(ValidationDetailsSchema.safeParse({ reason: 'TRIM_EXCEEDS_CAP' }).success, false);
+      assert.equal(getValidationReasonMessageVi('TRIM_EXCEEDS_CAP', 10), 'Gói của bạn cho phép tối đa 10 giây');
+      assert.equal(
+        getReasonCodeMessageVi('NO_POSE', 'motion_control'),
+        'Không nhận diện được chuyển động cơ thể trong video mẫu',
+      );
+      assert.equal(
+        getReasonCodeMessageVi('NO_FACE', 'motion_control'),
+        'Không nhận diện được nhân vật trong ảnh. Vui lòng chọn ảnh toàn thân rõ người.',
+      );
+      assert.notEqual(getReasonCodeMessageVi('NO_FACE', 'motion_control'), getReasonCodeMessageVi('NO_FACE', 'face_swap'));
+    });
+
+    it('mocks parse against schemas', () => {
+      for (const t of Object.values(MOCK_MOTION_TASKS_BY_STATUS)) {
+        assert.equal(MotionCreateResponseSchema.safeParse(t).success, true, t.status);
+      }
+      assert.equal(Object.keys(MOCK_MOTION_TASKS_BY_STATUS).length, 6);
+      assert.equal(PricingConfigResponseSchema.safeParse(MOCK_PRICING_CONFIG_RESPONSE).success, true);
+      assert.equal(MOCK_PRICING_CONFIG_RESPONSE.pipelines.motionControlMinSeconds, 3);
     });
   });
 });

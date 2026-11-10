@@ -6,8 +6,12 @@ import {
   type AuthLogoutResponse,
   type AuthRefreshResponse,
 } from './auth.js';
-import type {
-  BodyRetouchCreateRequest,
+import {
+  motionPrice,
+  type BodyRetouchCreateRequest,
+  type MotionCreateRequest,
+  type MotionCreateResponse,
+  type ShareInfoResponse,
   FaceSwapCreateRequest,
   Task,
   TaskListResponse,
@@ -24,6 +28,7 @@ import type {
   TopupStatus,
 } from './topups.js';
 import type {
+  UploadConfirmVideoResponse,
   UploadConfirmResponse,
   UploadCreateRequest,
   UploadCreateResponse,
@@ -47,6 +52,7 @@ export const DEFAULT_PRICING_CONFIG: PricingConfigResponse = {
     faceSwapCredits: 100,
     bodyRetouchCredits: 100,
     motionControlCreditsPerSecond: 50,
+    motionControlMinSeconds: 3,
   },
   tiers: [
     {
@@ -391,10 +397,12 @@ export const MOCK_TASK_LIST_RESPONSE: TaskListResponse = {
 };
 
 export const MOCK_TASK_RESULT_RESPONSE: TaskResultResponse = {
+  mediaType: 'image',
   resultUrl: 'https://cdn.example.test/out/signed-result.jpg',
   sourceUrl: 'https://cdn.example.test/in/signed-source.jpg',
 };
 export const MOCK_TASK_RESULT_EXPIRED_SOURCE_RESPONSE: TaskResultResponse = {
+  mediaType: 'image',
   resultUrl: 'https://cdn.example.test/out/signed-result.jpg',
   sourceUrl: null,
 };
@@ -463,9 +471,97 @@ export const MOCK_BODY_RETOUCH_TASKS_BY_STATUS: Record<TaskStatus, Task> = {
 
 /** Kết quả Body Retouch có ảnh gốc (so sánh trước/sau). */
 export const MOCK_BODY_RETOUCH_RESULT_RESPONSE: TaskResultResponse = {
+  mediaType: 'image',
   resultUrl: 'https://cdn.example.test/out/signed-body-retouch-result.jpg',
   sourceUrl: 'https://cdn.example.test/in/signed-body-retouch-source.jpg',
 };
+
+/* ------------------------- Epic 5: Motion Control ------------------------- */
+
+export const MOCK_MOTION_CREATE_REQUEST: MotionCreateRequest = {
+  characterKey: `in/${MOCK_USER_ID}/60000000-0000-4000-8000-000000000001`,
+  videoKey: `in/${MOCK_USER_ID}/60000000-0000-4000-8000-000000000003`,
+  trimStart: 2,
+  trimEnd: 7,
+};
+
+export const MOCK_UPLOAD_VIDEO_CONFIRM_RESPONSE: UploadConfirmVideoResponse = {
+  key: `in/${MOCK_USER_ID}/60000000-0000-4000-8000-000000000003`,
+  video: {
+    mimeType: 'video/mp4',
+    sizeBytes: 12 * 1024 * 1024,
+    durationSeconds: 12.5,
+    width: 720,
+    height: 1280,
+  },
+};
+
+const mockMotionBase = {
+  ...mockTaskBase,
+  pipeline: 'motion_control',
+  creditCost: motionPrice(5),
+  price: motionPrice(5),
+} as const;
+
+export const MOCK_MOTION_TASK_QUEUED: MotionCreateResponse = {
+  ...mockMotionBase,
+  id: '72000000-0000-4000-8000-000000000001',
+  status: 'queued',
+  queuePosition: 1,
+};
+export const MOCK_MOTION_TASK_RUNNING: MotionCreateResponse = {
+  ...mockMotionBase,
+  id: '72000000-0000-4000-8000-000000000002',
+  status: 'running',
+};
+export const MOCK_MOTION_TASK_SUCCEEDED: MotionCreateResponse = {
+  ...mockMotionBase,
+  id: '72000000-0000-4000-8000-000000000003',
+  status: 'succeeded',
+  resultKey: `out/${MOCK_USER_ID}/82000000-0000-4000-8000-000000000003`,
+};
+export const MOCK_MOTION_TASK_FAILED: MotionCreateResponse = {
+  ...mockMotionBase,
+  id: '72000000-0000-4000-8000-000000000004',
+  status: 'failed',
+  reasonCode: 'NO_POSE',
+};
+export const MOCK_MOTION_TASK_TIMED_OUT: MotionCreateResponse = {
+  ...mockMotionBase,
+  id: '72000000-0000-4000-8000-000000000005',
+  status: 'timed_out',
+  reasonCode: 'PREP_TIMEOUT',
+};
+export const MOCK_MOTION_TASK_CANCELLED: MotionCreateResponse = {
+  ...mockMotionBase,
+  id: '72000000-0000-4000-8000-000000000006',
+  status: 'cancelled',
+  reasonCode: 'USER_CANCEL',
+};
+
+export const MOCK_MOTION_TASKS_BY_STATUS: Record<TaskStatus, MotionCreateResponse> = {
+  queued: MOCK_MOTION_TASK_QUEUED,
+  running: MOCK_MOTION_TASK_RUNNING,
+  succeeded: MOCK_MOTION_TASK_SUCCEEDED,
+  failed: MOCK_MOTION_TASK_FAILED,
+  timed_out: MOCK_MOTION_TASK_TIMED_OUT,
+  cancelled: MOCK_MOTION_TASK_CANCELLED,
+};
+
+/** Kết quả video Motion: không có `sourceUrl` (video mẫu không lộ). */
+export const MOCK_MOTION_RESULT_RESPONSE: TaskResultResponse = {
+  mediaType: 'video',
+  resultUrl: 'https://cdn.example.test/out/signed-motion-result.mp4',
+  sourceUrl: null,
+  posterUrl: 'https://cdn.example.test/out/signed-motion-poster.jpg',
+  durationSeconds: 5,
+};
+
+export const MOCK_SHARE_INFO_VIDEO_RESPONSE: ShareInfoResponse = {
+  mediaType: 'video',
+  durationSeconds: 5,
+};
+export const MOCK_SHARE_INFO_IMAGE_RESPONSE: ShareInfoResponse = { mediaType: 'image' };
 
 /* ------------------------- Epic 3: nạp tiền ------------------------- */
 

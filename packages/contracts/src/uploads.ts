@@ -60,8 +60,50 @@ export const ConfirmedUploadKeySchema = z
   .string()
   .regex(new RegExp(`^in/${UUID_SEG}/${UUID_SEG}$`), 'Khóa ảnh đã xác nhận không hợp lệ.');
 
-/** POST /uploads */
-export const UploadCreateRequestSchema = ImageFileDeclarationSchema;
+/** Quy tắc video đầu vào (Epic 5). */
+export const VIDEO_MIME_TYPES = ['video/mp4', 'video/quicktime'] as const;
+export type VideoMimeType = (typeof VIDEO_MIME_TYPES)[number];
+export const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+
+/** Loại và kích thước video khai báo (dùng cho POST /uploads). */
+export const VideoFileDeclarationSchema = z.object({
+  mimeType: z.enum(VIDEO_MIME_TYPES, {
+    errorMap: () => ({ message: 'Chỉ hỗ trợ video MP4 hoặc MOV.' }),
+  }),
+  sizeBytes: z
+    .number({ invalid_type_error: 'Dung lượng video không hợp lệ.' })
+    .int('Dung lượng video không hợp lệ.')
+    .positive('Dung lượng video không hợp lệ.')
+    .max(MAX_VIDEO_BYTES, 'Video vượt quá dung lượng tối đa 100 MB.'),
+});
+export type VideoFileDeclaration = z.infer<typeof VideoFileDeclarationSchema>;
+
+/** Video đã được server đo bằng ffprobe. */
+export const VideoMetaSchema = VideoFileDeclarationSchema.extend({
+  durationSeconds: z
+    .number({ invalid_type_error: 'Độ dài video không hợp lệ.' })
+    .positive('Độ dài video không hợp lệ.')
+    .finite('Độ dài video không hợp lệ.'),
+  width: z.number().int().positive('Chiều rộng video không hợp lệ.'),
+  height: z.number().int().positive('Chiều cao video không hợp lệ.'),
+});
+export type VideoMeta = z.infer<typeof VideoMetaSchema>;
+
+/** POST /uploads: ảnh (hành vi cũ) hoặc video. */
+export const UploadCreateRequestSchema = z.custom<
+  ImageFileDeclaration | VideoFileDeclaration
+>((v) => v !== null && typeof v === 'object').pipe(
+  z.any().transform((v, ctx) => {
+    const isVideo =
+      typeof v?.mimeType === 'string' && v.mimeType.startsWith('video/');
+    const r = (isVideo ? VideoFileDeclarationSchema : ImageFileDeclarationSchema).safeParse(v);
+    if (!r.success) {
+      r.error.issues.forEach((i) => ctx.addIssue(i));
+      return z.NEVER;
+    }
+    return r.data;
+  }),
+);
 export type UploadCreateRequest = z.infer<typeof UploadCreateRequestSchema>;
 
 export const UploadCreateResponseSchema = z.object({
@@ -84,3 +126,10 @@ export const UploadConfirmResponseSchema = z.object({
   image: ImageMetaSchema,
 });
 export type UploadConfirmResponse = z.infer<typeof UploadConfirmResponseSchema>;
+
+/** POST /uploads/{key}/confirm cho video. */
+export const UploadConfirmVideoResponseSchema = z.object({
+  key: ConfirmedUploadKeySchema,
+  video: VideoMetaSchema,
+});
+export type UploadConfirmVideoResponse = z.infer<typeof UploadConfirmVideoResponseSchema>;

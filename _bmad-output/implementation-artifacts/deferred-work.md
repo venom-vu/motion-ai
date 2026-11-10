@@ -205,3 +205,10 @@
 ## Deferred from: code review of spec-4-3-be-ket-qua-body-retouch.md (2026-11-09)
 
 - `apps/api/test/body-retouch-result.test.mjs`: chưa có test đường lỗi nhập kết quả cho `body_retouch` (tải HTTP 4xx/5xx, body không phải ảnh, `putObject` lỗi, `ingest` gọi hai lần, hủy giữa chừng). Mã nhập kết quả dùng chung với Face Swap từ Epic 2, nên nên phủ ở một story test chung.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-1-contract-hop-dong-cho-motion-control.md`
+  summary: Đổi `mediaType` (kết quả) và `motionControlMinSeconds` (cấu hình giá) thành bắt buộc sau khi BE 5.3/5.6 trả hai trường này.
+  evidence: Hiện để tùy chọn vì `apps/api` chưa trả và 5.1 không được sửa `apps/*`.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-1-contract-hop-dong-cho-motion-control.md`
+  summary: BE 5.3 phải kiểm `trimEnd > trimStart`, độ dài 3..Cap và giới hạn trên của Trim bằng `details.reason`; làm tròn `durationSeconds` kết quả (BE 5.6); thêm mock lỗi `VALIDATION_FAILED` kèm `details.reason` cho FE 5.7.
+  evidence: Đã chạy `MotionCreateRequestSchema` với (7,2), (0,1), (0,1e21) vẫn parse; `VideoMeta.durationSeconds` là số thực còn kết quả là số nguyên.
