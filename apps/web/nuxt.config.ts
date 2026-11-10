@@ -51,7 +51,7 @@ export default defineNuxtConfig({
         {
           name: 'description',
           content:
-            'Nền tảng tạo ảnh và video AI chuyên nghiệp: Hoán đổi khuôn mặt, Chỉnh dáng thông minh và Điều khiển chuyển động.',
+            'Nền tảng tạo ảnh và video AI chuyên nghiệp: Hoán đổi khuôn mặt, Nâng ngực AI tự nhiên và Điều khiển chuyển động.',
         },
       ],
       link: [

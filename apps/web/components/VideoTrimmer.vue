@@ -291,20 +291,20 @@ onBeforeUnmount(() => {
 
     <div
       v-if="status === 'idle' || (status === 'validating' && !currentFile)"
-      class="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-cyber-border bg-cyber-bg/60 p-5 text-center"
+      class="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-cyber-border bg-cyber-bg/60 p-3.5 text-center sm:p-4"
     >
-      <div class="flex h-12 w-12 items-center justify-center rounded-xl border border-cyber-border/80 bg-cyber-surface/90 text-cyber-violet">
-        <Icon name="lucide:video" class="h-6 w-6" />
+      <div class="flex h-9 w-9 items-center justify-center rounded-lg border border-cyber-border/80 bg-cyber-surface/90 text-cyber-violet">
+        <Icon name="lucide:video" class="h-5 w-5" />
       </div>
-      <p class="mt-3 text-sm font-semibold text-cyber-text">Tải video mẫu lên</p>
-      <p class="mt-1 text-xs text-cyber-muted">
+      <p class="mt-2 text-xs font-semibold text-cyber-text sm:text-sm">Tải video mẫu lên</p>
+      <p class="mt-0.5 text-[11px] text-cyber-muted sm:text-xs">
         MP4 hoặc MOV, tối đa {{ MAX_VIDEO_BYTES / 1024 / 1024 }} MB, dài ít nhất 3 giây
       </p>
       <button
         type="button"
         data-testid="video-select-button"
         :disabled="disabled"
-        class="touch-target mt-4 inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-violet/50 bg-cyber-violet/15 px-4 py-2.5 text-xs font-semibold text-cyber-text transition hover:bg-cyber-violet/25 disabled:cursor-not-allowed disabled:opacity-50"
+        class="touch-target mt-3 inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-1.5 rounded-xl border border-cyber-violet/50 bg-cyber-violet/15 px-3.5 py-2 text-xs font-semibold text-cyber-text transition hover:bg-cyber-violet/25 disabled:cursor-not-allowed disabled:opacity-50"
         @click="openPicker"
       >
         <Icon name="lucide:film" class="h-4 w-4 text-cyber-cyan" />
@@ -331,32 +331,38 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <template v-else-if="hasVideo">
-      <div class="flex items-start justify-between gap-3">
-        <div class="min-w-0 space-y-0.5">
-          <p class="truncate text-xs font-medium text-cyber-text">{{ currentFile?.name }}</p>
+    <div
+      v-else-if="hasVideo"
+      class="space-y-3.5"
+    >
+      <div class="flex items-center justify-between gap-3 min-w-0">
+        <div class="min-w-0 flex-1 space-y-0.5">
+          <p class="truncate text-xs font-medium text-cyber-text" :title="currentFile?.name">{{ currentFile?.name }}</p>
           <p class="font-mono text-[11px] text-cyber-muted" data-testid="video-file-size">
             {{ formatFileSizeVi(currentFile?.size ?? 0) }}
           </p>
         </div>
-        <div class="flex shrink-0 items-center gap-2">
+        <div class="flex shrink-0 items-center gap-1.5">
           <button
             v-if="status === 'uploading' || status === 'validating'"
             type="button"
             data-testid="video-cancel-button"
             aria-label="Hủy tải lên"
-            class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-1.5 rounded-xl border border-cyber-danger/40 bg-cyber-danger/10 px-3 py-2 text-xs font-semibold text-cyber-danger transition hover:bg-cyber-danger/20"
+            class="touch-target inline-flex shrink-0 min-h-[48px] items-center justify-center gap-1.5 rounded-xl border border-cyber-danger/40 bg-cyber-danger/10 px-3 py-1.5 text-xs font-semibold text-cyber-danger transition hover:bg-cyber-danger/20"
             @click="reset"
           >
-            <Icon name="lucide:x" class="h-4 w-4" />
+            <Icon name="lucide:x" class="h-3.5 w-3.5" />
             <span>Hủy</span>
           </button>
-          <template v-else-if="status === 'ready'">
+          <div
+            v-else-if="status === 'ready'"
+            class="flex items-center gap-1.5"
+          >
             <button
               type="button"
               data-testid="video-change-button"
               :disabled="disabled"
-              class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-1.5 rounded-xl border border-cyber-violet/50 bg-cyber-violet/15 px-3 py-2 text-xs font-semibold text-cyber-text transition hover:bg-cyber-violet/25 disabled:opacity-50"
+              class="touch-target inline-flex shrink-0 min-h-[48px] items-center justify-center gap-1.5 rounded-xl border border-cyber-violet/50 bg-cyber-violet/15 px-3 py-1.5 text-xs font-semibold text-cyber-text transition hover:bg-cyber-violet/25 disabled:opacity-50"
               @click="openPicker"
             >
               <Icon name="lucide:refresh-cw" class="h-3.5 w-3.5 text-cyber-cyan" />
@@ -367,25 +373,25 @@ onBeforeUnmount(() => {
               data-testid="video-remove-button"
               aria-label="Xóa video này"
               :disabled="disabled"
-              class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-xl border border-cyber-border bg-cyber-surface p-2.5 text-cyber-muted transition hover:border-cyber-danger/60 hover:text-cyber-danger disabled:opacity-50"
+              class="touch-target inline-flex shrink-0 min-h-[48px] min-w-[48px] items-center justify-center rounded-xl border border-cyber-border bg-cyber-surface p-2 text-cyber-muted transition hover:border-cyber-danger/60 hover:text-cyber-danger disabled:opacity-50"
               @click="reset"
             >
               <Icon name="lucide:trash-2" class="h-4 w-4" />
             </button>
-          </template>
+          </div>
         </div>
       </div>
 
       <div
         v-if="status === 'uploading' || status === 'validating'"
-        class="space-y-1.5"
+        class="space-y-1"
         data-testid="video-uploading-state"
       >
-        <div class="flex items-center justify-between font-mono text-xs text-cyber-muted">
+        <div class="flex items-center justify-between font-mono text-[11px] text-cyber-muted">
           <span>{{ status === 'validating' ? 'Đang kiểm tra video...' : 'Đang tải lên máy chủ...' }}</span>
           <span class="font-bold text-cyber-cyan">{{ uploadProgress }}%</span>
         </div>
-        <div class="h-2 w-full overflow-hidden rounded-full border border-cyber-border bg-cyber-surface">
+        <div class="h-1.5 w-full overflow-hidden rounded-full border border-cyber-border bg-cyber-surface">
           <div
             data-testid="video-progress-bar"
             role="progressbar"
@@ -408,14 +414,14 @@ onBeforeUnmount(() => {
         class="flex items-center gap-1.5 text-xs font-semibold text-cyber-emerald"
         data-testid="video-ready-state"
       >
-        <Icon name="lucide:check-circle-2" class="h-4 w-4 shrink-0" />
+        <Icon name="lucide:check-circle-2" class="h-3.5 w-3.5 shrink-0" />
         <span>Video đã sẵn sàng</span>
       </div>
 
       <!-- Xem trước cục bộ, phát lặp trong đoạn chọn -->
       <div
-        class="mx-auto flex w-full max-w-full items-center justify-center overflow-hidden rounded-xl border border-cyber-border bg-black"
-        :class="isPortrait ? 'max-w-[220px]' : ''"
+        class="mx-auto flex h-44 sm:h-52 w-full max-w-full items-center justify-center overflow-hidden rounded-xl border border-cyber-border bg-black"
+        :class="isPortrait ? 'max-w-[180px]' : ''"
       >
         <video
           v-if="previewUrl"
@@ -426,7 +432,7 @@ onBeforeUnmount(() => {
           loop
           muted
           playsinline
-          class="max-h-[60vh] w-full max-w-full object-contain"
+          class="h-full w-full max-w-full object-contain"
           @loadedmetadata="onLoadedMetadata"
           @timeupdate="onTimeUpdate"
         />
@@ -435,11 +441,11 @@ onBeforeUnmount(() => {
       <!-- Thanh Trim hai tay cầm -->
       <div class="space-y-2" data-testid="video-trim-bar">
         <div class="px-6">
-          <div ref="trackRef" class="relative h-12 w-full touch-none select-none">
-            <div class="absolute left-0 right-0 top-1/2 h-2 -translate-y-1/2 rounded-full border border-cyber-border bg-cyber-surface" />
+          <div ref="trackRef" class="relative h-11 w-full touch-none select-none">
+            <div class="absolute left-0 right-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full border border-cyber-border bg-cyber-surface" />
             <div
               data-testid="video-trim-range"
-              class="absolute top-1/2 h-2 -translate-y-1/2 rounded-full bg-gradient-to-r from-cyber-violet to-cyber-cyan"
+              class="absolute top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-gradient-to-r from-cyber-violet to-cyber-cyan"
               :style="{ left: `${startPct}%`, width: `${Math.max(0, endPct - startPct)}%` }"
             />
             <div
@@ -462,7 +468,7 @@ onBeforeUnmount(() => {
               @keydown="onKeydown(which, $event)"
             >
               <span
-                class="block h-6 w-6 rounded-full border-2 border-cyber-cyan bg-cyber-surface transition"
+                class="block h-5 w-5 rounded-full border-2 border-cyber-cyan bg-cyber-surface transition"
                 :class="activeHandle === which ? 'shadow-[0_0_14px_rgba(34,211,238,0.8)]' : ''"
               />
             </div>
@@ -499,6 +505,6 @@ onBeforeUnmount(() => {
           </NuxtLink>
         </p>
       </div>
-    </template>
+    </div>
   </div>
 </template>

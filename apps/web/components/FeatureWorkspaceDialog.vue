@@ -389,24 +389,24 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- Nội dung 2 cột trên Desktop, 1 cột trên Mobile khi chưa có activeTask -->
-      <div v-else class="grid grid-cols-1 gap-6 p-4 sm:p-6 lg:grid-cols-12">
+      <div v-else class="grid grid-cols-1 gap-5 p-4 sm:p-6 lg:grid-cols-12">
         <!-- Cột trái: Tải tệp & Điều chỉnh thông số (Trimmer bước 1 giây cho video) -->
-        <div class="space-y-5 lg:col-span-6">
+        <div class="space-y-3.5 lg:col-span-6">
           <!-- Trường hợp Face Swap: Yêu cầu 2 ảnh (mặt nguồn + đích) theo Story 2.11 -->
           <div
             v-if="feature.id === 'face-swap'"
-            class="space-y-4"
+            class="space-y-3"
             data-testid="workspace-face-swap-inputs"
           >
             <!-- 1. Ảnh mặt nguồn -->
-            <div class="space-y-3 rounded-xl border border-cyber-border bg-cyber-bg/60 p-4">
+            <div class="space-y-2.5 rounded-xl border border-cyber-border bg-cyber-bg/60 p-3 sm:p-3.5">
               <div class="flex items-center gap-2">
                 <span
-                  class="flex h-6 w-6 items-center justify-center rounded-lg border border-cyber-cyan/40 bg-cyber-cyan/15 font-mono text-xs font-bold text-cyber-cyan"
+                  class="flex h-5 w-5 items-center justify-center rounded-md border border-cyber-cyan/40 bg-cyber-cyan/15 font-mono text-[11px] font-bold text-cyber-cyan"
                 >
                   1
                 </span>
-                <p class="text-sm font-semibold text-cyber-text">
+                <p class="text-xs font-semibold text-cyber-text sm:text-sm">
                   Ảnh mặt nguồn (Khuôn mặt cần lấy)
                 </p>
               </div>
@@ -419,14 +419,14 @@ onBeforeUnmount(() => {
             </div>
 
             <!-- 2. Ảnh đích -->
-            <div class="space-y-3 rounded-xl border border-cyber-border bg-cyber-bg/60 p-4">
+            <div class="space-y-2.5 rounded-xl border border-cyber-border bg-cyber-bg/60 p-3 sm:p-3.5">
               <div class="flex items-center gap-2">
                 <span
-                  class="flex h-6 w-6 items-center justify-center rounded-lg border border-cyber-violet/40 bg-cyber-violet/15 font-mono text-xs font-bold text-cyber-violet"
+                  class="flex h-5 w-5 items-center justify-center rounded-md border border-cyber-violet/40 bg-cyber-violet/15 font-mono text-[11px] font-bold text-cyber-violet"
                 >
                   2
                 </span>
-                <p class="text-sm font-semibold text-cyber-text">
+                <p class="text-xs font-semibold text-cyber-text sm:text-sm">
                   Ảnh đích (Bối cảnh muốn ghép)
                 </p>
               </div>
@@ -442,18 +442,18 @@ onBeforeUnmount(() => {
           <!-- Các công cụ AI khác: Thành phần tải ảnh đơn dùng chung (Story 2.10) -->
           <div
             v-else
-            class="rounded-xl border border-cyber-border bg-cyber-bg/60 p-4"
+            class="rounded-xl border border-cyber-border bg-cyber-bg/60 p-3 sm:p-3.5"
           >
-            <div class="mb-4 flex items-start gap-3">
+            <div class="mb-2.5 flex items-start gap-2.5">
               <Icon
                 name="lucide:upload-cloud"
-                class="mt-0.5 h-6 w-6 shrink-0 text-cyber-violet"
+                class="mt-0.5 h-5 w-5 shrink-0 text-cyber-violet"
               />
-              <div class="space-y-1">
-                <p class="text-sm font-semibold text-cyber-text">
+              <div class="min-w-0 flex-1 space-y-0.5">
+                <p class="text-xs font-semibold text-cyber-text sm:text-sm">
                   Tải dữ liệu đầu vào
                 </p>
-                <p class="text-xs text-cyber-muted">
+                <p class="truncate text-[11px] text-cyber-muted sm:whitespace-normal sm:text-xs">
                   {{ feature.inputRequirementVi }}
                 </p>
               </div>
@@ -480,19 +480,19 @@ onBeforeUnmount(() => {
             />
           </div>
 
-          <!-- Thanh trượt mức điều chỉnh vóc dáng (Body Retouch: intensity 1..10, bước 1, mặc định 5) -->
+          <!-- Thanh trượt mức điều chỉnh nâng ngực (Body Retouch: intensity 1..10, bước 1, mặc định 5) -->
           <div
             v-if="feature.id === 'body-retouch'"
             data-testid="workspace-intensity-section"
-            class="space-y-3 rounded-xl border border-cyber-border bg-cyber-bg/60 p-4"
+            class="space-y-3 rounded-xl border border-cyber-border bg-cyber-bg/60 p-3 sm:p-3.5"
           >
             <div class="flex flex-wrap items-center justify-between gap-2">
               <label
                 for="workspace-intensity-range"
-                class="flex items-center gap-2 text-sm font-semibold text-cyber-text"
+                class="flex items-center gap-2 text-xs font-semibold text-cyber-text sm:text-sm"
               >
                 <Icon name="lucide:sliders-horizontal" class="h-4 w-4 text-cyber-cyan" />
-                <span>Mức điều chỉnh vóc dáng</span>
+                <span>Mức độ nâng ngực</span>
               </label>
               <span
                 data-testid="workspace-intensity-badge"
@@ -512,7 +512,7 @@ onBeforeUnmount(() => {
               :max="INTENSITY_MAX"
               step="1"
               data-testid="workspace-intensity-slider"
-              aria-label="Mức điều chỉnh vóc dáng từ 1 đến 10"
+              aria-label="Mức điều chỉnh nâng ngực từ 1 đến 10"
               :aria-valuenow="intensity"
               :aria-valuemin="INTENSITY_MIN"
               :aria-valuemax="INTENSITY_MAX"
@@ -558,9 +558,9 @@ onBeforeUnmount(() => {
           <div
             v-if="isMotion"
             data-testid="workspace-video-trimmer"
-            class="min-w-0 space-y-3 rounded-xl border border-cyber-border bg-cyber-bg/60 p-4"
+            class="min-w-0 space-y-2.5 rounded-xl border border-cyber-border bg-cyber-bg/60 p-3 sm:p-3.5"
           >
-            <p class="flex items-center gap-2 text-sm font-semibold text-cyber-text">
+            <p class="flex items-center gap-2 text-xs font-semibold text-cyber-text sm:text-sm">
               <Icon name="lucide:scissors" class="h-4 w-4 text-cyber-cyan" />
               <span>Video mẫu và đoạn cắt (bước 1 giây)</span>
             </p>
@@ -584,34 +584,6 @@ onBeforeUnmount(() => {
               class="text-xs font-semibold text-cyber-warning"
             >
               {{ motionInsufficientNoteVi }}
-            </p>
-          </div>
-
-          <!-- Bảng tính phí credit thời gian thực từ /config/pricing -->
-          <div
-            class="space-y-2 rounded-xl border border-cyber-cyan/30 bg-cyber-bg/80 p-4"
-          >
-            <div class="flex items-center justify-between text-xs text-cyber-muted">
-              <span>Đơn giá công cụ (từ /config/pricing):</span>
-              <span class="font-mono text-cyber-text">
-                {{ feature.priceBadgeVi }}
-              </span>
-            </div>
-
-            <div class="flex items-center justify-between border-t border-cyber-border/70 pt-2">
-              <span class="text-sm font-semibold text-cyber-text">
-                Chi phí tạm giữ (HOLD):
-              </span>
-              <span
-                data-testid="workspace-estimated-credits"
-                class="font-mono text-base font-bold text-cyber-cyan"
-              >
-                {{ formatNumberVi(estimatedCredits) }} credit
-              </span>
-            </div>
-
-            <p class="text-xs text-cyber-muted">
-              Hệ thống hoàn trả 100% credit (RELEASED) nếu tác vụ gặp lỗi xử lý.
             </p>
           </div>
         </div>
@@ -701,22 +673,24 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- Footer hành động của Centered Dialog -->
+      <!-- Footer hành động của Centered Dialog: Ghim cố định ở đáy (sticky bottom-0 z-10) -->
       <div
-        class="flex flex-col-reverse items-stretch justify-between gap-3 border-t border-cyber-border bg-cyber-bg/60 px-4 py-4 sm:flex-row sm:items-center sm:px-6"
+        class="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-cyber-border bg-cyber-surface/95 px-4 py-3.5 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-6"
       >
-        <button
-          type="button"
-          class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-surface px-5 py-2.5 text-sm font-medium text-cyber-text transition hover:border-cyber-violet"
-          @click="emit('close')"
-        >
-          <Icon name="lucide:arrow-left" class="h-4 w-4" />
-          <span>Đóng Cửa Sổ</span>
-        </button>
+        <!-- Đơn giá công cụ -->
+        <div class="flex items-center gap-2">
+          <Icon name="lucide:zap" class="h-4 w-4 text-cyber-cyan" />
+          <div class="flex items-center gap-1.5 text-xs">
+            <span class="text-cyber-muted">Đơn giá công cụ:</span>
+            <span class="font-mono font-bold text-cyber-cyan">
+              {{ feature.priceBadgeVi }}
+            </span>
+          </div>
+        </div>
 
         <div
           v-if="!activeTask"
-          class="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center"
+          class="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center"
         >
           <!-- Nút đăng nhập cho khách chưa đăng nhập -->
           <button

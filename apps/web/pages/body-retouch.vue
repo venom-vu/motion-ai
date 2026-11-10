@@ -16,12 +16,12 @@ import {
 } from '~/utils/api-client';
 
 useHead({
-  title: 'Chỉnh Sửa Vóc Dáng (Body Retouch) — flowvis',
+  title: 'Nâng Ngực AI (Body Retouch) — flowvis',
   meta: [
     {
       name: 'description',
       content:
-        'Tinh chỉnh tỷ lệ cơ thể tự nhiên theo 10 mức độ chỉ bằng một lần bấm. Bảo toàn chi tiết trang phục, hậu cảnh và độ phân giải gốc.',
+        'Tăng kích cỡ và tôn dáng vòng một đầy đặn tự nhiên theo 10 mức độ chỉ bằng một lần bấm. Bảo toàn chi tiết trang phục, hậu cảnh và độ phân giải gốc.',
     },
   ],
 });
@@ -165,14 +165,14 @@ function handleReset(): void {
         <span
           class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyber-cyan/50 bg-cyber-cyan/20 text-cyber-cyan"
         >
-          <Icon name="lucide:person-standing" class="h-6 w-6" />
+          <Icon name="lucide:sparkles" class="h-6 w-6" />
         </span>
         <div class="space-y-1">
           <h1 class="font-display text-lg font-bold sm:text-2xl">
-            Chỉnh Sửa Vóc Dáng (Body Retouch)
+            Nâng Ngực AI (Body Retouch)
           </h1>
           <p class="text-xs text-cyber-muted sm:text-sm">
-            Tinh chỉnh tỷ lệ cơ thể tự nhiên theo 10 mức độ chỉ bằng một lần
+            Tinh chỉnh vòng một đầy đặn, quyến rũ tự nhiên theo 10 mức độ chỉ bằng một lần
             bấm. Bảo toàn chi tiết trang phục, hậu cảnh và độ phân giải gốc.
           </p>
         </div>
@@ -207,7 +207,7 @@ function handleReset(): void {
             </span>
             <div>
               <h2 class="text-sm font-bold text-cyber-text">
-                Ảnh cần chỉnh dáng
+                Ảnh cần nâng ngực
               </h2>
               <p class="text-[11px] text-cyber-muted">
                 Ảnh toàn thân hoặc bán thân thấy rõ dáng người
@@ -218,12 +218,12 @@ function handleReset(): void {
           <ImageUploader
             v-model="imageKey"
             id-prefix="body-retouch-image"
-            label-vi="Chọn ảnh chỉnh dáng"
+            label-vi="Chọn ảnh nâng ngực"
             description-vi="Ảnh toàn thân hoặc bán thân rõ dáng, JPG/PNG/WebP ≤ 10 MB"
           />
         </div>
 
-        <!-- Cột 2: Thanh mức điều chỉnh vóc dáng (intensity 1..10, bước 1, mặc định 5) -->
+        <!-- Cột 2: Thanh mức điều chỉnh nâng ngực (intensity 1..10, bước 1, mặc định 5) -->
         <div
           class="flex flex-col justify-between space-y-4 rounded-2xl border border-cyber-border bg-cyber-surface/60 p-4 sm:p-5"
           data-testid="intensity-slider-section"
@@ -241,7 +241,7 @@ function handleReset(): void {
                     for="body-retouch-intensity-slider"
                     class="block text-sm font-bold text-cyber-text"
                   >
-                    Mức điều chỉnh vóc dáng
+                    Mức độ nâng ngực
                   </label>
                   <p class="text-[11px] text-cyber-muted">
                     Kéo thanh trượt từ {{ INTENSITY_MIN }} đến {{ INTENSITY_MAX }} (mặc định {{ INTENSITY_DEFAULT }})
@@ -268,7 +268,7 @@ function handleReset(): void {
                 :max="INTENSITY_MAX"
                 step="1"
                 data-testid="intensity-slider"
-                aria-label="Mức điều chỉnh vóc dáng từ 1 đến 10"
+                aria-label="Mức điều chỉnh nâng ngực từ 1 đến 10"
                 :aria-valuenow="intensity"
                 :aria-valuemin="INTENSITY_MIN"
                 :aria-valuemax="INTENSITY_MAX"
@@ -319,7 +319,7 @@ function handleReset(): void {
               />
               <span>
                 Mức 4–7 (Tự nhiên) được khuyến nghị cho hầu hết ảnh chân dung và
-                thời trang để giữ tỷ lệ hài hòa với hậu cảnh.
+                thời trang để vòng một đầy đặn, hài hòa với vóc dáng.
               </span>
             </div>
           </div>
@@ -349,7 +349,7 @@ function handleReset(): void {
         <div class="flex items-center gap-3">
           <Icon name="lucide:log-in" class="h-5 w-5 shrink-0 text-cyber-cyan" />
           <p class="text-xs text-cyber-cyan sm:text-sm">
-            Vui lòng đăng nhập để bắt đầu tạo tác vụ Chỉnh sửa vóc dáng và lưu lịch sử.
+            Vui lòng đăng nhập để bắt đầu tạo tác vụ Nâng Ngực AI và lưu lịch sử.
           </p>
         </div>
         <button
