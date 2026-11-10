@@ -229,6 +229,13 @@ onBeforeUnmount(() => {
         được cập nhật tự động. Bạn có thể rời trang, tác vụ vẫn sẽ tiếp tục chạy
         ngầm và lưu trong mục Lịch Sử.
       </p>
+      <p
+        v-if="localTask.pipeline === 'motion_control'"
+        data-testid="video-duration-note"
+        class="text-xs font-semibold text-cyber-cyan"
+      >
+        Video thường mất vài phút, bạn có thể rời trang và quay lại từ Lịch sử.
+      </p>
 
       <div
         v-if="actionErrorVi"
@@ -335,7 +342,7 @@ onBeforeUnmount(() => {
               {{ pipelineLabelVi }} thành công!
             </h3>
             <p class="text-xs text-cyber-muted">
-              Hình ảnh chất lượng cao đã sẵn sàng
+              {{ localTask.pipeline === 'motion_control' ? 'Video đã sẵn sàng' : 'Hình ảnh chất lượng cao đã sẵn sàng' }}
             </p>
           </div>
         </div>
@@ -351,7 +358,7 @@ onBeforeUnmount(() => {
 
       <p class="text-xs leading-relaxed text-cyber-muted sm:text-sm">
         Tác vụ đã hoàn tất và kết quả đã được lưu trữ an toàn trên máy chủ đám
-        mây. Bạn có thể xem kết quả trực tiếp hoặc tải ảnh về thiết bị.
+        mây. Bạn có thể xem kết quả trực tiếp hoặc tải về thiết bị.
       </p>
 
       <div class="flex flex-wrap items-center justify-end gap-2.5 pt-1">
@@ -362,7 +369,7 @@ onBeforeUnmount(() => {
           @click="handleRetry"
         >
           <Icon name="lucide:plus" class="h-4 w-4 text-cyber-cyan" />
-          <span>Tạo ảnh mới</span>
+          <span>{{ localTask?.pipeline === 'motion_control' ? 'Tạo video mới' : 'Tạo ảnh mới' }}</span>
         </button>
 
         <NuxtLink

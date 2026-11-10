@@ -693,6 +693,7 @@ describe('@flowvis/web — Story 4.4 Trang Body Retouch và thanh mức điều 
           '~/composables/useApiClient': `export const useApiClient = () => ({ client: globalThis.__brDialog.client });`,
           '~/composables/useAuthDialog': `export const useAuthDialog = () => ({ open: (...args) => globalThis.__brDialog.calls.push(['openAuthDialog', ...args]) });`,
           '~/composables/usePricingConfig': `export const usePricingConfig = () => ({ refreshAll: async () => { globalThis.__brDialog.calls.push(['refreshAll']); } });`,
+          '~/composables/useMotionControl': `import { ref } from 'vue'; export const useMotionControl = () => ({ isAuthenticated: ref(true), isSubmitting: ref(false), reset: () => {}, clearState: () => {}, characterKey: ref(null), capSeconds: ref(null), seconds: ref(0), price: ref(null), hasEnoughBalance: ref(true), canSubmit: ref(false), insufficientNoteVi: ref(null), submitErrorVi: ref(null), onTrimChange: () => {}, submit: async () => null });`,
           '~/utils/api-client': `export {
             ApiErrorCode,
             INTENSITY_DEFAULT,

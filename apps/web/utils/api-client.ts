@@ -29,7 +29,10 @@ import {
   INTENSITY_MIN,
   IntensitySchema,
   MeResponseSchema,
+  MotionCreateRequestSchema,
+  MotionCreateResponseSchema,
   PricingConfigResponseSchema,
+  ShareInfoResponseSchema,
   TaskIdParamsSchema,
   TaskGetResponseSchema,
   TaskCancelResponseSchema,
@@ -56,6 +59,8 @@ import {
   getApiErrorMessageVi,
   getIntensityLabelVi,
   getReasonCodeMessageVi,
+  getValidationReasonMessageVi,
+  motionPrice,
   type AdminTopup,
   type AdminTopupApproveExpiredRequest,
   type AdminTopupApproveExpiredResponse,
@@ -81,8 +86,11 @@ import {
   type FaceSwapCreateResponse,
   type Intensity,
   type MeResponse,
+  type MotionCreateRequest,
+  type MotionCreateResponse,
   type PricingConfigResponse,
   type ReasonCode,
+  type ShareInfoResponse,
   type Task,
   type TaskCancelResponse,
   type TaskGetResponse,
@@ -121,6 +129,11 @@ export {
   getApiErrorMessageVi,
   getIntensityLabelVi,
   getReasonCodeMessageVi,
+  getValidationReasonMessageVi,
+  motionPrice,
+  MotionCreateRequestSchema,
+  MotionCreateResponseSchema,
+  ShareInfoResponseSchema,
   type AdminTopup,
   type AdminTopupApproveExpiredRequest,
   type AdminTopupApproveExpiredResponse,
@@ -134,6 +147,9 @@ export {
   type AdminTopupRejectResponse,
   type AdminTopupReturnToPendingRequest,
   type AdminTopupReturnToPendingResponse,
+  type MotionCreateRequest,
+  type MotionCreateResponse,
+  type ShareInfoResponse,
   type BodyRetouchCreateRequest,
   type BodyRetouchCreateResponse,
   type FaceSwapCreateRequest,
@@ -622,6 +638,35 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
           signal: options?.signal,
         },
         (payload) => BodyRetouchCreateResponseSchema.parse(payload),
+      );
+    },
+
+    async createMotionControlTask(
+      rawRequest: MotionCreateRequest,
+      options?: { signal?: AbortSignal },
+    ): Promise<MotionCreateResponse> {
+      const data = MotionCreateRequestSchema.parse(rawRequest);
+      return requestLive(
+        '/tasks/motion',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          signal: options?.signal,
+        },
+        (payload) => MotionCreateResponseSchema.parse(payload),
+      );
+    },
+
+    async getShareInfo(
+      token: string,
+      options?: { signal?: AbortSignal },
+    ): Promise<ShareInfoResponse> {
+      return requestLive(
+        `/s/${encodeURIComponent(token)}/info`,
+        { method: 'GET', signal: options?.signal },
+        (payload) => ShareInfoResponseSchema.parse(payload),
+        { skipRefresh: true },
       );
     },
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import type { Task } from '@flowvis/contracts';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import type { Task, TaskResultResponse } from '@flowvis/contracts';
+import { useApiClient } from '~/composables/useApiClient';
 import { getReasonCodeMessageVi } from '@flowvis/contracts';
 import {
   formatTaskTimestampVi,
@@ -43,6 +44,47 @@ const reasonMessage = computed(() => {
   if (!props.task.reasonCode) return null;
   return getReasonCodeMessageVi(props.task.reasonCode, props.task.pipeline);
 });
+
+// Task video: lấy ảnh bìa và độ dài lười (chỉ phía client, một lần cho mỗi thẻ hiển thị).
+const videoInfo = ref<Pick<TaskResultResponse, 'posterUrl' | 'durationSeconds'> | null>(null);
+const posterFailed = ref(false);
+const isVideoTask = computed(() => props.task.pipeline === 'motion_control');
+
+let mounted = false;
+async function loadVideoInfo(): Promise<void> {
+  videoInfo.value = null;
+  posterFailed.value = false;
+  if (!isVideoTask.value || !isSucceeded.value || isExpired.value) return;
+  const requestedId = props.task.id;
+  try {
+    const { client } = useApiClient();
+    const res = await client.getTaskResult(requestedId);
+    // Bỏ kết quả của lần gọi cũ nếu thẻ đã chuyển sang Task khác.
+    if (!mounted || props.task.id !== requestedId) return;
+    if (res.mediaType === 'video') {
+      videoInfo.value = {
+        posterUrl: res.posterUrl,
+        durationSeconds: res.durationSeconds,
+      };
+    }
+  } catch {
+    // Không có dữ liệu: dùng biểu tượng thay thế.
+  }
+}
+
+onMounted(() => {
+  mounted = true;
+  void loadVideoInfo();
+});
+onBeforeUnmount(() => {
+  mounted = false;
+});
+watch(
+  () => [props.task.id, props.task.status],
+  () => {
+    if (mounted) void loadVideoInfo();
+  },
+);
 
 function handleCancel(): void {
   emit('cancel', props.task.id);
@@ -122,6 +164,34 @@ function handleCancel(): void {
           Hết hạn lưu 30 ngày
         </span>
       </div>
+    </div>
+
+    <!-- Ảnh bìa và độ dài cho Task video -->
+    <div
+      v-if="isVideoTask && isSucceeded && !isExpired"
+      :data-testid="`task-video-thumb-${task.id}`"
+      class="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl border border-cyber-border bg-cyber-bg"
+    >
+      <img
+        v-if="videoInfo?.posterUrl && !posterFailed"
+        :src="videoInfo.posterUrl"
+        alt="Ảnh bìa video kết quả"
+        loading="lazy"
+        class="h-full w-full object-cover"
+        @error="posterFailed = true"
+      />
+      <Icon
+        v-else
+        name="lucide:clapperboard"
+        class="h-8 w-8 text-cyber-muted"
+      />
+      <span
+        v-if="videoInfo?.durationSeconds"
+        data-testid="task-video-duration"
+        class="absolute bottom-2 right-2 rounded-md bg-black/70 px-2 py-0.5 font-mono text-[11px] font-semibold text-cyber-text"
+      >
+        {{ videoInfo.durationSeconds }}s
+      </span>
     </div>
 
     <!-- Thông báo lỗi / hoàn tiền nếu thất bại -->
