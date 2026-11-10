@@ -9,6 +9,7 @@ import {
   useRoute,
   useRuntimeConfig,
 } from '#imports';
+import { useApiClient } from '~/composables/useApiClient';
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 
@@ -16,11 +17,14 @@ interface SharePageState {
   notFound: boolean;
   rateLimited: boolean;
   imageUrl: string | null;
+  mediaType: 'image' | 'video';
+  durationSeconds: number | null;
 }
 
 const route = useRoute();
 const config = useRuntimeConfig();
 const requestUrl = useRequestURL();
+const { client } = useApiClient();
 
 const token = computed<string>(() => {
   const raw = route.params.token;
@@ -40,10 +44,30 @@ const { data: asyncState, error: asyncError } = await useAsyncData<SharePageStat
   async () => {
     // Kiểm tra định dạng token (32 byte base64url = 43 ký tự)
     if (!token.value || !TOKEN_RE.test(token.value)) {
-      return { notFound: true, rateLimited: false, imageUrl: null };
+      return { notFound: true, rateLimited: false, imageUrl: null, mediaType: 'image', durationSeconds: null };
     }
 
     const shareEndpoint = `${apiBaseUrl.value}/s/${encodeURIComponent(token.value)}`;
+
+    // Loại phương tiện (ảnh hoặc video) từ GET /s/{token}/info; lỗi thì coi như ảnh.
+    const resolveMedia = async (): Promise<
+      Pick<SharePageState, 'mediaType' | 'durationSeconds'>
+    > => {
+      // Thử lại một lần trước khi coi là ảnh, tránh render video bằng <img> khi lỗi tạm.
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          const info = await client.getShareInfo(token.value);
+          return {
+            mediaType: info.mediaType,
+            durationSeconds: info.durationSeconds ?? null,
+          };
+        } catch {
+          // thử lại
+        }
+      }
+      return { mediaType: 'image', durationSeconds: null };
+    };
+
     try {
       // Dùng redirect: 'manual' để không follow 302 sang S3/R2 bằng HEAD (tránh SignatureDoesNotMatch 403)
       const res = await $fetch.raw(shareEndpoint, {
@@ -53,22 +77,28 @@ const { data: asyncState, error: asyncError } = await useAsyncData<SharePageStat
       });
 
       if (res.status === 404) {
-        return { notFound: true, rateLimited: false, imageUrl: null };
+        return { notFound: true, rateLimited: false, imageUrl: null, mediaType: 'image', durationSeconds: null };
       }
       if (res.status === 429) {
-        return { notFound: false, rateLimited: true, imageUrl: null };
+        return { notFound: false, rateLimited: true, imageUrl: null, mediaType: 'image', durationSeconds: null };
       }
       if (res.status === 302 || res.status === 200) {
-        return { notFound: false, rateLimited: false, imageUrl: shareEndpoint };
+        return {
+          notFound: false,
+          rateLimited: false,
+          imageUrl: shareEndpoint,
+          ...(await resolveMedia()),
+        };
       }
       if (res.status >= 400) {
-        return { notFound: true, rateLimited: false, imageUrl: null };
+        return { notFound: true, rateLimited: false, imageUrl: null, mediaType: 'image', durationSeconds: null };
       }
 
       return {
         notFound: false,
         rateLimited: false,
         imageUrl: shareEndpoint,
+        ...(await resolveMedia()),
       };
     } catch {
       // Fallback endpoint cho trường hợp mạng lỗi
@@ -76,6 +106,8 @@ const { data: asyncState, error: asyncError } = await useAsyncData<SharePageStat
         notFound: false,
         rateLimited: false,
         imageUrl: shareEndpoint,
+        mediaType: 'image',
+        durationSeconds: null,
       };
     }
   },
@@ -84,6 +116,8 @@ const { data: asyncState, error: asyncError } = await useAsyncData<SharePageStat
       notFound: false,
       rateLimited: false,
       imageUrl: null,
+      mediaType: 'image' as const,
+      durationSeconds: null,
     }),
   },
 );
@@ -92,6 +126,8 @@ const shareState = ref<SharePageState>({
   notFound: asyncState.value?.notFound ?? false,
   rateLimited: asyncState.value?.rateLimited ?? false,
   imageUrl: asyncState.value?.imageUrl ?? null,
+  mediaType: asyncState.value?.mediaType ?? 'image',
+  durationSeconds: asyncState.value?.durationSeconds ?? null,
 });
 
 // Đồng bộ khi asyncState thay đổi hoặc có asyncError
@@ -101,12 +137,16 @@ watchEffect(() => {
       notFound: true,
       rateLimited: false,
       imageUrl: null,
+      mediaType: 'image',
+      durationSeconds: null,
     };
   } else if (asyncState.value) {
     shareState.value = {
       notFound: Boolean(asyncState.value.notFound),
       rateLimited: Boolean(asyncState.value.rateLimited),
       imageUrl: asyncState.value.imageUrl,
+      mediaType: asyncState.value.mediaType ?? 'image',
+      durationSeconds: asyncState.value.durationSeconds ?? null,
     };
   }
 });
@@ -122,6 +162,11 @@ if (import.meta.server && (shareState.value.notFound || asyncError.value)) {
 const isNotFound = computed(() => shareState.value.notFound);
 const isRateLimited = computed(() => shareState.value.rateLimited);
 const currentImageUrl = computed(() => shareState.value.imageUrl);
+const isVideo = computed(() => shareState.value.mediaType === 'video');
+const videoDurationSeconds = computed(() => shareState.value.durationSeconds);
+const posterUrl = computed(() =>
+  isVideo.value && currentImageUrl.value ? `${currentImageUrl.value}/poster` : null,
+);
 
 const pageTitle = computed(() => {
   if (isRateLimited.value) {
@@ -129,7 +174,9 @@ const pageTitle = computed(() => {
   }
   return isNotFound.value
     ? 'Liên kết không còn tồn tại — flowvis'
-    : 'Kết quả tạo ảnh AI — flowvis';
+    : isVideo.value
+      ? 'Video tạo bằng AI — flowvis'
+      : 'Kết quả tạo ảnh AI — flowvis';
 });
 
 const pageDescription = computed(() => {
@@ -143,6 +190,14 @@ const pageDescription = computed(() => {
 
 const ogImageUrl = computed(() => {
   if (isNotFound.value || isRateLimited.value) {
+    return null;
+  }
+  const base = `${apiBaseUrl.value}/s/${encodeURIComponent(token.value)}`;
+  return isVideo.value ? `${base}/poster` : base;
+});
+
+const ogVideoUrl = computed(() => {
+  if (!isVideo.value || isNotFound.value || isRateLimited.value) {
     return null;
   }
   return `${apiBaseUrl.value}/s/${encodeURIComponent(token.value)}`;
@@ -163,7 +218,9 @@ useHead({
   title: pageTitle,
   meta: [
     { property: 'og:site_name', content: 'flowvis' },
-    { property: 'og:type', content: 'website' },
+    { property: 'og:type', content: () => (isVideo.value ? 'video.other' : 'website') },
+    { property: 'og:video', content: () => ogVideoUrl.value ?? undefined },
+    { property: 'og:video:type', content: () => (ogVideoUrl.value ? 'video/mp4' : undefined) },
     { property: 'og:title', content: () => pageTitle.value },
     { property: 'og:description', content: () => pageDescription.value },
     { property: 'og:url', content: () => ogUrl.value },
@@ -213,12 +270,12 @@ async function handleDownload(): Promise<void> {
     const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = blobUrl;
-    a.download = `flowvis-shared-${token.value.slice(0, 10)}.png`;
+    a.download = `flowvis-shared-${token.value.slice(0, 10)}${isVideo.value ? '.mp4' : '.png'}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(blobUrl);
-    showToast('Đang tải ảnh HD về máy!');
+    showToast(isVideo.value ? 'Đang tải video về máy!' : 'Đang tải ảnh HD về máy!');
   } catch {
     // Fallback mở tab mới nếu fetch blob bị lỗi
     window.open(currentImageUrl.value, '_blank');
@@ -377,8 +434,19 @@ async function handleShareLink(): Promise<void> {
         <div
           class="relative flex min-h-[260px] w-full items-center justify-center bg-cyber-bg/40 p-2 sm:p-4"
         >
+          <video
+            v-if="currentImageUrl && isVideo"
+            :src="currentImageUrl"
+            :poster="posterUrl ?? undefined"
+            playsinline
+            controls
+            preload="metadata"
+            class="max-h-[75vh] w-full max-w-full rounded-xl bg-black object-contain shadow-md"
+            data-testid="share-result-video"
+            @error="handleImageError"
+          />
           <img
-            v-if="currentImageUrl"
+            v-else-if="currentImageUrl"
             :src="currentImageUrl"
             alt="Kết quả tạo ảnh AI — flowvis"
             class="max-h-[75vh] w-full max-w-full rounded-xl object-contain shadow-md"
@@ -391,6 +459,13 @@ async function handleShareLink(): Promise<void> {
           >
             Đang tải ảnh tác phẩm...
           </div>
+          <span
+            v-if="isVideo && videoDurationSeconds"
+            data-testid="share-video-duration"
+            class="absolute bottom-3 right-3 rounded-md bg-black/70 px-2 py-0.5 font-mono text-[11px] font-semibold text-cyber-text"
+          >
+            {{ videoDurationSeconds }}s
+          </span>
         </div>
       </div>
 
@@ -429,7 +504,7 @@ async function handleShareLink(): Promise<void> {
           @click="handleDownload"
         >
           <Icon name="lucide:download" class="h-4 w-4 text-cyber-muted" aria-hidden="true" />
-          <span>{{ isDownloading ? 'Đang tải...' : 'Tải ảnh HD' }}</span>
+          <span>{{ isDownloading ? 'Đang tải...' : (isVideo ? 'Tải video' : 'Tải ảnh HD') }}</span>
         </button>
 
         <!-- Nút Chia sẻ liên kết -->

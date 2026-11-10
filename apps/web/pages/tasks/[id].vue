@@ -83,6 +83,13 @@ const resultAsync = useAsyncData<TaskResultResponse | null>(
   },
 );
 
+// Dựa thêm vào pipeline để không chớp sang thanh so sánh khi dữ liệu đang làm mới.
+const isVideoResult = computed<boolean>(
+  () =>
+    resultAsync.data.value?.mediaType === 'video' ||
+    currentTask.value?.pipeline === 'motion_control',
+);
+
 // Trạng thái chia sẻ
 const shareData = ref<TaskShareResponse | null>(null);
 const isSharing = ref<boolean>(false);
@@ -126,6 +133,17 @@ async function handleRefreshResult(): Promise<void> {
   imageLoadFailed.value = false;
   imageRefreshAttempts.value = 0;
   await resultAsync.refresh();
+}
+
+function handleVideoError(): void {
+  if (resultAsync.pending.value) return;
+  if (imageRefreshAttempts.value < 1) {
+    imageRefreshAttempts.value += 1;
+    imageLoadFailed.value = false;
+    void resultAsync.refresh();
+  } else {
+    imageLoadFailed.value = true;
+  }
 }
 
 function handleImageError(_payload: { type: 'source' | 'result'; error: Event }): void {
@@ -172,13 +190,13 @@ async function handleDownloadImage(): Promise<void> {
       // Không dùng handleRefreshResult: không được đặt lại bộ đếm tự thử lại của lỗi tải ảnh
       await resultAsync.refresh();
       url = resultAsync.data.value?.resultUrl;
-      if (!url) throw new Error('Không thể làm mới đường dẫn tải ảnh');
+      if (!url) throw new Error('Không thể làm mới đường dẫn tải về');
       response = await fetch(url);
-      if (!response.ok) throw new Error('Không thể tải ảnh kết quả');
+      if (!response.ok) throw new Error('Không thể tải kết quả');
     }
 
     const blob = await response.blob();
-    const ext = resolveImageExtension(blob.type);
+    const ext = isVideoResult.value ? '.mp4' : resolveImageExtension(blob.type);
     const fileName = `flowvis-${currentTask.value?.pipeline || 'result'}-${taskId.value.slice(0, 8)}${ext}`;
     const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -504,7 +522,7 @@ function handleCreateNewTask(): void {
         Kết Quả Đã Hết Hạn Lưu Trữ
       </h2>
       <p class="mt-2 max-w-md text-sm text-cyber-muted">
-        Ảnh kết quả đã quá thời hạn lưu trữ 30 ngày và đã được dọn dẹp tự động khỏi máy chủ theo chính sách bảo mật của hệ thống.
+        {{ currentTask?.pipeline === 'motion_control' ? 'Video' : 'Ảnh' }} kết quả đã quá thời hạn lưu trữ 30 ngày và đã được dọn dẹp tự động khỏi máy chủ theo chính sách bảo mật của hệ thống.
       </p>
       <NuxtLink
         :to="getPipelineRoute(currentTask?.pipeline)"
@@ -530,7 +548,7 @@ function handleCreateNewTask(): void {
         <div class="flex items-center gap-3">
           <Icon name="lucide:alert-circle" class="h-6 w-6 text-cyber-danger shrink-0" />
           <p class="text-xs text-cyber-danger">
-            {{ resultErrorVi || 'Không thể tải ảnh kết quả' }} — Đường dẫn ảnh có thể đã hết hạn.
+            {{ resultErrorVi || (isVideoResult ? 'Không thể tải video kết quả' : 'Không thể tải ảnh kết quả') }} — Đường dẫn có thể đã hết hạn.
           </p>
         </div>
         <button
@@ -556,7 +574,32 @@ function handleCreateNewTask(): void {
 
       <!-- Component So Sánh Trước/Sau BeforeAfterSplitSlider -->
       <template v-else-if="resultAsync.data.value">
+        <div
+          v-if="isVideoResult"
+          data-testid="result-video-frame"
+          class="overflow-hidden rounded-2xl border border-cyber-border bg-cyber-bg/60"
+        >
+          <video
+            :key="resultAsync.data.value.resultUrl"
+            data-testid="result-video"
+            :src="resultAsync.data.value.resultUrl"
+            :poster="resultAsync.data.value.posterUrl"
+            playsinline
+            controls
+            preload="metadata"
+            class="max-h-[75vh] w-full bg-black object-contain"
+            @error="handleVideoError"
+          />
+          <p
+            v-if="resultAsync.data.value.durationSeconds"
+            data-testid="result-video-duration"
+            class="border-t border-cyber-border/70 px-4 py-2 font-mono text-xs text-cyber-muted"
+          >
+            Độ dài: {{ resultAsync.data.value.durationSeconds }} giây
+          </p>
+        </div>
         <BeforeAfterSplitSlider
+          v-else
           :result-url="resultAsync.data.value.resultUrl"
           :source-url="resultAsync.data.value.sourceUrl"
           :alt="`Kết quả ${getPipelineLabelVi(currentTask.pipeline)}`"
@@ -615,7 +658,7 @@ function handleCreateNewTask(): void {
               class="h-5 w-5"
               :class="{ 'animate-spin': isDownloading }"
             />
-            <span>{{ isDownloading ? 'Đang tải ảnh...' : 'Tải Ảnh HD (Không Watermark)' }}</span>
+            <span>{{ isDownloading ? (isVideoResult ? 'Đang tải video...' : 'Đang tải ảnh...') : (isVideoResult ? 'Tải về (MP4)' : 'Tải Ảnh HD (Không Watermark)') }}</span>
           </button>
 
           <!-- Nút phụ: Chia sẻ & Tạo tác vụ mới -->

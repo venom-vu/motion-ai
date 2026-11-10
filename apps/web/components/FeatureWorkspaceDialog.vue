@@ -5,6 +5,7 @@ import ImageUploader from '~/components/ImageUploader.vue';
 import TaskProgressCard from '~/components/TaskProgressCard.vue';
 import { useApiClient } from '~/composables/useApiClient';
 import { useAuthDialog } from '~/composables/useAuthDialog';
+import { useMotionControl } from '~/composables/useMotionControl';
 import { usePricingConfig } from '~/composables/usePricingConfig';
 import {
   ApiErrorCode,
@@ -53,6 +54,22 @@ const emit = defineEmits<{
 const { client } = useApiClient();
 const { open: openAuthDialog } = useAuthDialog();
 const { refreshAll } = usePricingConfig();
+const motion = useMotionControl();
+// Liên kết cấp cao nhất để template tự mở `.value` (dùng chung logic với trang /motion-control).
+const motionCharacterKey = motion.characterKey;
+const motionCapSeconds = motion.capSeconds;
+const motionSeconds = motion.seconds;
+const motionInsufficientNoteVi = motion.insufficientNoteVi;
+const motionSubmitErrorVi = motion.submitErrorVi;
+const motionIsSubmitting = motion.isSubmitting;
+const motionKey = ref<number>(0);
+
+// Dọn sạch trạng thái Motion và buộc VideoTrimmer/ImageUploader remount.
+function resetMotionState(): void {
+  motion.clearState();
+  motionKey.value += 1;
+}
+const onMotionTrimChange = motion.onTrimChange;
 
 const compareSplitPercent = ref<number>(50);
 const selectedSeconds = ref<number>(1);
@@ -72,10 +89,6 @@ const isValidIntensity = computed<boolean>(
   () => IntensitySchema.safeParse(intensity.value).success,
 );
 
-const maxSeconds = computed<number>(() => {
-  return props.feature?.tierCapSeconds ?? 1;
-});
-
 watch(
   () => props.feature,
   (nextFeature) => {
@@ -86,6 +99,7 @@ watch(
     targetKey.value = null;
     activeTask.value = null;
     submitErrorVi.value = null;
+    resetMotionState();
     if (nextFeature?.tierCapSeconds) {
       selectedSeconds.value = Math.min(3, nextFeature.tierCapSeconds);
     } else {
@@ -108,6 +122,7 @@ watch(
       targetKey.value = null;
       activeTask.value = null;
       submitErrorVi.value = null;
+      resetMotionState();
     }
   },
   { immediate: true },
@@ -126,9 +141,14 @@ const isAuthenticated = computed<boolean>(() => {
   return typeof props.userBalance === 'number';
 });
 
+const isMotion = computed<boolean>(() => props.feature?.id === 'motion-control');
+
 const estimatedCredits = computed<number>(() => {
   if (!props.feature) {
     return 0;
+  }
+  if (isMotion.value) {
+    return motion.price.value ?? 0;
   }
   return calculateFeatureEstimatedCredits(
     props.feature,
@@ -137,6 +157,13 @@ const estimatedCredits = computed<number>(() => {
 });
 
 const hasEnoughBalance = computed<boolean>(() => {
+  if (isMotion.value) {
+    return (
+      isAuthenticated.value &&
+      motion.isAuthenticated.value &&
+      motion.hasEnoughBalance.value
+    );
+  }
   if (!isAuthenticated.value || typeof props.userBalance !== 'number') {
     return false;
   }
@@ -144,6 +171,14 @@ const hasEnoughBalance = computed<boolean>(() => {
 });
 
 const canSubmit = computed<boolean>(() => {
+  if (isMotion.value) {
+    return (
+      isAuthenticated.value &&
+      motion.isAuthenticated.value &&
+      !motionIsSubmitting.value &&
+      motion.canSubmit.value
+    );
+  }
   if (!isAuthenticated.value || !hasEnoughBalance.value || isSubmitting.value) {
     return false;
   }
@@ -169,6 +204,23 @@ async function handleSubmit(): Promise<void> {
   }
 
   if (!canSubmit.value) {
+    return;
+  }
+
+  if (isMotion.value) {
+    // Logic tạo Task dùng chung với trang /motion-control (composable useMotionControl).
+    const seconds = motion.seconds.value;
+    const credits = motion.price.value ?? 0;
+    const task = await motion.submit();
+    if (task) {
+      activeTask.value = task;
+      emit('submit', {
+        featureId: props.feature.id,
+        seconds,
+        estimatedCredits: credits,
+        uploadedKey: motion.characterKey.value,
+      });
+    }
     return;
   }
 
@@ -225,6 +277,11 @@ async function handleSubmit(): Promise<void> {
       uploadedKey: uploadedKey.value,
     });
   }
+}
+
+function handleRetry(): void {
+  activeTask.value = null;
+  if (isMotion.value) resetMotionState();
 }
 
 function handleKeydown(event: KeyboardEvent): void {
@@ -291,8 +348,8 @@ onBeforeUnmount(() => {
 
         <div class="flex items-center gap-2">
           <NuxtLink
-            v-if="feature.id === 'face-swap' || feature.id === 'body-retouch'"
-            :to="feature.id === 'body-retouch' ? '/body-retouch' : '/face-swap'"
+            v-if="feature.id === 'face-swap' || feature.id === 'body-retouch' || feature.id === 'motion-control'"
+            :to="feature.id === 'body-retouch' ? '/body-retouch' : feature.id === 'motion-control' ? '/motion-control' : '/face-swap'"
             data-testid="workspace-open-standalone-link"
             class="touch-target inline-flex min-h-[48px] items-center gap-1.5 rounded-xl border border-cyber-border bg-cyber-bg px-3 py-2 text-xs font-semibold text-cyber-muted transition hover:border-cyber-cyan hover:text-cyber-cyan"
             @click="emit('close')"
@@ -320,10 +377,12 @@ onBeforeUnmount(() => {
           :pipeline-label-vi="
             feature.id === 'body-retouch'
               ? 'Chỉnh sửa vóc dáng'
-              : 'Hoán đổi khuôn mặt'
+              : feature.id === 'motion-control'
+                ? 'Điều khiển chuyển động'
+                : 'Hoán đổi khuôn mặt'
           "
           @update:task="activeTask = $event"
-          @retry="activeTask = null"
+          @retry="handleRetry"
           @completed="void refreshAll()"
           @settled="void refreshAll()"
         />
@@ -401,6 +460,15 @@ onBeforeUnmount(() => {
             </div>
 
             <ImageUploader
+              v-if="feature.id === 'motion-control'"
+              :key="`motion-char-${motionKey}`"
+              v-model="motionCharacterKey"
+              id-prefix="workspace-motion-character"
+              label-vi="Chọn ảnh nhân vật"
+              description-vi="Ảnh toàn thân rõ dáng, JPG/PNG/WebP ≤ 10 MB"
+            />
+            <ImageUploader
+              v-else
               v-model="uploadedKey"
               id-prefix="workspace-input"
               :label-vi="
@@ -477,50 +545,46 @@ onBeforeUnmount(() => {
 
           <!-- Banner lỗi nếu có -->
           <div
-            v-if="submitErrorVi"
+            v-if="submitErrorVi || motionSubmitErrorVi"
             data-testid="workspace-submit-error-banner"
             role="alert"
             aria-live="assertive"
             class="rounded-xl border border-cyber-danger/40 bg-cyber-danger/10 p-3 text-xs text-cyber-danger"
           >
-            {{ submitErrorVi }}
+            {{ submitErrorVi || motionSubmitErrorVi }}
           </div>
 
-          <!-- Bộ cắt video bước 1 giây (chỉ hiện với công cụ tính phí theo giây) -->
+          <!-- Bộ cắt video bước 1 giây (VideoTrimmer, chỉ với Motion Control) -->
           <div
-            v-if="feature.billingMode === 'per_second' && feature.tierCapSeconds"
+            v-if="isMotion"
             data-testid="workspace-video-trimmer"
-            class="space-y-3 rounded-xl border border-cyber-border bg-cyber-bg/60 p-4"
+            class="min-w-0 space-y-3 rounded-xl border border-cyber-border bg-cyber-bg/60 p-4"
           >
-            <div class="flex items-center justify-between gap-2">
-              <label
-                for="video-trim-range"
-                class="flex items-center gap-2 text-sm font-semibold text-cyber-text"
-              >
-                <Icon name="lucide:scissors" class="h-4 w-4 text-cyber-cyan" />
-                <span>Độ dài video sau cắt (bước 1 giây)</span>
-              </label>
-              <span class="font-mono text-sm font-bold text-cyber-cyan">
-                {{ selectedSeconds }}s / {{ maxSeconds }}s
-              </span>
-            </div>
-
-            <input
-              id="video-trim-range"
-              v-model.number="selectedSeconds"
-              type="range"
-              min="1"
-              :max="maxSeconds"
-              step="1"
-              class="touch-target min-h-[48px] w-full cursor-pointer accent-cyber-cyan"
+            <p class="flex items-center gap-2 text-sm font-semibold text-cyber-text">
+              <Icon name="lucide:scissors" class="h-4 w-4 text-cyber-cyan" />
+              <span>Video mẫu và đoạn cắt (bước 1 giây)</span>
+            </p>
+            <VideoTrimmer
+              :key="`motion-video-${motionKey}`"
+              id-prefix="workspace-motion-video"
+              :cap-seconds="motionCapSeconds"
+              :tier-name="userTier"
+              @change="onMotionTrimChange"
             />
-
-            <div class="flex items-center justify-between font-mono text-xs text-cyber-muted">
-              <span>Tối thiểu: 1 giây</span>
-              <span>
-                Trần hạng {{ userTier }}: {{ maxSeconds }} giây
-              </span>
-            </div>
+            <p
+              v-if="motionSeconds > 0"
+              data-testid="workspace-motion-seconds"
+              class="font-mono text-xs text-cyber-muted"
+            >
+              Đoạn đã chọn: {{ motionSeconds }} giây
+            </p>
+            <p
+              v-if="motionInsufficientNoteVi"
+              data-testid="workspace-insufficient-note"
+              class="text-xs font-semibold text-cyber-warning"
+            >
+              {{ motionInsufficientNoteVi }}
+            </p>
           </div>
 
           <!-- Bảng tính phí credit thời gian thực từ /config/pricing -->
@@ -684,14 +748,14 @@ onBeforeUnmount(() => {
             @click="handleSubmit"
           >
             <Icon
-              v-if="isSubmitting"
+              v-if="isSubmitting || (isMotion && motionIsSubmitting)"
               name="lucide:loader-2"
               class="h-4 w-4 animate-spin"
             />
             <Icon v-else name="lucide:play" class="h-4 w-4" />
             <span>
               {{
-                isSubmitting
+                isSubmitting || (isMotion && motionIsSubmitting)
                   ? 'Đang gửi yêu cầu...'
                   : `Tạo Tác Vụ AI (${formatNumberVi(estimatedCredits)} CR)`
               }}
