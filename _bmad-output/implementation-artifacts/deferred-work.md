@@ -219,3 +219,12 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-2-be-tai-video-len-va-kiem-tra-bang-ffprobe.md`
   summary: Thống nhất `DATABASE_URL` mặc định của test và `.env.example` (`motion_user`) với user Postgres của container local (`flowvis_user`).
   evidence: Chạy test phải truyền `DATABASE_URL` tay vì container local dùng `flowvis_user`; chưa rõ bên nào là cấu hình chuẩn nên chưa sửa.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-3-be-tao-task-motion-control-va-tinh-gia-phia-server.md`
+  summary: Trước khi triển khai thật, gỡ nhánh chặn tạm `motion_control` → `failed`/`INTERNAL_ERROR` ở `task-worker.service.ts` (Story 5.5) và cân nhắc cờ chặn route `POST /tasks/motion` nếu có triển khai trước 5.5.
+  evidence: Giữa 5.3 và 5.5 mọi Task Motion được tạo rồi luôn `failed`, người dùng sẽ thấy lỗi; chủ ý theo quyết định 3A.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-3-be-tao-task-motion-control-va-tinh-gia-phia-server.md`
+  summary: Kiểm lại khóa/độ dài video trong cùng transaction với HOLD và thêm test hai `POST /tasks/motion` đồng thời cùng khóa.
+  evidence: Có cửa sổ ngắn giữa kiểm khóa và HOLD (TOCTOU), cùng mẫu với Face Swap/Body Retouch; chưa có test đồng thời.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-7-fe-tai-video-mau-va-thanh-trim.md`
+  summary: Thêm test mount `VideoTrimmer`/`ImageUploader` (phát `change`, hủy, thử lại, unmount) và tách bộ đọc độ dài khỏi hook kiểm thử `durationSeconds` trong `getVideoDuration`.
+  evidence: Test thành phần hiện chỉ so chuỗi và biên dịch template; hàm thuần và `useUploadFlow` đã có test hành vi.

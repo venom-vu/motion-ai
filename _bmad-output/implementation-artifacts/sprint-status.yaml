@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-01-2026 14:32
-last_updated: 11-10-2026 17:00
+last_updated: 11-10-2026 18:00
 project: motion-ai
 project_key: NOKEY
 tracking_system: file-system
@@ -91,11 +91,11 @@ development_status:
   epic-5: in-progress
   5-1-contract-hợp-đồng-cho-motion-control: review
   5-2-be-tải-video-lên-và-kiểm-tra-bằng-ffprobe: review
-  5-3-be-tạo-task-motion-control-và-tính-giá-phía-server: backlog
+  5-3-be-tạo-task-motion-control-và-tính-giá-phía-server: review
   5-4-be-cắt-video-bằng-ffmpeg-ở-bước-chuẩn-bị-của-worker: backlog
   5-5-be-gửi-task-motion-lên-runninghub: backlog
   5-6-be-nhập-kết-quả-video-ảnh-bìa-và-chia-sẻ: backlog
-  5-7-fe-tải-video-mẫu-và-thanh-trim: backlog
+  5-7-fe-tải-video-mẫu-và-thanh-trim: review
   5-8-fe-trang-motion-control-giá-trực-tiếp-và-kết-quả-video: backlog
   5-9-integration-nối-fe-với-be-và-smoke-test-motion-control: backlog
   epic-5-retrospective: optional
