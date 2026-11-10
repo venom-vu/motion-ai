@@ -17,6 +17,7 @@ export const PRICING_CONFIG: PricingConfigResponse = {
     faceSwapCredits: 100,
     bodyRetouchCredits: 100,
     motionControlCreditsPerSecond: 50,
+    motionControlMinSeconds: 3,
   },
   tiers: [
     { tier: 'FREE', packId: null, priceVnd: 0, credits: 500, maxVideoSeconds: 5, priority: 10 },
