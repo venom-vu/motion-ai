@@ -34,6 +34,7 @@ describe('Story 2.14: biến ghi đè kiểm thử chỉ có tác dụng khi NOD
   it('NODE_ENV=test: các ghi đè có hiệu lực', async () => {
     process.env.NODE_ENV = 'test';
     assert.equal(deadlineMs(), 3000);
+    assert.equal(deadlineMs('motion_control'), 3000);
     assert.equal(qrTtlMs(), 5000);
     assert.equal(topupClock().toISOString(), '2030-01-01T16:30:00.000Z');
     assert.equal(topupSweepIntervalMs(), 1000);
@@ -50,6 +51,8 @@ describe('Story 2.14: biến ghi đè kiểm thử chỉ có tác dụng khi NOD
       if (env === undefined) delete process.env.NODE_ENV;
       else process.env.NODE_ENV = env;
       assert.equal(deadlineMs(), 180_000);
+      assert.equal(deadlineMs('face_swap'), 180_000);
+      assert.equal(deadlineMs('motion_control'), 360_000);
       assert.equal(qrTtlMs(), 15 * 60 * 1000);
       assert.ok(Math.abs(topupClock().getTime() - Date.now()) < 5000, 'TOPUP_FAKE_NOW bị bỏ qua');
       assert.equal(topupSweepIntervalMs(), 30_000);

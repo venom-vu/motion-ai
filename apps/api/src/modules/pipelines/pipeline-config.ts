@@ -35,6 +35,8 @@ export interface PipelineConfig {
   readonly referenceInputKey?: string;
   /** Bước chuẩn bị tùy chọn (vd. cắt video); tự lấy input, trả bytes theo inputKey. Chạy trước cổng RunningHub, trong hạn prep_deadline_at. */
   readonly prepare?: (ctx: PrepareContext) => Promise<Record<string, Buffer>>;
+  /** Hạn xử lý RunningHub (ms) tính từ lúc qua cổng; mặc định 180000. */
+  readonly deadlineMs?: number;
 }
 
 export const PIPELINE_CONFIGS: Readonly<Record<string, PipelineConfig>> = {
@@ -69,8 +71,12 @@ export const PIPELINE_CONFIGS: Readonly<Record<string, PipelineConfig>> = {
     runModeEnvVar: 'RUNNINGHUB_MODE_MOTION',
     defaultRunMode: 'workflow',
     requiredAtStartup: true,
-    // Mapping node RunningHub, bước cắt ffmpeg và nhập kết quả: Story 5.4-5.6.
-    inputs: [],
+    // [ASSUMPTION] nodeId/fieldName chưa được xác nhận bằng một lần chạy thật; đối chiếu khi chạy benchmark ở Story 5.9.
+    inputs: [
+      { inputKey: 'characterKey', nodeId: '1', fieldName: 'image' },
+      { inputKey: 'videoKey', nodeId: '2', fieldName: 'video' },
+    ],
+    deadlineMs: 360_000,
     prepare: (ctx) => videoTrim.prepare(ctx),
   },
 };

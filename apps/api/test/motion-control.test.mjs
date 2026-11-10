@@ -12,10 +12,10 @@ import { Queue } from 'bullmq';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../dist/generated/prisma/client.js';
 import { bootstrapApi } from '../dist/main.js';
-import { PipelinesModule } from '../dist/modules/pipelines/index.js';
+import { PipelinesModule, PIPELINE_CONFIGS } from '../dist/modules/pipelines/index.js';
 import { ApiErrorCode, MotionCreateResponseSchema, ValidationDetailsSchema, motionPrice } from '@flowvis/contracts';
 import { WalletService } from '../dist/modules/wallet/index.js';
-import { TaskWorkerService } from '../dist/modules/tasks/index.js';
+import { TaskWorkerService, TasksService } from '../dist/modules/tasks/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const apiRoot = path.resolve(__dirname, '..');
@@ -65,7 +65,7 @@ process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
 process.env.RUNNINGHUB_WORKFLOW_MOTION ??= 'wf-motion';
 
 describe('Story 5.3: [BE] Tạo Task Motion Control', () => {
-  let app, baseUrl, pool, prisma, jwt, worker;
+  let app, baseUrl, pool, prisma, jwt, worker, tasksSvc;
   const runId = crypto.randomBytes(4).toString('hex');
   const users = [];
 
@@ -115,6 +115,7 @@ describe('Story 5.3: [BE] Tạo Task Motion Control', () => {
     baseUrl = `http://127.0.0.1:${app.getHttpServer().address().port}`;
     jwt = app.get(JwtService);
     worker = app.get(TaskWorkerService);
+    tasksSvc = app.get(TasksService);
   });
   after(async () => {
     if (prisma) {
@@ -269,21 +270,141 @@ describe('Story 5.3: [BE] Tạo Task Motion Control', () => {
     assert.equal((await res.json()).code, ApiErrorCode.TASK_LIMIT);
   });
 
-  it('worker nhấc Task motion_control: failed/INTERNAL_ERROR, RELEASED 100%, RunningHub không bị gọi', async () => {
-    const u = await newUser({ tierPack: 'starter' });
-    const res = await post(u, { characterKey: await img(u), videoKey: await vid(u), trimStart: 0, trimEnd: 7 });
-    const id = (await res.json()).id;
-    let called = 0;
-    const boom = async () => { called++; throw new Error('không được gọi'); };
-    worker.rh = { uploadFile: boom, submit: boom, outputs: boom };
-    await worker.processTask(id);
-    const r = await row(id);
-    assert.equal(r.status, 'failed');
-    assert.equal(r.reason_code, 'INTERNAL_ERROR');
-    assert.equal(called, 0);
-    const rel = await prisma.ledgerEntry.findMany({ where: { taskId: id, type: 'RELEASED' } });
-    assert.equal(rel.length, 1);
-    assert.equal(Number(rel[0].amount), 350);
+  describe('Story 5.5: worker gửi Task motion lên RunningHub', () => {
+    let calls, outputsQueue, submitImpl, ingestCalls, saved;
+    const envKeys = ['RH_POLL_INTERVAL_MS', 'RH_GATE_RETRY_MS', 'RH_MAX_CONCURRENT'];
+    const upd = (id, set) => pool.query(`UPDATE tasks SET ${set} WHERE id=$1`, [id]);
+    const motionCfg = () => PIPELINE_CONFIGS.motion_control;
+    let origPrepare, prepareSeen, uploadHook;
+
+    async function mkTask(tierPack = 'starter') {
+      const u = await newUser({ tierPack });
+      const res = await post(u, { characterKey: await img(u), videoKey: await vid(u), trimStart: 0, trimEnd: 7 });
+      assert.equal(res.status, 201);
+      return (await res.json()).id;
+    }
+    async function clearGate() {
+      await pool.query(`UPDATE tasks SET status='failed', reason_code='RH_ERROR', finished_at=now(), rh_orphan_until=NULL WHERE user_id = ANY($1::uuid[]) AND status IN ('queued','running')`, [users]);
+      const foreign = await tasksSvc.countGateOccupied();
+      process.env.RH_MAX_CONCURRENT = String(foreign + 2);
+    }
+    const ledger = (id, type) => prisma.ledgerEntry.findMany({ where: { taskId: id, type } });
+
+    function reset() {
+      calls = { upload: 0, submit: 0, outputs: 0 };
+      outputsQueue = [{ status: 'SUCCESS', fileUrl: 'http://x/y.mp4', consumeMoney: 3 }];
+      submitImpl = async () => 'rh-m1';
+      ingestCalls = [];
+      prepareSeen = 0;
+    }
+
+    before(() => {
+      saved = Object.fromEntries(envKeys.map((k) => [k, process.env[k]]));
+      process.env.RH_POLL_INTERVAL_MS = '20';
+      process.env.RH_GATE_RETRY_MS = '30';
+      worker.rh = {
+        uploadFile: async () => { calls.upload++; if (calls.upload === 1) calls.deadlineAtUpload = await uploadHook?.(); return `f${calls.upload}`; },
+        submit: async (...a) => { calls.submit++; calls.nodes = a; return submitImpl(...a); },
+        outputs: async () => { calls.outputs++; const n = outputsQueue.length > 1 ? outputsQueue.shift() : outputsQueue[0]; if (n instanceof Error) throw n; return n; },
+      };
+      worker.ingestor = { ingest: async (t, url, money) => { ingestCalls.push({ t, url, money }); await tasksSvc.transition(t.id, 'running', 'failed', 'OUTPUT_UPLOAD_ERROR'); } };
+      origPrepare = motionCfg().prepare;
+      Object.defineProperty(motionCfg(), 'prepare', {
+        configurable: true, writable: true,
+        value: async () => { prepareSeen++; return { characterKey: Buffer.from('C'), videoKey: Buffer.from('V') }; },
+      });
+    });
+    after(() => {
+      Object.defineProperty(motionCfg(), 'prepare', { configurable: true, writable: true, value: origPrepare });
+      for (const k of envKeys) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
+    });
+
+    it('thành công: upload 2 file, submit một lần với node đã ánh xạ, deadline_at ~ +360s sau prepare', async () => {
+      reset(); await clearGate();
+      const id = await mkTask();
+      const before = await row(id);
+      assert.equal(before.deadline_at, null);
+      let deadlineAtPrepare = 'unset';
+      uploadHook = async () => (await row(id)).deadline_at;
+      const savedOverride = process.env.RH_DEADLINE_MS; delete process.env.RH_DEADLINE_MS;
+      motionCfg().prepare = async () => { deadlineAtPrepare = (await row(id)).deadline_at; prepareSeen++; return { characterKey: Buffer.from('C'), videoKey: Buffer.from('V') }; };
+      const t0 = Date.now();
+      try { await worker.processTask(id); } finally { if (savedOverride !== undefined) process.env.RH_DEADLINE_MS = savedOverride; uploadHook = undefined; }
+      assert.equal(deadlineAtPrepare, null, 'deadline_at chưa đặt khi đang chuẩn bị');
+      assert.ok(calls.deadlineAtUpload, 'deadline_at đã đặt trước khi upload file đầu tiên');
+      const r = await row(id);
+      const d = (r.deadline_at.getTime() - t0) / 1000;
+      assert.ok(d > 355 && d < 365, String(d));
+      assert.ok(r.deadline_at.getTime() - 360_000 <= r.submit_started_at.getTime(), 'submit sau thời điểm đặt deadline_at');
+      assert.equal(prepareSeen, 1);
+      assert.equal(calls.upload, 2);
+      assert.equal(calls.submit, 1);
+      assert.equal(r.runninghub_task_id, 'rh-m1');
+      assert.deepEqual(calls.nodes[1], [
+        { nodeId: '1', fieldName: 'image', fieldValue: 'f1' },
+        { nodeId: '2', fieldName: 'video', fieldValue: 'f2' },
+      ]);
+      assert.equal(ingestCalls.length, 1);
+      assert.equal(r.status, 'failed');
+      assert.equal(r.reason_code, 'OUTPUT_UPLOAD_ERROR');
+      assert.equal((await ledger(id, 'RELEASED')).length, 1);
+    });
+
+    it('Face Swap vẫn 180s', async () => {
+      reset(); await clearGate();
+      const { deadlineMs } = await import('../dist/modules/tasks/task-worker.service.js');
+      const saved = process.env.NODE_ENV; delete process.env.NODE_ENV;
+      try {
+        assert.equal(deadlineMs('face_swap'), 180_000);
+        assert.equal(deadlineMs('body_retouch'), 180_000);
+        assert.equal(deadlineMs('motion_control'), 360_000);
+      } finally { if (saved !== undefined) process.env.NODE_ENV = saved; }
+    });
+
+    for (const [prefix, reason] of [['NO_POSE', 'NO_POSE'], ['NO_FACE', 'NO_FACE']]) {
+      it(`${prefix} => failed/${reason}, RELEASED 100%, lưu gpu_coins`, async () => {
+        reset(); await clearGate();
+        outputsQueue = [{ status: 'FAILED', errorMessage: `${prefix}: không thấy`, consumeMoney: 4 }];
+        const id = await mkTask();
+        await worker.processTask(id);
+        const r = await row(id);
+        assert.equal(r.status, 'failed');
+        assert.equal(r.reason_code, reason);
+        assert.equal(Number(r.gpu_coins), 4);
+        const rel = await ledger(id, 'RELEASED');
+        assert.equal(rel.length, 1);
+        assert.equal(Number(rel[0].amount), 350);
+        assert.equal((await ledger(id, 'CAPTURED')).length, 0);
+      });
+    }
+
+    it('quá deadline_at khi poll => timed_out/RH_TIMEOUT, orphan, kết quả muộn bị bỏ qua', async () => {
+      reset(); await clearGate();
+      outputsQueue = [{ status: 'RUNNING' }];
+      const id = await mkTask();
+      await tasksSvc.transition(id, 'queued', 'running');
+      await upd(id, `deadline_at=now()+interval '300 milliseconds', submit_started_at=now(), runninghub_task_id='rh-late'`);
+      await worker.processTask(id);
+      const r = await row(id);
+      assert.equal(r.status, 'timed_out');
+      assert.equal(r.reason_code, 'RH_TIMEOUT');
+      assert.ok(r.rh_orphan_until > new Date());
+      assert.equal((await ledger(id, 'RELEASED')).length, 1);
+      assert.equal(ingestCalls.length, 0);
+    });
+
+    it('khởi động lại có runninghub_task_id: poll tiếp, không prepare/upload/submit lại', async () => {
+      reset(); await clearGate();
+      const id = await mkTask();
+      await tasksSvc.transition(id, 'queued', 'running');
+      await upd(id, `deadline_at=now()+interval '5 minutes', submit_started_at=now(), runninghub_task_id='rh-9'`);
+      await worker.processTask(id);
+      assert.equal(prepareSeen, 0);
+      assert.equal(calls.upload, 0);
+      assert.equal(calls.submit, 0);
+      assert.ok(calls.outputs >= 1);
+      assert.equal(ingestCalls.length, 1);
+    });
   });
 
   it('migration: CHECK pipeline nhận motion_control', async () => {

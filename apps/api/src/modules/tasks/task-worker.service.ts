@@ -13,7 +13,7 @@ import {
   type RunningHubPort,
   type StoragePort,
 } from '../../ports/index.js';
-import { mapRunningHubFailure, type PipelineConfig } from '../pipelines/pipeline-config.js';
+import { mapRunningHubFailure, PIPELINE_CONFIGS, type PipelineConfig } from '../pipelines/pipeline-config.js';
 import { PipelinesService } from '../pipelines/pipelines.service.js';
 import { PRICING_CONFIG } from '../wallet/tier.js';
 import { clampCoins } from './result-ingestor.js';
@@ -26,10 +26,11 @@ const RH_CALL_TIMEOUT_MS = 10_000;
 const DEFAULT_DEADLINE_MS = 180_000;
 
 /** Hạn chót RunningHub; chỉ cho phép ghi đè (RH_DEADLINE_MS) khi NODE_ENV === 'test'. */
-export function deadlineMs(): number {
-  if (process.env.NODE_ENV !== 'test') return DEFAULT_DEADLINE_MS;
+export function deadlineMs(pipeline?: string): number {
+  const base = (pipeline && PIPELINE_CONFIGS[pipeline]?.deadlineMs) || DEFAULT_DEADLINE_MS;
+  if (process.env.NODE_ENV !== 'test') return base;
   const n = Number.parseInt(process.env.RH_DEADLINE_MS ?? '', 10);
-  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DEADLINE_MS;
+  return Number.isFinite(n) && n > 0 ? n : base;
 }
 export const ORPHAN_MS = 10 * 60_000;
 export const FREE_WAIT_MS = 15 * 60_000;
@@ -193,11 +194,6 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
   /** (a) chuẩn bị, (b) cổng, (c) upload, (d) submit, rồi poll. */
   private async runFromUpload(row: TaskRow, signal: AbortSignal, gatePassed: boolean): Promise<void> {
     const taskId = row.id;
-    // TẠM: gỡ ở Story 5.5 (pipeline Motion chưa sẵn sàng chạy RunningHub).
-    if (row.pipeline === 'motion_control') {
-      await this.finish(taskId, 'failed', 'INTERNAL_ERROR');
-      return;
-    }
     const config = this.pipelines.getConfig(row.pipeline);
     const workflowId = config ? this.pipelines.getWorkflowId(config) : null;
     if (!config || !workflowId) {
@@ -316,7 +312,7 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
       if (signal.aborted) return false;
       const result = await this.gateMutex.run(async () => {
         if ((await this.tasks.countGateOccupied()) >= max) return 'full' as const;
-        return (await this.tasks.setDeadlineIfNull(taskId, deadlineMs())) ? ('passed' as const) : ('gone' as const);
+        return (await this.tasks.setDeadlineIfNull(taskId, deadlineMs(row.pipeline))) ? ('passed' as const) : ('gone' as const);
       });
       if (result === 'passed') return true;
       if (result === 'gone') return false;

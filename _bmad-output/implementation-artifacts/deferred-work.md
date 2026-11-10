@@ -237,3 +237,13 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-8-fe-trang-motion-control-gia-truc-tiep-va-ket-qua-video.md`
   summary: Tách `MotionWorkspacePanel` khỏi `FeatureWorkspaceDialog` (hiện `useMotionControl` chạy trong mọi dialog), gỡ `selectedSeconds` còn sót, và tìm hiểu lại quyết định bỏ ô cam kết ToS/`VietQRModal` tại chỗ nếu sản phẩm cần.
   evidence: Lệch AC 5.8 theo quyết định của người dùng (2A/3A/4B); `selectedSeconds` không còn dùng sau khi dialog nhúng `VideoTrimmer`.
+
+- source_spec: `spec-5-5-be-gui-task-motion-len-runninghub.md`
+  summary: Đối chiếu nodeId/fieldName của workflow Motion và các tham số không phải file bằng một lần chạy thật.
+  evidence: nodeId `1`/`2` là `[ASSUMPTION]`; ánh xạ sai sẽ làm Task Motion thất bại ở RunningHub sau khi đã dùng GPU (Story 5.9).
+- source_spec: `spec-5-5-be-gui-task-motion-len-runninghub.md`
+  summary: Không bật Motion cho người dùng thật trước Story 5.6 (nhập kết quả video).
+  evidence: Ingestor hiện tại chưa xử lý MP4; Task Motion `SUCCESS` kết thúc `failed`/`OUTPUT_UPLOAD_ERROR`, hoàn credit nhưng tốn GPU.
+- source_spec: `spec-5-5-be-gui-task-motion-len-runninghub.md`
+  summary: Hai suite không ổn định có từ trước: `reconcile-script.test.mjs` (fail ở baseline) và `signup-grant.test.mjs` (429 lẻ).
+  evidence: Chạy lại với bản chưa sửa vẫn fail (reconcile mọi lần; signup-grant 1 trên 3 lần).
