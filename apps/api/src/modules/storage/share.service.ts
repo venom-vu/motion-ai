@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { ApiErrorCode, getApiErrorMessageVi, type TaskShareResponse } from '@flowvis/contracts';
+import { ApiErrorCode, getApiErrorMessageVi, type ShareInfoResponse, type TaskShareResponse } from '@flowvis/contracts';
 import { PrismaService } from '../../infra/prisma.service.js';
 import { STORAGE_PORT, type StoragePort } from '../../ports/index.js';
 
@@ -59,15 +59,38 @@ export class ShareService {
     await this.prisma.shareToken.updateMany({ where: { taskId, revokedAt: null }, data: { revokedAt: new Date() } });
   }
 
-  /** URL ký ngắn hạn tới `out/`; 404 chung cho token sai, đã thu hồi hoặc file đã bị xóa. */
-  async resolve(token: string): Promise<string> {
+  private async lookup(token: string): Promise<{ key: string; params: unknown }> {
     if (!TOKEN_RE.test(token)) throw apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
     const row = await this.prisma.shareToken.findUnique({
       where: { tokenHash: hashShareToken(token) },
-      select: { revokedAt: true, task: { select: { status: true, resultKey: true } } },
+      select: { revokedAt: true, task: { select: { status: true, resultKey: true, params: true } } },
     });
     const key = row && !row.revokedAt && row.task.status === 'succeeded' ? row.task.resultKey : null;
-    if (!key || !(await this.storage.head(key))) throw apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
+    if (!row || !key || !(await this.storage.head(key))) throw apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
+    return { key, params: row.task.params };
+  }
+
+  /** URL ký ngắn hạn tới `out/`; 404 chung cho token sai, đã thu hồi hoặc file đã bị xóa. */
+  async resolve(token: string): Promise<string> {
+    const { key } = await this.lookup(token);
     return this.storage.presignGet(key, SHARE_URL_TTL_SECONDS);
+  }
+
+  /** Loại media và độ dài (video) của kết quả được chia sẻ. */
+  async info(token: string): Promise<ShareInfoResponse> {
+    const { key, params } = await this.lookup(token);
+    if (!key.endsWith('.mp4')) return { mediaType: 'image' };
+    const seconds = ((params ?? {}) as Record<string, unknown>).seconds;
+    if (!Number.isInteger(seconds) || (seconds as number) <= 0) throw apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
+    return { mediaType: 'video', durationSeconds: seconds as number };
+  }
+
+  /** URL ký tới ảnh bìa; chỉ video có ảnh bìa, còn lại là 404 chung. */
+  async poster(token: string): Promise<string> {
+    const { key } = await this.lookup(token);
+    if (!key.endsWith('.mp4')) throw apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
+    const posterKey = key.replace(/\.mp4$/, '.jpg');
+    if (!(await this.storage.head(posterKey))) throw apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
+    return this.storage.presignGet(posterKey, SHARE_URL_TTL_SECONDS);
   }
 }

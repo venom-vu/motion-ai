@@ -247,3 +247,16 @@
 - source_spec: `spec-5-5-be-gui-task-motion-len-runninghub.md`
   summary: Hai suite không ổn định có từ trước: `reconcile-script.test.mjs` (fail ở baseline) và `signup-grant.test.mjs` (429 lẻ).
   evidence: Chạy lại với bản chưa sửa vẫn fail (reconcile mọi lần; signup-grant 1 trên 3 lần).
+
+- source_spec: `spec-5-6-be-nhap-ket-qua-video-anh-bia-va-chia-se.md`
+  summary: Tải video lên R2 bằng luồng thay vì đọc cả file vào bộ nhớ.
+  evidence: `StoragePort.putObject` chỉ nhận `Buffer`; `ingestVideo` dùng `readFile` cho video tối đa 100 MB, nên ingest đồng thời có thể tốn bộ nhớ lớn.
+- source_spec: `spec-5-6-be-nhap-ket-qua-video-anh-bia-va-chia-se.md`
+  summary: Dọn khóa `out/` mồ côi khi worker chết giữa `putObject` và `transition`.
+  evidence: Khóa đã ghi nhưng Task chưa `succeeded` không có bộ quét nào xóa; ingest chạy lại tạo cặp khóa mới.
+- source_spec: `spec-5-6-be-nhap-ket-qua-video-anh-bia-va-chia-se.md`
+  summary: Kiểm tra SSRF theo DNS đã phân giải thay vì chỉ tên host cho URL kết quả RunningHub.
+  evidence: `isPublicHttpUrl` chỉ xét chuỗi URL; tên host công khai trỏ về IP nội bộ vẫn qua, và nhánh video nay tải tới 100 MB từ đó.
+- source_spec: `spec-5-6-be-nhap-ket-qua-video-anh-bia-va-chia-se.md`
+  summary: Test chia sẻ của Body Retouch trả 429 thay vì 302 (`body-retouch-result.test.mjs`, nhóm "chia sẻ").
+  evidence: Fail cả khi bỏ thay đổi của story 5.6 (baseline 11 pass, 1 fail); Redis không còn khóa throttle sót lại nên chưa rõ nguyên nhân.

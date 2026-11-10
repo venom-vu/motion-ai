@@ -101,8 +101,8 @@ export class TasksService {
     const terminal = isTerminal(to);
     const toRunning = to === 'running';
     if (to === 'succeeded') {
-      if (!resultKey || !/^out\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resultKey)) {
-        throw new Error('Chuyển sang succeeded cần resultKey dạng out/<userId>/<uuid>');
+      if (!resultKey || !/^out\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\.mp4)?$/i.test(resultKey)) {
+        throw new Error('Chuyển sang succeeded cần resultKey dạng out/<userId>/<uuid>[.mp4]');
       }
     } else if (resultKey !== null) {
       throw new Error('resultKey chỉ dùng khi chuyển sang succeeded');
@@ -342,6 +342,15 @@ export class TasksService {
       throw this.apiError(ConflictException, ApiErrorCode.CONFLICT);
     }
     const resultUrl = await this.storage.presignGet(row.resultKey, RESULT_URL_TTL_SECONDS);
+
+    if (row.resultKey.endsWith('.mp4')) {
+      const seconds = ((row.params ?? {}) as Record<string, unknown>).seconds;
+      if (!Number.isInteger(seconds) || (seconds as number) <= 0) {
+        throw new Error(`Task ${taskId} thiếu params.seconds hợp lệ`);
+      }
+      const posterUrl = await this.storage.presignGet(row.resultKey.replace(/\.mp4$/, '.jpg'), RESULT_URL_TTL_SECONDS);
+      return { mediaType: 'video', resultUrl, sourceUrl: null, posterUrl, durationSeconds: seconds as number };
+    }
 
     let sourceUrl: string | null = null;
     const refKey = this.pipelines.getConfig(row.pipeline)?.referenceInputKey;

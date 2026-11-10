@@ -112,7 +112,7 @@ export function buildLocalFfprobeArgs(file: string): string[] {
   return ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', file];
 }
 
-function parseFps(raw: unknown): number {
+export function parseFps(raw: unknown): number {
   const [n, d] = String(raw ?? '').split('/').map(Number);
   if (!Number.isFinite(n) || !Number.isFinite(d ?? 1) || (d ?? 1) === 0) return NaN;
   return n! / (d ?? 1);
@@ -133,7 +133,7 @@ export function evaluateTrimmedProbe(json: unknown, seconds: number): boolean {
   return Number.isFinite(duration) && Math.abs(duration - seconds) <= TRIM_DURATION_TOLERANCE;
 }
 
-function run(cmd: string, args: string[], signal: AbortSignal): Promise<string> {
+export function run(cmd: string, args: string[], signal: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(cmd, args, { signal, maxBuffer: MAX_OUTPUT_BYTES, killSignal: 'SIGKILL' }, (err, stdout) => {
       if (err) reject(err);
@@ -154,6 +154,11 @@ export class VideoTrimService {
 
   constructor(private readonly opts: VideoTrimOptions = {}) {
     this.tmpRoot = opts.tmpRoot ?? path.join(os.tmpdir(), TRIM_DIR_PREFIX);
+  }
+
+  /** Chạy việc dưới khóa ffmpeg dùng chung (mỗi lúc chỉ một ffmpeg trong tiến trình worker). */
+  runExclusive<T>(signal: AbortSignal, fn: () => Promise<T>): Promise<T> {
+    return this.lock.run(signal, fn);
   }
 
   /** Xóa mọi thư mục tạm còn sót (gọi khi worker khởi động). */
