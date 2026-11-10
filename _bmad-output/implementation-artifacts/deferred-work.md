@@ -212,3 +212,13 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-1-contract-hop-dong-cho-motion-control.md`
   summary: BE 5.3 phải kiểm `trimEnd > trimStart`, độ dài 3..Cap và giới hạn trên của Trim bằng `details.reason`; làm tròn `durationSeconds` kết quả (BE 5.6); thêm mock lỗi `VALIDATION_FAILED` kèm `details.reason` cho FE 5.7.
   evidence: Đã chạy `MotionCreateRequestSchema` với (7,2), (0,1), (0,1e21) vẫn parse; `VideoMeta.durationSeconds` là số thực còn kết quả là số nguyên.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-be-tai-video-len-va-kiem-tra-bang-ffprobe.md`
+  summary: Thêm `motionControlMinSeconds: 3` vào `GET /config/pricing` ở `apps/api/src/modules/wallet/tier.ts` để `tier.test` (so với `DEFAULT_PRICING_CONFIG`) pass lại; CI sẽ đỏ cho tới khi sửa.
+  evidence: `tier.test.mjs` "GET /config/pricing khớp DEFAULT_PRICING_CONFIG" hỏng cả trên baseline khi stash thay đổi của 5.2; contracts 5.1 đã thêm trường này.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-be-tai-video-len-va-kiem-tra-bang-ffprobe.md`
+  summary: Chạy `confirm` song song hai request trên một khóa có thể xóa `in-raw/` hoặc để mồ côi `in/` (cả ảnh lẫn video).
+  evidence: `reconcile-script.test` đã xác nhận pass khi đặt `RUNNINGHUB_WORKFLOW_BODY_RESHAPE` (chỉ thiếu biến môi trường khi chạy tay); mẫu `confirm` đua có từ Story 2.2.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-2-be-tai-video-len-va-kiem-tra-bang-ffprobe.md`
+  summary: Đặt `DATABASE_URL` mặc định của test/`.env.example` khớp user Postgres local (`flowvis_user`, hiện là `motion_user`).
+  evidence: Chạy test phải truyền `DATABASE_URL` tay vì container local dùng `flowvis_user`.

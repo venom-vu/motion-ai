@@ -7,6 +7,7 @@ import { ShareController } from './share.controller.js';
 import { ShareService } from './share.service.js';
 import { UploadsController } from './uploads.controller.js';
 import { UploadsExpiryService } from './uploads-expiry.service.js';
+import { VideoProbeService } from './video-probe.service.js';
 import { UploadsService } from './uploads.service.js';
 
 @Module({
@@ -16,6 +17,7 @@ import { UploadsService } from './uploads.service.js';
     S3StorageAdapter,
     { provide: STORAGE_PORT, useExisting: S3StorageAdapter },
     UploadsService,
+    VideoProbeService,
     UploadsExpiryService,
     ShareService,
   ],

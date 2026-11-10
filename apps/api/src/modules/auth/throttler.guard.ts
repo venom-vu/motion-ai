@@ -82,3 +82,31 @@ export class TopupThrottlerGuard extends AuthThrottlerGuard {
     });
   }
 }
+
+export function getUploadConfirmThrottleOptions(): { limit: number; ttl: number } {
+  const limit = Number.parseInt(process.env.UPLOAD_CONFIRM_THROTTLE_LIMIT ?? '', 10);
+  const ttl = Number.parseInt(process.env.UPLOAD_CONFIRM_THROTTLE_TTL_MS ?? '', 10);
+  return {
+    limit: Number.isFinite(limit) && limit > 0 ? limit : 30,
+    ttl: Number.isFinite(ttl) && ttl > 0 ? ttl : 60_000,
+  };
+}
+
+/** Giới hạn riêng cho `POST /uploads/:key/confirm` (có thể chạy ffprobe), theo người dùng. */
+@Injectable()
+export class UploadConfirmThrottlerGuard extends AuthThrottlerGuard {
+  protected override async getTracker(req: Record<string, unknown>): Promise<string> {
+    const sub = (req.user as { sub?: unknown } | undefined)?.sub;
+    return typeof sub === 'string' && sub ? `user:${sub}` : super.getTracker(req);
+  }
+
+  protected override async handleRequest(props: ThrottlerRequest): Promise<boolean> {
+    const { limit, ttl } = getUploadConfirmThrottleOptions();
+    return super.handleRequest({
+      ...props,
+      limit,
+      ttl,
+      generateKey: (ctx, tracker, name) => props.generateKey(ctx, tracker, `upload-confirm-${name}`),
+    });
+  }
+}

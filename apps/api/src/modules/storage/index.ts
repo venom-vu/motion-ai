@@ -4,3 +4,4 @@ export * from './s3-storage.adapter.js';
 export * from './uploads-expiry.service.js';
 export * from './share.service.js';
 export * from './share.controller.js';
+export * from './video-probe.service.js';

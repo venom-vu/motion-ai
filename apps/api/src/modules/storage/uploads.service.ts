@@ -14,11 +14,14 @@ import {
   MAX_UNCONFIRMED_RAW_UPLOADS,
   getApiErrorMessageVi,
   type UploadConfirmResponse,
+  type UploadConfirmVideoResponse,
   type UploadCreateRequest,
+  type ValidationReason,
   type UploadCreateResponse,
 } from '@flowvis/contracts';
 import sharp, { type Metadata, type OutputInfo } from 'sharp';
 import { FORMAT_TO_MIME, displaySize } from './image-utils.js';
+import { MIN_VIDEO_SECONDS, VideoProbeService } from './video-probe.service.js';
 import { PrismaService } from '../../infra/prisma.service.js';
 import {
   STORAGE_PORT,
@@ -28,6 +31,7 @@ import {
 
 export const PRESIGN_TTL_SECONDS = 10 * 60;
 export const PENDING_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const VIDEO_PROBE_URL_TTL_SECONDS = 60;
 export const MAX_IMAGE_LONG_SIDE_PX = 2048;
 /** `in/` bị xóa sau 7 ngày (lifecycle R2); chừa 1 giờ biên an toàn. */
 export const CONFIRMED_RETENTION_MS = 7 * 24 * 60 * 60 * 1000 - 60 * 60 * 1000;
@@ -47,6 +51,7 @@ export class UploadsService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(STORAGE_PORT) private readonly storage: StoragePort,
+    private readonly videoProbe: VideoProbeService,
   ) {}
 
   async create(userId: string, req: UploadCreateRequest): Promise<UploadCreateResponse> {
@@ -72,14 +77,14 @@ export class UploadsService {
         throw apiError(
           BadRequestException,
           ApiErrorCode.VALIDATION_FAILED,
-          `Bạn có quá nhiều ảnh tạm chưa xác nhận (tối đa ${MAX_UNCONFIRMED_RAW_UPLOADS}). Hãy hoàn tất hoặc đợi các ảnh tạm hết hạn rồi thử lại.`,
+          `Bạn có quá nhiều tệp tạm chưa xác nhận (tối đa ${MAX_UNCONFIRMED_RAW_UPLOADS}). Hãy hoàn tất hoặc đợi các tệp tạm hết hạn rồi thử lại.`,
         );
       }
       await tx.upload.create({
         data: {
           userId,
           key,
-          kind: 'image',
+          kind: req.mimeType.startsWith('video/') ? 'video' : 'image',
           mimeType: req.mimeType,
           declaredBytes: req.sizeBytes,
         },
@@ -95,7 +100,11 @@ export class UploadsService {
     };
   }
 
-  private async rejectInvalid(rawKey: string, message: string): Promise<never> {
+  private async rejectInvalid(
+    rawKey: string,
+    message: string,
+    reason?: ValidationReason,
+  ): Promise<never> {
     // Đánh dấu expired trước: nếu xóa đối tượng lỗi thì lifecycle in-raw/ dọn sau,
     // còn bản ghi không bị kẹt pending trỏ tới đối tượng đã mất.
     await this.prisma.upload.updateMany({
@@ -107,26 +116,92 @@ export class UploadsService {
     } catch (err) {
       this.logger.warn(`Không xóa được đối tượng ${rawKey}: ${String(err)}`);
     }
-    throw apiError(BadRequestException, ApiErrorCode.VALIDATION_FAILED, message);
+    throw new BadRequestException({
+      code: ApiErrorCode.VALIDATION_FAILED,
+      message,
+      ...(reason ? { details: { reason } } : {}),
+    });
   }
 
-  async confirm(userId: string, rawKey: string): Promise<UploadConfirmResponse> {
+  private async confirmVideo(
+    userId: string,
+    upload: { key: string; declaredBytes: number; mimeType: string },
+    head: { sizeBytes: number; etag: string },
+  ): Promise<UploadConfirmVideoResponse> {
+    const rawKey = upload.key;
+    // URL ký ngắn hạn do server tạo từ khóa đã kiểm đúng chủ; ffprobe không nhận tên file người dùng.
+    const verdict = await this.videoProbe.probeUrl(() =>
+      this.storage.presignGet(rawKey, VIDEO_PROBE_URL_TTL_SECONDS),
+    );
+    if (!verdict.ok) {
+      return this.rejectInvalid(
+        rawKey,
+        verdict.reason === 'VIDEO_TOO_SHORT'
+          ? `Video quá ngắn, cần dài tối thiểu ${MIN_VIDEO_SECONDS} giây.`
+          : 'Không đọc được video. Hãy dùng tệp MP4 hoặc MOV hợp lệ.',
+        verdict.reason,
+      );
+    }
+    const { durationSeconds, width, height } = verdict.meta;
+    const confirmedKey = `in/${userId}/${rawKey.split('/')[2]}`;
+    try {
+      await this.storage.copyIfMatch(rawKey, confirmedKey, head.etag);
+    } catch (err) {
+      if (err instanceof StoragePreconditionFailedError) throw apiError(ConflictException, ApiErrorCode.CONFLICT);
+      throw err;
+    }
+    const updated = await this.prisma.upload.updateMany({
+      where: { key: rawKey, status: 'pending' },
+      data: {
+        status: 'confirmed',
+        confirmedKey,
+        sizeBytes: head.sizeBytes,
+        etag: head.etag,
+        width,
+        height,
+        durationSeconds,
+        confirmedAt: new Date(),
+      },
+    });
+    if (updated.count !== 1) throw apiError(ConflictException, ApiErrorCode.CONFLICT);
+    return {
+      key: confirmedKey,
+      video: {
+        mimeType: upload.mimeType as 'video/mp4' | 'video/quicktime',
+        sizeBytes: head.sizeBytes,
+        durationSeconds,
+        width,
+        height,
+      },
+    } as UploadConfirmVideoResponse;
+  }
+
+  async confirm(userId: string, rawKey: string): Promise<UploadConfirmResponse | UploadConfirmVideoResponse> {
     const upload = await this.prisma.upload.findUnique({ where: { key: rawKey } });
     if (!upload) throw apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
     if (upload.userId !== userId) throw apiError(ForbiddenException, ApiErrorCode.FORBIDDEN);
     if (upload.status !== 'pending') throw apiError(ConflictException, ApiErrorCode.CONFLICT);
 
+    const isVideo = upload.kind === 'video';
     const head = await this.storage.head(rawKey);
     if (!head) {
       throw apiError(
         BadRequestException,
         ApiErrorCode.VALIDATION_FAILED,
-        'Chưa tìm thấy ảnh đã tải lên. Vui lòng tải ảnh lên trước khi xác nhận.',
+        isVideo
+          ? 'Chưa tìm thấy video đã tải lên. Vui lòng tải video lên trước khi xác nhận.'
+          : 'Chưa tìm thấy ảnh đã tải lên. Vui lòng tải ảnh lên trước khi xác nhận.',
       );
     }
     if (head.sizeBytes !== upload.declaredBytes) {
-      return this.rejectInvalid(rawKey, 'Dung lượng ảnh tải lên không khớp với khai báo.');
+      return this.rejectInvalid(
+        rawKey,
+        isVideo
+          ? 'Dung lượng video tải lên không khớp với khai báo.'
+          : 'Dung lượng ảnh tải lên không khớp với khai báo.',
+      );
     }
+    if (isVideo) return this.confirmVideo(userId, upload, head);
 
     let width: number;
     let height: number;

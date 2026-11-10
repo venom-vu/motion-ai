@@ -13,11 +13,13 @@ import {
   UploadCreateRequestSchema,
   getApiErrorMessageVi,
   type UploadConfirmResponse,
+  type UploadConfirmVideoResponse,
   type UploadCreateResponse,
 } from '@flowvis/contracts';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { AccountLockedGuard } from '../auth/guards/account-locked.guard.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+import { UploadConfirmThrottlerGuard } from '../auth/throttler.guard.js';
 import type { JwtUserPayload } from '../auth/jwt.strategy.js';
 import { UploadsService } from './uploads.service.js';
 
@@ -44,11 +46,12 @@ export class UploadsController {
   }
 
   @Post(':key/confirm')
+  @UseGuards(UploadConfirmThrottlerGuard)
   @HttpCode(200)
   async confirm(
     @CurrentUser() user: JwtUserPayload,
     @Param('key') key: string,
-  ): Promise<UploadConfirmResponse> {
+  ): Promise<UploadConfirmResponse | UploadConfirmVideoResponse> {
     const parsed = UploadConfirmParamsSchema.safeParse({ key });
     if (!parsed.success) {
       throw new BadRequestException({
