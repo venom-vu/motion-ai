@@ -353,10 +353,10 @@ describe('Smoke Body Retouch FE-BE trên stack Compose (Story 4.6)', () => {
         assert.equal(sub1.workflowId, 'smoke-workflow-body-reshape');
         assert.deepEqual(
           sub1.nodeInfoList.map((n) => [n.nodeId, n.fieldName]),
-          [['10', 'image'], ['20', 'intensity']],
+          [['198', 'image'], ['202', 'strength_model']],
         );
         assert.match(sub1.nodeInfoList[0].fieldValue, /^rh-.*\.png$/);
-        assert.equal(sub1.nodeInfoList[1].fieldValue, '8');
+        assert.equal(sub1.nodeInfoList[1].fieldValue, '1.6');
 
         // 2. NO_POSE
         const bob = await login('bob');
@@ -378,18 +378,28 @@ describe('Smoke Body Retouch FE-BE trên stack Compose (Story 4.6)', () => {
         rh.maxActive = 0;
         const fs = await createFaceSwapTask(dave);
         const { task: br } = await createBodyTask(dave, 6);
-        assert.equal(await balance(dave), 300);
+        const { task: br2 } = await createBodyTask(dave, 7);
+        assert.equal(await balance(dave), 200);
         const end = Date.now() + 60_000;
         while (rh.active.size < 2 && Date.now() < end) await sleep(200);
-        assert.equal(rh.active.size, 2, 'cả hai Task cùng chạy tại RH giả');
+        assert.equal(rh.active.size, 2, 'hai Task đầu cùng chạy tại RH giả');
         await sleep(1500);
-        assert.ok(rh.maxActive <= 2, `không quá 2 đồng thời, thấy ${rh.maxActive}`);
+        assert.equal(rh.active.size, 2, 'Task thứ ba chưa được submit khi hai lane còn bận');
+        assert.equal(rh.maxActive, 2, `không quá 2 đồng thời, thấy ${rh.maxActive}`);
+        assert.ok(rh.submits >= 2);
         rh.mode = 'success';
         await waitFor(dave, fs.id, (t) => t.status === 'succeeded', 'face swap succeeded');
         await waitFor(dave, br.id, (t) => t.status === 'succeeded', 'body retouch succeeded');
-        assert.ok(rh.maxActive <= 2);
-        assert.equal(await balance(dave), 300);
-        for (const id of [fs.id, br.id]) {
+        await waitFor(dave, br2.id, (t) => t.status === 'succeeded', 'body retouch thứ hai succeeded');
+        assert.ok(rh.maxActive <= 2, `không quá 2 đồng thời, thấy ${rh.maxActive}`);
+        assert.equal(await balance(dave), 200);
+        const wfIds = rh.submitBodies.slice(-3).map((b) => b.workflowId).sort();
+        assert.deepEqual(
+          wfIds,
+          ['smoke-workflow-body-reshape', 'smoke-workflow-body-reshape', 'smoke-workflow-faceswap'],
+          'mỗi pipeline gửi đúng workflow của mình',
+        );
+        for (const id of [fs.id, br.id, br2.id]) {
           const ty = await ledgerTypes(dave, id);
           assert.equal(count(ty, 'HOLD'), 1, `HOLD ${id}`);
           assert.equal(count(ty, 'CAPTURED'), 1, `CAPTURED ${id}`);

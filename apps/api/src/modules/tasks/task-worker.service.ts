@@ -212,6 +212,20 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
     }
     if (signal.aborted) return;
 
+    // (c) tham số: thiếu hoặc sai kiểu thì không gửi (tránh chạy workflow bằng mức mặc định mà vẫn trừ credit)
+    const paramNodes: RunningHubNodeInfo[] = [];
+    const params = (row.params ?? {}) as Record<string, unknown>;
+    for (const m of config.params ?? []) {
+      const v = params[m.paramKey];
+      if (typeof v !== 'string' && typeof v !== 'number' && typeof v !== 'boolean') {
+        this.logger.error(`Task ${taskId}: thiếu hoặc sai tham số "${m.paramKey}" trong tasks.params`);
+        await this.finish(taskId, 'failed', 'INTERNAL_ERROR');
+        return;
+      }
+      const value = m.scale !== undefined && typeof v === 'number' ? String(Number((v * m.scale).toFixed(4))) : String(v);
+      paramNodes.push({ nodeId: m.nodeId, fieldName: m.fieldName, fieldValue: value });
+    }
+
     // (c) upload
     const nodeInfo: RunningHubNodeInfo[] = [];
     try {
@@ -221,12 +235,7 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
         this.logger.log(`Task ${taskId}: đã upload ${m.inputKey} (${bytes.length} byte) -> ${name}`);
         nodeInfo.push({ nodeId: m.nodeId, fieldName: m.fieldName, fieldValue: name });
       }
-      const params = (row.params ?? {}) as Record<string, unknown>;
-      for (const m of config.params ?? []) {
-        const v = params[m.paramKey];
-        if (v === undefined || v === null) continue;
-        nodeInfo.push({ nodeId: m.nodeId, fieldName: m.fieldName, fieldValue: String(v) });
-      }
+      nodeInfo.push(...paramNodes);
     } catch (err) {
       if (signal.aborted) return;
       this.logger.warn(`Upload RunningHub lỗi cho Task ${taskId}: ${String(err)}`);
@@ -237,13 +246,13 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
     // (d) submit
     if (!(await this.tasks.markSubmitStarted(taskId))) return;
     this.logger.log(
-      `Task ${taskId}: gửi workflow ${workflowId} với ${nodeInfo.length} node (${nodeInfo
+      `Task ${taskId}: gửi ${this.pipelines.getRunMode(config)} ${workflowId} với ${nodeInfo.length} node (${nodeInfo
         .map((n) => `${n.nodeId}/${n.fieldName}`)
         .join(', ')})`,
     );
     let rhId: string;
     try {
-      rhId = await this.submitWithRetry(workflowId, nodeInfo, signal);
+      rhId = await this.submitWithRetry(workflowId, nodeInfo, signal, this.pipelines.getRunMode(config));
     } catch (err) {
       if (signal.aborted) return;
       if (err instanceof SubmitFailure) {
@@ -303,10 +312,11 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
     workflowId: string,
     nodeInfo: RunningHubNodeInfo[],
     signal: AbortSignal,
+    mode?: 'ai-app' | 'workflow',
   ): Promise<string> {
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        return await this.rh.submit(workflowId, nodeInfo, this.timeoutSignal(signal));
+        return await this.rh.submit(workflowId, nodeInfo, this.timeoutSignal(signal), mode);
       } catch (err) {
         if (err instanceof RunningHubNetworkError) {
           this.logger.warn(`submit lần ${attempt}/2 lỗi mạng (requestSent=${err.requestSent}): ${err.message}`);

@@ -4,6 +4,7 @@ import {
   type RunningHubNodeInfo,
   type RunningHubOutputs,
   type RunningHubPort,
+  type RunningHubRunMode,
 } from '../../ports/index.js';
 
 export const RUNNINGHUB_DEFAULT_HOST = 'https://www.runninghub.ai';
@@ -165,15 +166,27 @@ export class RunningHubOpenApiAdapter implements RunningHubPort {
   }
 
   /**
-   * `workflowId` thực chất là App ID của AI App (biến RUNNINGHUB_WORKFLOW_FACESWAP).
-   * Gọi `POST /openapi/v2/run/ai-app/{appId}`: chỉ dùng header Bearer, không có apiKey trong body.
+   * mode 'ai-app' (mặc định): `workflowId` là App ID của AI App (vd. RUNNINGHUB_WORKFLOW_FACESWAP),
+   * gọi `POST /openapi/v2/run/ai-app/{appId}`.
+   * mode 'workflow': `workflowId` là ID workflow ComfyUI (vd. RUNNINGHUB_WORKFLOW_BODY_RESHAPE),
+   * gọi `POST /openapi/v2/run/workflow/{id}`; `addMetadata: false` để kết quả không mang metadata workflow.
+   * Cả hai chỉ dùng header Bearer, không có apiKey trong body.
    */
-  async submit(workflowId: string, nodeInfoList: RunningHubNodeInfo[], signal: AbortSignal): Promise<string> {
-    const env = await this.post(
-      `/openapi/v2/run/ai-app/${encodeURIComponent(workflowId)}`,
-      JSON.stringify({ nodeInfoList, instanceType: 'default' }),
-      signal,
-    );
+  async submit(
+    workflowId: string,
+    nodeInfoList: RunningHubNodeInfo[],
+    signal: AbortSignal,
+    mode: RunningHubRunMode = 'ai-app',
+  ): Promise<string> {
+    const path =
+      mode === 'workflow'
+        ? `/openapi/v2/run/workflow/${encodeURIComponent(workflowId)}`
+        : `/openapi/v2/run/ai-app/${encodeURIComponent(workflowId)}`;
+    const payload =
+      mode === 'workflow'
+        ? { addMetadata: false, nodeInfoList, instanceType: 'default', usePersonalQueue: 'false' }
+        : { nodeInfoList, instanceType: 'default' };
+    const env = await this.post(path, JSON.stringify(payload), signal);
     const err = v2ErrorCode(env);
     // Bận/giới hạn tần suất: task chưa được tạo nên thử lại an toàn (requestSent=false).
     if (err && isTransientCode(err)) {

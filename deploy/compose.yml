@@ -52,6 +52,12 @@ services:
       PORT: ${PORT:-3001}
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-motion_user}:${POSTGRES_PASSWORD:-change_me_local_password}@postgres-16:5432/${POSTGRES_DB:-flowvis}?schema=public}
       REDIS_URL: ${REDIS_URL:-redis://redis-7:6379}
+      RUNNINGHUB_API_KEY: ${RUNNINGHUB_API_KEY:-}
+      RUNNINGHUB_API_HOST: ${RUNNINGHUB_API_HOST:-}
+      RUNNINGHUB_WORKFLOW_FACESWAP: ${RUNNINGHUB_WORKFLOW_FACESWAP:-}
+      RUNNINGHUB_MODE_FACESWAP: ${RUNNINGHUB_MODE_FACESWAP:-ai-app}
+      RUNNINGHUB_WORKFLOW_BODY_RESHAPE: ${RUNNINGHUB_WORKFLOW_BODY_RESHAPE:-}
+      RUNNINGHUB_MODE_BODY_RESHAPE: ${RUNNINGHUB_MODE_BODY_RESHAPE:-workflow}
     ports:
       - "${PORT:-3001}:${PORT:-3001}"
     depends_on:
@@ -74,6 +80,12 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-motion_user}:${POSTGRES_PASSWORD:-change_me_local_password}@postgres-16:5432/${POSTGRES_DB:-flowvis}?schema=public}
       REDIS_URL: ${REDIS_URL:-redis://redis-7:6379}
+      RUNNINGHUB_API_KEY: ${RUNNINGHUB_API_KEY:-}
+      RUNNINGHUB_API_HOST: ${RUNNINGHUB_API_HOST:-}
+      RUNNINGHUB_WORKFLOW_FACESWAP: ${RUNNINGHUB_WORKFLOW_FACESWAP:-}
+      RUNNINGHUB_MODE_FACESWAP: ${RUNNINGHUB_MODE_FACESWAP:-ai-app}
+      RUNNINGHUB_WORKFLOW_BODY_RESHAPE: ${RUNNINGHUB_WORKFLOW_BODY_RESHAPE:-}
+      RUNNINGHUB_MODE_BODY_RESHAPE: ${RUNNINGHUB_MODE_BODY_RESHAPE:-workflow}
     depends_on:
       postgres-16:
         condition: service_healthy

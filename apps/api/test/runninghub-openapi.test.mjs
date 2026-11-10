@@ -78,6 +78,25 @@ describe('RunningHubOpenApiAdapter', () => {
     assert.ok(!('apiKey' in body));
   });
 
+  it("submit mode 'workflow': gọi /openapi/v2/run/workflow/{id} với addMetadata=false và usePersonalQueue, chỉ Bearer", async () => {
+    seen.length = 0;
+    next = { body: '{"taskId":2097300000000000001,"status":"QUEUED","errorCode":"","errorMessage":"","results":null}' };
+    const nodes = [{ nodeId: '10', fieldName: 'image', fieldValue: 'api/abc.png' }];
+    const id = await adapter().submit('2097271148131237890', nodes, signal(), 'workflow');
+    assert.equal(id, '2097300000000000001');
+    const req = seen[0];
+    assert.equal(req.url, '/openapi/v2/run/workflow/2097271148131237890');
+    assert.equal(req.headers.authorization, `Bearer ${API_KEY}`);
+    const body = JSON.parse(req.body.toString());
+    assert.deepEqual(body, {
+      addMetadata: false,
+      nodeInfoList: nodes,
+      instanceType: 'default',
+      usePersonalQueue: 'false',
+    });
+    assert.ok(!('apiKey' in body));
+  });
+
   it('submit: errorCode (HTTP 200) là RunningHubError, gồm 821 hết credit trả phí và 380', async () => {
     for (const errorCode of ['821', '380', '433', '1002']) {
       next = { body: { taskId: '', status: '', errorCode, errorMessage: 'x', results: null } };

@@ -192,7 +192,7 @@ describe('Story 4.2: [BE] Tạo Task Body Retouch', () => {
     assert.deepEqual(await countFor(busy), { tasks: 3, ledger: 3 });
   });
 
-  it('worker: nodeInfoList có node ảnh và node intensity = "8", workflow body', async () => {
+  it('worker: nodeInfoList có node ảnh và node LoRA strength = "1.6", workflow body', async () => {
     await clearActive();
     submits = [];
     outputsQueue = [{ status: 'SUCCESS', fileUrl: 'http://x/y.png', consumeMoney: 1 }];
@@ -204,7 +204,7 @@ describe('Story 4.2: [BE] Tạo Task Body Retouch', () => {
     const nodes = submits[0].nodeInfo;
     assert.equal(nodes.length, 2);
     assert.ok(nodes.some((n) => n.fieldName === 'image' && n.fieldValue === 'f1'));
-    assert.ok(nodes.some((n) => n.fieldName === 'intensity' && n.fieldValue === '8'));
+    assert.ok(nodes.some((n) => n.nodeId === '202' && n.fieldName === 'strength_model' && n.fieldValue === '1.6'));
   });
 
   it('workflow trả NO_POSE => failed/NO_POSE, RELEASED 100%', async () => {

@@ -4,6 +4,7 @@ import {
   type RunningHubNodeInfo,
   type RunningHubOutputs,
   type RunningHubPort,
+  type RunningHubRunMode,
 } from '../../ports/index.js';
 import { RunningHubOpenApiAdapter } from './runninghub-openapi.adapter.js';
 import { UnconfiguredRunningHubAdapter } from './runninghub-unconfigured.adapter.js';
@@ -42,13 +43,18 @@ export class RunningHubHttpAdapter implements RunningHubPort {
     return body.fileName;
   }
 
-  async submit(workflowId: string, nodeInfoList: RunningHubNodeInfo[], signal: AbortSignal): Promise<string> {
+  async submit(
+    workflowId: string,
+    nodeInfoList: RunningHubNodeInfo[],
+    signal: AbortSignal,
+    mode?: RunningHubRunMode,
+  ): Promise<string> {
     const body = await this.call(
       '/submit',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workflowId, nodeInfoList }),
+        body: JSON.stringify({ workflowId, nodeInfoList, mode: mode ?? 'ai-app' }),
       },
       signal,
     );

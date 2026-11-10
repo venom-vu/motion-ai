@@ -1,4 +1,5 @@
 import type { ReasonCode } from '@flowvis/contracts';
+import type { RunningHubRunMode } from '../../ports/index.js';
 
 export interface PipelineInputMapping {
   /** Khóa trong tasks.input_keys. */
@@ -12,12 +13,18 @@ export interface PipelineParamMapping {
   readonly paramKey: string;
   readonly nodeId: string;
   readonly fieldName: string;
+  /** Hệ số nhân cho giá trị số trước khi gửi (vd. intensity 1-10 -> strength LoRA). */
+  readonly scale?: number;
 }
 
 export interface PipelineConfig {
   readonly pipeline: string;
   /** Tên biến môi trường chứa workflow ID RunningHub. */
   readonly workflowEnvVar: string;
+  /** Tên biến môi trường chọn cách gọi RunningHub: `ai-app` hoặc `workflow`. */
+  readonly runModeEnvVar: string;
+  /** Cách gọi khi biến `runModeEnvVar` để trống. */
+  readonly defaultRunMode: RunningHubRunMode;
   readonly inputs: readonly PipelineInputMapping[];
   /** Tham số từ tasks.params truyền cho workflow (giá trị dạng chuỗi). */
   readonly params?: readonly PipelineParamMapping[];
@@ -33,6 +40,8 @@ export const PIPELINE_CONFIGS: Readonly<Record<string, PipelineConfig>> = {
   face_swap: {
     pipeline: 'face_swap',
     workflowEnvVar: 'RUNNINGHUB_WORKFLOW_FACESWAP',
+    runModeEnvVar: 'RUNNINGHUB_MODE_FACESWAP',
+    defaultRunMode: 'ai-app',
     // [ASSUMPTION] nodeId/fieldName (137 = nguồn, 10 = đích) chưa được xác nhận bằng một lần chạy thật; phải đối chiếu với AI App trên RunningHub.
     inputs: [
       { inputKey: 'sourceKey', nodeId: '137', fieldName: 'image' },
@@ -43,10 +52,14 @@ export const PIPELINE_CONFIGS: Readonly<Record<string, PipelineConfig>> = {
   body_retouch: {
     pipeline: 'body_retouch',
     workflowEnvVar: 'RUNNINGHUB_WORKFLOW_BODY_RESHAPE',
+    runModeEnvVar: 'RUNNINGHUB_MODE_BODY_RESHAPE',
+    defaultRunMode: 'workflow',
     requiredAtStartup: true,
-    // [ASSUMPTION] nodeId/fieldName chưa được xác nhận bằng một lần chạy thật; phải đối chiếu với AI App trên RunningHub.
-    inputs: [{ inputKey: 'imageKey', nodeId: '10', fieldName: 'image' }],
-    params: [{ paramKey: 'intensity', nodeId: '20', fieldName: 'intensity' }],
+    // Theo workflow Flux Kontext + LoRA "kontext_big_breasts_and_butts": node 198 = LoadImage (ảnh đầu vào).
+    // Prompt (node 6), LoRA (node 202) và KSampler cố định trong workflow nên không truyền từ API.
+    // intensity (1-10, mặc định 5) -> strength_model của LoRA (node 202): 5 => 1.0 (mặc định workflow), 10 => 2.0.
+    inputs: [{ inputKey: 'imageKey', nodeId: '198', fieldName: 'image' }],
+    params: [{ paramKey: 'intensity', nodeId: '202', fieldName: 'strength_model', scale: 0.2 }],
     referenceInputKey: 'imageKey',
   },
 };

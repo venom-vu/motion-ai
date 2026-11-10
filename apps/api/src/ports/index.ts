@@ -29,6 +29,8 @@ export interface RunningHubNodeInfo {
   readonly fieldValue: string;
 }
 
+export type RunningHubRunMode = 'ai-app' | 'workflow';
+
 export interface RunningHubOutputs {
   readonly status: 'RUNNING' | 'SUCCESS' | 'FAILED';
   readonly fileUrl?: string;
@@ -40,8 +42,16 @@ export interface RunningHubPort {
   readonly portName?: 'RunningHubPort';
   /** Trả tên file đã upload lên RunningHub. */
   uploadFile(bytes: Buffer, name: string, signal: AbortSignal): Promise<string>;
-  /** Trả runninghubTaskId. */
-  submit(workflowId: string, nodeInfoList: RunningHubNodeInfo[], signal: AbortSignal): Promise<string>;
+  /**
+   * Trả runninghubTaskId. `mode` chọn đường gọi: 'ai-app' (mặc định, `/run/ai-app/{id}`)
+   * hoặc 'workflow' (`/run/workflow/{id}`).
+   */
+  submit(
+    workflowId: string,
+    nodeInfoList: RunningHubNodeInfo[],
+    signal: AbortSignal,
+    mode?: RunningHubRunMode,
+  ): Promise<string>;
   outputs(runninghubTaskId: string, signal: AbortSignal): Promise<RunningHubOutputs>;
 }
 

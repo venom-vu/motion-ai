@@ -169,7 +169,8 @@ async function handleDownloadImage(): Promise<void> {
 
     if (!response) {
       // URL ký có thể đã hết hạn hoặc CORS, thử refresh lấy lại link mới
-      await handleRefreshResult();
+      // Không dùng handleRefreshResult: không được đặt lại bộ đếm tự thử lại của lỗi tải ảnh
+      await resultAsync.refresh();
       url = resultAsync.data.value?.resultUrl;
       if (!url) throw new Error('Không thể làm mới đường dẫn tải ảnh');
       response = await fetch(url);
