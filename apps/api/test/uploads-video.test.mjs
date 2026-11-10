@@ -304,6 +304,30 @@ describe('Story 5.2: [BE] Tải video lên và kiểm tra bằng ffprobe', () =>
     } finally { probeHook = null; }
   });
 
+  it('whitelist ffprobe chỉ thêm http khi NODE_ENV=test có R2_ENDPOINT', () => {
+    const saved = { NODE_ENV: process.env.NODE_ENV, R2_ENDPOINT: process.env.R2_ENDPOINT };
+    const wl = () => {
+      const args = buildFfprobeArgs('https://x/y');
+      return args[args.indexOf('-protocol_whitelist') + 1];
+    };
+    try {
+      process.env.R2_ENDPOINT = 'http://host.docker.internal:3198';
+      process.env.NODE_ENV = 'production';
+      assert.equal(wl(), 'https,tls,tcp');
+      delete process.env.NODE_ENV;
+      assert.equal(wl(), 'https,tls,tcp');
+      process.env.NODE_ENV = 'test';
+      assert.equal(wl(), 'http,https,tls,tcp');
+      delete process.env.R2_ENDPOINT;
+      assert.equal(wl(), 'https,tls,tcp');
+    } finally {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  });
+
   it('đối số ffprobe: whitelist, không shell; thật sự giết sau 10 giây', async () => {
     const args = buildFfprobeArgs('https://x/y?z=1');
     assert.deepEqual(args.slice(args.indexOf('-protocol_whitelist'), args.indexOf('-protocol_whitelist') + 2), ['-protocol_whitelist', 'https,tls,tcp']);

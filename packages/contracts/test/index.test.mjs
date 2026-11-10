@@ -783,6 +783,17 @@ describe('@flowvis/contracts', () => {
       );
     });
 
+    it('resultKey nhận đuôi .mp4 của video và từ chối đuôi khác', () => {
+      const u = '81000000-0000-4000-8000-000000000003';
+      const key = (suffix) => `out/${u}/${u}${suffix}`;
+      const ok = (suffix) => TaskSchema.safeParse({ ...MOCK_TASKS_BY_STATUS.succeeded, resultKey: key(suffix) }).success;
+      assert.equal(ok(''), true);
+      assert.equal(ok('.mp4'), true);
+      assert.equal(ok('.exe'), false);
+      assert.equal(ok('.mp4x'), false);
+      assert.equal(ok('.mp4.mp4'), false);
+    });
+
     it('enforces Task invariants', () => {
       const bad = [
         { ...MOCK_TASKS_BY_STATUS.failed, reasonCode: undefined },

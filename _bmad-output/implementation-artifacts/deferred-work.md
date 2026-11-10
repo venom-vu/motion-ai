@@ -260,3 +260,9 @@
 - source_spec: `spec-5-6-be-nhap-ket-qua-video-anh-bia-va-chia-se.md`
   summary: Test chia sẻ của Body Retouch trả 429 thay vì 302 (`body-retouch-result.test.mjs`, nhóm "chia sẻ").
   evidence: Fail cả khi bỏ thay đổi của story 5.6 (baseline 11 pass, 1 fail); Redis không còn khóa throttle sót lại nên chưa rõ nguyên nhân.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-9-integration-noi-fe-voi-be-va-smoke-test-motion-control.md`
+  summary: Smoke Motion Control chưa quan sát được hai ffmpeg chạy chồng nhau trong worker (chỉ khẳng định `maxActive <= 2` ở RunningHub giả).
+  evidence: Khóa FIFO được test đơn vị ở Story 5.4 nhưng không có tín hiệu cấp container; cần cơ chế đo (log hoặc đếm tiến trình ffmpeg trong worker), nên gộp vào benchmark ffmpeg của Epic 6.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-9-integration-noi-fe-voi-be-va-smoke-test-motion-control.md`
+  summary: Job `smoke` của CI không cài hoặc kiểm `ffmpeg`/`ffprobe` (libx264) trên runner host trước khi smoke Motion Control sinh video mẫu.
+  evidence: Smoke gọi `ffmpeg -f lavfi ... libx264` trên host `ubuntu-latest`; nếu image runner đổi, lỗi là ENOENT khó hiểu; cần bước `ffmpeg -version` hoặc cài đặt rõ ràng.

@@ -56,7 +56,7 @@ jobs:
         run: pnpm test
 
   smoke:
-    name: Smoke đăng nhập, Face Swap và Body Retouch (Docker Compose)
+    name: Smoke đăng nhập, Face Swap, Body Retouch và Motion Control (Docker Compose)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -81,7 +81,7 @@ jobs:
       - name: Khởi động Postgres và Redis một lần (tránh các file test tự dựng song song)
         run: docker compose -f deploy/compose.yml up -d --wait postgres-16 redis-7
 
-      - name: Smoke test (stack Compose, Google, RunningHub và R2 giả; gồm smoke Face Swap và Body Retouch)
+      - name: Smoke test (stack Compose, Google, RunningHub và R2 giả; gồm smoke Face Swap, Body Retouch và Motion Control; runner ubuntu có sẵn ffmpeg)
         run: pnpm --filter @flowvis/api test
         env:
           RUN_COMPOSE_E2E: '1'

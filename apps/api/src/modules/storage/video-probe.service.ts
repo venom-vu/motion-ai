@@ -21,12 +21,17 @@ export type VideoProbeVerdict =
 export class VideoProbeFailedError extends Error {}
 
 /** Mảng đối số cố định; URL ký là phần tử riêng cuối cùng, không qua shell. */
+/** Chỉ khi NODE_ENV=test có R2_ENDPOINT (S3 giả của smoke chạy HTTP) mới cho phép `http`; production luôn chỉ https. */
+function probeProtocolWhitelist(): string {
+  return process.env.NODE_ENV === 'test' && process.env.R2_ENDPOINT ? 'http,https,tls,tcp' : 'https,tls,tcp';
+}
+
 export function buildFfprobeArgs(url: string): string[] {
   return [
     '-v',
     'error',
     '-protocol_whitelist',
-    'https,tls,tcp',
+    probeProtocolWhitelist(),
     '-print_format',
     'json',
     '-show_format',

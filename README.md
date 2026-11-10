@@ -77,3 +77,7 @@ FE chỉ có một chế độ `live` (không có chế độ mock). "Mock" là 
 ## Smoke test nạp tiền (Story 3.8)
 
 Smoke nạp tiền VietQR (`apps/api/test/smoke-topup.test.mjs`) chạy bằng `RUN_COMPOSE_E2E=1 pnpm --filter @flowvis/api test` (cần Docker; `pnpm test` bỏ qua phần Docker nhưng vẫn kiểm tra `MOCK_*` khớp schema). FE gọi API đúng schema trong `packages/contracts`, nên smoke xác nhận ở mức hợp đồng. Biến môi trường cần có: `TOPUP_BANK_BIN`, `TOPUP_BANK_ACCOUNT_NO`, `TOPUP_BANK_ACCOUNT_NAME`, `DISCORD_WEBHOOK_URL`, `ADMIN_EMAILS` (xem `deploy/.env.example`). Chi tiết và các ghi đè chỉ dành cho `NODE_ENV=test`: `deploy/README.md`.
+
+## Smoke test Motion Control (Story 5.9)
+
+Smoke `apps/api/test/smoke-motion-control.test.mjs` chạy bằng `RUN_COMPOSE_E2E=1 pnpm --filter @flowvis/api test` (cần Docker và `ffmpeg`/`ffprobe` trên máy chạy test để sinh video mẫu). Kịch bản: thành công 10 giây (500 credit), `NO_POSE`, vượt Cap Starter (`TRIM_EXCEEDS_CAP`), ví FREE (hai video 5 giây rồi `INSUFFICIENT_CREDIT`), hai Task song song, quá hạn (`RH_DEADLINE_MS` rút ngắn), kết quả lệch độ dài 10,4 giây (thành công) và 10,6 giây (`OUTPUT_INVALID`), chia sẻ `/s/<token>`, `/info`, `/poster`, dọn thư mục tạm và `reconcile.js`. Gói Tier lấy qua luồng nạp tiền thật (Admin duyệt). Smoke chỉ gọi HTTP API, không đo SLA hay tải ffmpeg trên VPS. Ở Epic 6 cần đối chiếu `nodeId`/`fieldName` của workflow Motion (đang `[ASSUMPTION]` trong `pipeline-config.ts`) và chạy benchmark ffmpeg. Chi tiết: `deploy/README.md`.

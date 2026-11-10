@@ -60,3 +60,7 @@ Cảnh báo quá hạn duyệt đơn nạp dùng cột `overdue_notify_attempts`
 ## Cắt video bằng ffmpeg (Story 5.4)
 
 Worker cắt video Motion Control ở bước chuẩn bị: một ffmpeg mỗi lúc (khóa FIFO trong tiến trình worker), chạy với `nice -n 19`, thư mục tạm riêng cho từng Task trong `$TMPDIR/flowvis-trim` và xóa khi xong, khi lỗi, khi hủy và khi worker khởi động. Cần đĩa trống tối thiểu 3 lần kích thước video đầu vào. Việc đo CPU và đĩa thật trên VPS 4 vCPU thuộc bước kiểm thử ffmpeg của Epic 6.
+
+## Smoke test Motion Control (Story 5.9)
+
+`apps/api/test/smoke-motion-control.test.mjs` dựng stack bốn container (project `flowvis-smoke-mt`, api `3106`, Postgres `15437`, Redis `16384`); RunningHub giả (`3197`), S3/R2 giả (`3198`), Google giả (`3199`) chạy trong tiến trình test. Cần `ffmpeg` trên máy chạy test (video mẫu và video kết quả giả sinh bằng `ffmpeg -f lavfi`, H.264, 24 FPS, 720x1280). Kiểm tra payload RH giả (`smoke-workflow-motion`, node `1/image`, `2/video`), giá, Cap, ví, hàng đợi, nhập kết quả, chia sẻ, thư mục tạm (`$TMPDIR/flowvis-trim` trong worker phải rỗng) và `reconcile.js`. `RH_DEADLINE_MS` (chỉ có tác dụng khi `NODE_ENV=test`) được rút ngắn để thử quá hạn 360 giây. Epic 6 còn phải xác nhận `nodeId`/`fieldName` thật của workflow Motion và đo tải ffmpeg trên VPS.
