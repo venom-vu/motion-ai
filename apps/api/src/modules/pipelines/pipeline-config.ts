@@ -1,5 +1,6 @@
 import type { ReasonCode } from '@flowvis/contracts';
 import type { RunningHubRunMode } from '../../ports/index.js';
+import { videoTrim, type PrepareContext } from '../tasks/video-trim.service.js';
 
 export interface PipelineInputMapping {
   /** Khóa trong tasks.input_keys. */
@@ -32,8 +33,8 @@ export interface PipelineConfig {
   readonly requiredAtStartup?: boolean;
   /** Khóa trong tasks.input_keys của ảnh tham chiếu: ảnh kết quả phải cùng kích thước (sau xoay EXIF) với ảnh này. */
   readonly referenceInputKey?: string;
-  /** Bước chuẩn bị tùy chọn (vd. cắt video); nhận bytes theo inputKey. */
-  readonly prepare?: (inputs: Record<string, Buffer>) => Promise<Record<string, Buffer>>;
+  /** Bước chuẩn bị tùy chọn (vd. cắt video); tự lấy input, trả bytes theo inputKey. Chạy trước cổng RunningHub, trong hạn prep_deadline_at. */
+  readonly prepare?: (ctx: PrepareContext) => Promise<Record<string, Buffer>>;
 }
 
 export const PIPELINE_CONFIGS: Readonly<Record<string, PipelineConfig>> = {
@@ -70,6 +71,7 @@ export const PIPELINE_CONFIGS: Readonly<Record<string, PipelineConfig>> = {
     requiredAtStartup: true,
     // Mapping node RunningHub, bước cắt ffmpeg và nhập kết quả: Story 5.4-5.6.
     inputs: [],
+    prepare: (ctx) => videoTrim.prepare(ctx),
   },
 };
 

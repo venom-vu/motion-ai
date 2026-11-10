@@ -444,7 +444,12 @@ describe('Story 2.5: [BE] Worker xử lý Task qua RunningHub', () => {
     worker.rh.uploadFile = async (bytes) => { seen.push(bytes.toString()); calls.upload++; return `f${calls.upload}`; };
     Object.defineProperty(cfg, 'prepare', {
       configurable: true,
-      value: async (inputs) => Object.fromEntries(Object.entries(inputs).map(([k, v]) => [k, Buffer.from(`P-${v}`)])),
+      value: async ({ row, storage, signal }) => {
+        const keys = row.inputKeys;
+        return Object.fromEntries(
+          await Promise.all(Object.entries(keys).map(async ([k, key]) => [k, Buffer.from(`P-${await storage.getObject(key, signal)}`)])),
+        );
+      },
     });
     try {
       const u = await newUser();
@@ -454,6 +459,50 @@ describe('Story 2.5: [BE] Worker xử lý Task qua RunningHub', () => {
     } finally {
       delete cfg.prepare;
       worker.rh.uploadFile = origUpload;
+    }
+  });
+
+  it('prepare ném PrepareError(FFMPEG_ERROR) => failed/FFMPEG_ERROR, RELEASED, không gọi RunningHub', async () => {
+    reset(); await clearGate();
+    const { PIPELINE_CONFIGS } = await import('../dist/modules/pipelines/index.js');
+    const { PrepareError } = await import('../dist/modules/tasks/video-trim.service.js');
+    const cfg = PIPELINE_CONFIGS.face_swap;
+    Object.defineProperty(cfg, 'prepare', { configurable: true, value: async () => { throw new PrepareError('FFMPEG_ERROR'); } });
+    try {
+      const u = await newUser();
+      const id = await createTask(u);
+      await worker.processTask(id);
+      const r = await row(id);
+      assert.equal(r.status, 'failed');
+      assert.equal(r.reason_code, 'FFMPEG_ERROR');
+      assert.equal((await ledger(id, 'RELEASED')).length, 1);
+      assert.deepEqual(calls, { upload: 0, submit: 0, outputs: 0 });
+    } finally {
+      delete cfg.prepare;
+    }
+  });
+
+  it('prepare bị ctx.signal hủy khi quá prep_deadline_at => timed_out/PREP_TIMEOUT, RELEASED', async () => {
+    reset(); await clearGate();
+    const { PIPELINE_CONFIGS } = await import('../dist/modules/pipelines/index.js');
+    const cfg = PIPELINE_CONFIGS.face_swap;
+    Object.defineProperty(cfg, 'prepare', {
+      configurable: true,
+      value: ({ signal }) => new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true })),
+    });
+    try {
+      const u = await newUser();
+      const id = await createTask(u);
+      await svc.transition(id, 'queued', 'running');
+      await upd(id, `prep_deadline_at=now()+interval '300 milliseconds'`);
+      await worker.processTask(id);
+      const r = await row(id);
+      assert.equal(r.status, 'timed_out');
+      assert.equal(r.reason_code, 'PREP_TIMEOUT');
+      assert.equal((await ledger(id, 'RELEASED')).length, 1);
+      assert.equal(calls.upload, 0);
+    } finally {
+      delete cfg.prepare;
     }
   });
 
@@ -587,7 +636,7 @@ describe('Story 2.5: [BE] Worker xử lý Task qua RunningHub', () => {
     const queue = app.get(getQueueToken('tasks'));
     try {
       assert.equal(worker.worker, null);
-      worker.onModuleInit();
+      await worker.onModuleInit();
       assert.ok(worker.worker);
       assert.equal(worker.worker.opts.concurrency, 2);
       const u = await newUser();
