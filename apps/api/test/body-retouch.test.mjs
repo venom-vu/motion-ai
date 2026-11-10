@@ -62,6 +62,7 @@ Queue.prototype.add = async function (name, data, opts) { queueCalls.push({ name
 Queue.prototype.getJob = async function () { return null; };
 
 process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+process.env.RUNNINGHUB_WORKFLOW_MOTION ??= 'wf-motion';
 
 
 describe('Story 4.2: [BE] Tạo Task Body Retouch', () => {

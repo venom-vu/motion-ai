@@ -68,6 +68,7 @@ async function ensureInfra() {
 }
 
 process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+process.env.RUNNINGHUB_WORKFLOW_MOTION ??= 'wf-motion';
 
 describe('Story 1.7: [BE] Tier, API ví và đối soát sổ cái', () => {
   let pool;

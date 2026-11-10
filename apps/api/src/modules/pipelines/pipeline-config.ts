@@ -62,6 +62,15 @@ export const PIPELINE_CONFIGS: Readonly<Record<string, PipelineConfig>> = {
     params: [{ paramKey: 'intensity', nodeId: '202', fieldName: 'strength_model', scale: 0.2 }],
     referenceInputKey: 'imageKey',
   },
+  motion_control: {
+    pipeline: 'motion_control',
+    workflowEnvVar: 'RUNNINGHUB_WORKFLOW_MOTION',
+    runModeEnvVar: 'RUNNINGHUB_MODE_MOTION',
+    defaultRunMode: 'workflow',
+    requiredAtStartup: true,
+    // Mapping node RunningHub, bước cắt ffmpeg và nhập kết quả: Story 5.4-5.6.
+    inputs: [],
+  },
 };
 
 /** Ánh xạ lỗi FAILED của RunningHub theo tiền tố (không phân biệt hoa thường). */

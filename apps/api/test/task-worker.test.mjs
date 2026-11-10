@@ -62,6 +62,7 @@ Queue.prototype.add = async function (name, data, opts) { return { id: opts?.job
 Queue.prototype.getJob = async function () { return null; };
 
 process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+process.env.RUNNINGHUB_WORKFLOW_MOTION ??= 'wf-motion';
 
 describe('Story 2.5: [BE] Worker xử lý Task qua RunningHub', () => {
   let app, baseUrl, pool, prisma, jwt, svc, worker;

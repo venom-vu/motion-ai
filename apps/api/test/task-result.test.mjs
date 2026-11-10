@@ -73,6 +73,7 @@ function noisy(w, h, fmt) {
 const asResponse = (buf, headers = {}) => new Response(buf, { status: 200, headers });
 
 process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+process.env.RUNNINGHUB_WORKFLOW_MOTION ??= 'wf-motion';
 
 describe('Story 2.6: [BE] Nhập kết quả về R2 và chốt tiền', () => {
   let app, baseUrl, pool, prisma, jwt, svc, worker, ingestor;

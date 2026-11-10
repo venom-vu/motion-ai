@@ -107,6 +107,7 @@ async function ensureInfraServicesRunning() {
 }
 
 process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+process.env.RUNNINGHUB_WORKFLOW_MOTION ??= 'wf-motion';
 
 describe('@flowvis/api infrastructure, worker, PostgreSQL 16 & Redis 7', () => {
   before(async () => {

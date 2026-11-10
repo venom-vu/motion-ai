@@ -13,6 +13,7 @@ x-smoke-env: &smoke-env
   RUNNINGHUB_BASE_URL: ${RUNNINGHUB_BASE_URL:-http://host.docker.internal:3197}
   RUNNINGHUB_WORKFLOW_FACESWAP: smoke-workflow-faceswap
   RUNNINGHUB_WORKFLOW_BODY_RESHAPE: smoke-workflow-body-reshape
+  RUNNINGHUB_WORKFLOW_MOTION: smoke-workflow-motion
   RH_POLL_INTERVAL_MS: "300"
   RH_DEADLINE_MS: ${RH_DEADLINE_MS:-10000}
   RESULT_URL_ALLOW_HOSTS: host.docker.internal

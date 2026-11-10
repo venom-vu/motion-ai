@@ -87,6 +87,7 @@ async function ensureInfraRunning() {
 }
 
 process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+process.env.RUNNINGHUB_WORKFLOW_MOTION ??= 'wf-motion';
 
 describe('Story 1.8: [BE] Tặng 500 credit và chống lạm dụng', () => {
   let app;

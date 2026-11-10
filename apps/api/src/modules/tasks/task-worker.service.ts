@@ -187,6 +187,11 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
   /** (a) chuẩn bị, (b) cổng, (c) upload, (d) submit, rồi poll. */
   private async runFromUpload(row: TaskRow, signal: AbortSignal, gatePassed: boolean): Promise<void> {
     const taskId = row.id;
+    // TẠM: gỡ ở Story 5.5 (pipeline Motion chưa sẵn sàng chạy RunningHub).
+    if (row.pipeline === 'motion_control') {
+      await this.finish(taskId, 'failed', 'INTERNAL_ERROR');
+      return;
+    }
     const config = this.pipelines.getConfig(row.pipeline);
     const workflowId = config ? this.pipelines.getWorkflowId(config) : null;
     if (!config || !workflowId) {

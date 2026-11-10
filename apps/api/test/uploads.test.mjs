@@ -92,6 +92,7 @@ async function img(w, h, format = 'jpeg') {
 }
 
 process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+process.env.RUNNINGHUB_WORKFLOW_MOTION ??= 'wf-motion';
 
 describe('Story 2.2: [BE] Tải ảnh lên R2 an toàn', () => {
   let app, baseUrl, pool, prisma, jwt;

@@ -70,6 +70,7 @@ function parseTlv(s) {
 }
 
 process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+process.env.RUNNINGHUB_WORKFLOW_MOTION ??= 'wf-motion';
 
 describe('getTopupThrottleOptions', () => {
   const KEYS = ['TOPUP_THROTTLE_LIMIT', 'TOPUP_THROTTLE_TTL_MS'];

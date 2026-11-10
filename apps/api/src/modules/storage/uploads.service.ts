@@ -305,19 +305,39 @@ export class UploadsService {
   }
 
   /** Trả true khi mọi khóa `in/` đều thuộc userId và đã confirmed (AD-1: chỉ storage đọc bảng uploads). */
-  async areConfirmedKeysOwnedBy(userId: string, keys: string[]): Promise<boolean> {
+  async areConfirmedKeysOwnedBy(
+    userId: string,
+    keys: string[],
+    kind: 'image' | 'video' = 'image',
+  ): Promise<boolean> {
     const unique = [...new Set(keys)];
     const rows = await this.prisma.upload.findMany({
       where: {
         userId,
         status: 'confirmed',
-        kind: 'image',
+        kind,
         confirmedKey: { in: unique },
         OR: [{ confirmedAt: null }, { confirmedAt: { gte: new Date(Date.now() - CONFIRMED_RETENTION_MS) } }],
       },
       select: { confirmedKey: true },
     });
     return rows.length === unique.length;
+  }
+
+  /** Độ dài (giây, đã đo bằng ffprobe) của video `in/` đã xác nhận, còn hạn, của chủ; null nếu không hợp lệ. */
+  async getConfirmedVideoDuration(userId: string, key: string): Promise<number | null> {
+    const row = await this.prisma.upload.findFirst({
+      where: {
+        userId,
+        status: 'confirmed',
+        kind: 'video',
+        confirmedKey: key,
+        OR: [{ confirmedAt: null }, { confirmedAt: { gte: new Date(Date.now() - CONFIRMED_RETENTION_MS) } }],
+      },
+      select: { durationSeconds: true },
+    });
+    const d = row?.durationSeconds;
+    return typeof d === 'number' && Number.isInteger(d) && d > 0 ? d : null;
   }
 
   /** Chuyển bản ghi pending quá 24 giờ sang expired. Trả số bản ghi đã chuyển. */
