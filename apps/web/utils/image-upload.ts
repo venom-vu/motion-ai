@@ -1,4 +1,9 @@
 import {
+  getValidationReasonMessageVi,
+  MAX_VIDEO_BYTES,
+  MOTION_MIN_TRIM_SECONDS,
+  VideoFileDeclarationSchema,
+  type VideoMimeType,
   IMAGE_MIME_TYPES,
   ImageFileDeclarationSchema,
   ImageMetaSchema,
@@ -243,3 +248,114 @@ export async function validateImageFile(
   };
 }
 
+
+/** Chuẩn hóa MIME video từ type của trình duyệt hoặc phần mở rộng. */
+export function normalizeVideoMimeType(
+  rawType: string | undefined | null,
+  fileName: string | undefined | null,
+): VideoMimeType | string {
+  const cleanType = (rawType ?? '').trim().toLowerCase();
+  if (cleanType === 'video/mp4') return 'video/mp4';
+  if (cleanType === 'video/quicktime') return 'video/quicktime';
+  if (cleanType === '') {
+    const ext = (fileName ?? '').split('.').pop()?.toLowerCase();
+    if (ext === 'mp4') return 'video/mp4';
+    if (ext === 'mov') return 'video/quicktime';
+  }
+  return cleanType;
+}
+
+const VIDEO_METADATA_TIMEOUT_MS = 10_000;
+
+/**
+ * Đọc độ dài video (giây) từ metadata. Đối tượng có sẵn `durationSeconds`
+ * (số dương) được dùng trực tiếp, phục vụ test và mock.
+ */
+export function getVideoDuration(
+  file: Blob | (Blob & { durationSeconds?: number }),
+): Promise<number> {
+  const candidate = file as { durationSeconds?: unknown };
+  if (typeof candidate.durationSeconds === 'number') {
+    return Promise.resolve(candidate.durationSeconds);
+  }
+  return new Promise((resolve, reject) => {
+    if (typeof document === 'undefined' || typeof URL === 'undefined') {
+      reject(new Error('unreadable'));
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    const timer = setTimeout(
+      () => done(() => reject(new Error('unreadable'))),
+      VIDEO_METADATA_TIMEOUT_MS,
+    );
+    const done = (fn: () => void) => {
+      clearTimeout(timer);
+      video.removeAttribute('src');
+      video.load();
+      URL.revokeObjectURL(url);
+      fn();
+    };
+    video.preload = 'metadata';
+    video.muted = true;
+    video.onloadedmetadata = () => {
+      const d = video.duration;
+      done(() =>
+        Number.isFinite(d) && d > 0 ? resolve(d) : reject(new Error('unreadable')),
+      );
+    };
+    video.onerror = () => done(() => reject(new Error('unreadable')));
+    video.src = url;
+  });
+}
+
+export const VIDEO_UNREADABLE_MESSAGE_VI = getValidationReasonMessageVi('VIDEO_UNREADABLE');
+
+/** Kiểm tra video phía client: MIME, dung lượng, độ dài tối thiểu. */
+export async function validateVideoFile(
+  file: File | (Blob & { name?: string; durationSeconds?: number }),
+): Promise<
+  | {
+      valid: true;
+      mimeType: VideoMimeType;
+      sizeBytes: number;
+      durationSeconds: number;
+    }
+  | { valid: false; errorVi: string }
+> {
+  const fileName = 'name' in file ? file.name : undefined;
+  const mime = normalizeVideoMimeType(file.type, fileName);
+  const decl = VideoFileDeclarationSchema.safeParse({
+    mimeType: mime,
+    sizeBytes: file.size,
+  });
+  if (!decl.success) {
+    return {
+      valid: false,
+      errorVi:
+        decl.error.issues[0]?.message ??
+        `Tệp không hợp lệ. Vui lòng chọn video MP4 hoặc MOV ≤ ${MAX_VIDEO_BYTES / 1024 / 1024} MB.`,
+    };
+  }
+  let durationSeconds: number;
+  try {
+    durationSeconds = await getVideoDuration(file);
+  } catch {
+    return { valid: false, errorVi: VIDEO_UNREADABLE_MESSAGE_VI };
+  }
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    return { valid: false, errorVi: VIDEO_UNREADABLE_MESSAGE_VI };
+  }
+  if (durationSeconds < MOTION_MIN_TRIM_SECONDS) {
+    return {
+      valid: false,
+      errorVi: getValidationReasonMessageVi('VIDEO_TOO_SHORT'),
+    };
+  }
+  return {
+    valid: true,
+    mimeType: decl.data.mimeType,
+    sizeBytes: decl.data.sizeBytes,
+    durationSeconds,
+  };
+}

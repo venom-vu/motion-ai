@@ -5,10 +5,7 @@ import {
   type UploadConfirmResponse,
 } from '@flowvis/contracts';
 import { useApiClient } from '~/composables/useApiClient';
-import {
-  resolveApiErrorMessageVi,
-  uploadPresignedFile,
-} from '~/utils/api-client';
+import { useUploadFlow } from '~/composables/useUploadFlow';
 import {
   computeCameraCaptureDimensions,
   formatFileSizeVi,
@@ -48,6 +45,7 @@ const emit = defineEmits<{
 }>();
 
 const { client } = useApiClient();
+const uploadFlow = useUploadFlow(client);
 
 const libraryInputRef = ref<HTMLInputElement | null>(null);
 const cameraInputRef = ref<HTMLInputElement | null>(null);
@@ -66,10 +64,9 @@ const currentFile = ref<File | null>(null);
 const currentMeta = ref<ImageMeta | null>(null);
 const confirmedKey = ref<string | null>(props.modelValue ?? null);
 const previewUrl = ref<string | null>(props.initialPreviewUrl ?? null);
-const uploadProgress = ref<number>(0);
+const uploadProgress = uploadFlow.progress;
 const errorMessageVi = ref<string | null>(null);
 
-let activeAbortController: AbortController | null = null;
 const isDragging = ref(false);
 
 watch(
@@ -98,10 +95,7 @@ function clearOldPreview(): void {
 }
 
 function cancelOngoingUpload(): void {
-  if (activeAbortController) {
-    activeAbortController.abort();
-    activeAbortController = null;
-  }
+  uploadFlow.cancel();
   isDragging.value = false;
 }
 
@@ -308,63 +302,35 @@ async function startUpload(file: File, meta: ImageMeta): Promise<void> {
   uploadProgress.value = 0;
   errorMessageVi.value = null;
 
-  activeAbortController = new AbortController();
-  const signal = activeAbortController.signal;
+  const result = await uploadFlow.start({
+    file,
+    declaration: { mimeType: meta.mimeType, sizeBytes: meta.sizeBytes },
+    confirm: (key, opts) => client.confirmUpload(key, undefined, opts),
+  });
 
-  try {
-    // Bước 1: Khai báo file và lấy URL presigned
-    const createRes = await client.createUpload(
-      {
-        mimeType: meta.mimeType,
-        sizeBytes: meta.sizeBytes,
-      },
-      { signal },
-    );
-
-    if (signal.aborted) return;
-
-    // Bước 2: Tải trực tiếp lên R2 qua URL ký
-    await uploadPresignedFile({
-      uploadUrl: createRes.uploadUrl,
-      headers: createRes.headers,
-      file,
-      signal,
-      onProgress: (percent) => {
-        uploadProgress.value = percent;
-      },
-    });
-
-    if (signal.aborted) return;
-
-    // Bước 3: Xác nhận hoàn tất tải lên
-    const confirmRes = await client.confirmUpload(createRes.key, undefined, {
-      signal,
-    });
-
-    if (signal.aborted) return;
-
-    confirmedKey.value = confirmRes.key;
-    currentMeta.value = confirmRes.image;
-    status.value = 'ready';
-    uploadProgress.value = 100;
-
-    emit('update:modelValue', confirmRes.key);
-    emit('success', confirmRes, file);
-    emit('change', {
-      key: confirmRes.key,
-      meta: confirmRes.image,
-    });
-  } catch (error: unknown) {
-    if (signal.aborted) {
-      status.value = 'idle';
-      return;
-    }
-    status.value = 'error';
-    errorMessageVi.value = resolveApiErrorMessageVi(error);
-    emit('error', errorMessageVi.value);
-  } finally {
-    activeAbortController = null;
+  if (result.status === 'aborted') {
+    if (currentFile.value === file) status.value = 'idle';
+    return;
   }
+  if (result.status === 'error') {
+    status.value = 'error';
+    errorMessageVi.value = result.messageVi;
+    emit('error', result.messageVi);
+    return;
+  }
+
+  const confirmRes = result.data;
+  confirmedKey.value = confirmRes.key;
+  currentMeta.value = confirmRes.image;
+  status.value = 'ready';
+  uploadProgress.value = 100;
+
+  emit('update:modelValue', confirmRes.key);
+  emit('success', confirmRes, file);
+  emit('change', {
+    key: confirmRes.key,
+    meta: confirmRes.image,
+  });
 }
 
 function handleCancel(): void {
@@ -375,7 +341,7 @@ function handleCancel(): void {
   confirmedKey.value = null;
   currentMeta.value = null;
   previewUrl.value = null;
-  uploadProgress.value = 0;
+  uploadFlow.reset();
   errorMessageVi.value = null;
   status.value = 'idle';
   emit('update:modelValue', null);

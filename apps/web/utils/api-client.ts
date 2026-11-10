@@ -41,6 +41,7 @@ import {
   UploadConfirmParamsSchema,
   UploadConfirmRequestSchema,
   UploadConfirmResponseSchema,
+  UploadConfirmVideoResponseSchema,
   UploadCreateRequestSchema,
   UploadCreateResponseSchema,
   TopupConfirmTransferResponseSchema,
@@ -100,6 +101,7 @@ import {
   type TopupStatus,
   type UploadConfirmRequest,
   type UploadConfirmResponse,
+  type UploadConfirmVideoResponse,
   type UploadCreateRequest,
   type UploadCreateResponse,
   type WalletLedgerQuery,
@@ -574,6 +576,18 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
           signal: options?.signal,
         },
         (payload) => UploadConfirmResponseSchema.parse(payload),
+      );
+    },
+
+    async confirmVideoUpload(
+      key: string,
+      options?: { signal?: AbortSignal },
+    ): Promise<UploadConfirmVideoResponse> {
+      UploadConfirmParamsSchema.parse({ key });
+      return requestLive(
+        `/uploads/${encodeURIComponent(key)}/confirm`,
+        { method: 'POST', signal: options?.signal },
+        (payload) => UploadConfirmVideoResponseSchema.parse(payload),
       );
     },
 
