@@ -228,3 +228,12 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-7-fe-tai-video-mau-va-thanh-trim.md`
   summary: Thêm test mount `VideoTrimmer`/`ImageUploader` (phát `change`, hủy, thử lại, unmount) và tách bộ đọc độ dài khỏi hook kiểm thử `durationSeconds` trong `getVideoDuration`.
   evidence: Test thành phần hiện chỉ so chuỗi và biên dịch template; hàm thuần và `useUploadFlow` đã có test hành vi.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-4-be-cat-video-bang-ffmpeg-o-buoc-chuan-bi-cua-worker.md`
+  summary: Thêm backoff cho `fetchWithRetry`, stream video vào/ra đĩa thay vì giữ cả `Buffer`, thư mục tạm theo tiến trình khi nhân bản worker, và tách singleton `videoTrim` khỏi vòng phụ thuộc `pipelines/` ↔ `tasks/` (DI) khi 5.5 đổi cấu trúc `prepare`.
+  evidence: Giới hạn hiện tại 100 MB, 2 Lane, một worker; đo tải CPU/đĩa thật thuộc bước kiểm thử ffmpeg của Epic 6.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-8-fe-trang-motion-control-gia-truc-tiep-va-ket-qua-video.md`
+  summary: Bổ sung `og:video:secure_url`/kích thước/Twitter player cho trang chia sẻ video, tải MP4 bằng liên kết thay vì blob, làm mới ảnh bìa hết hạn, và đo tải N+1 `GET /tasks/{id}/result` của thẻ lịch sử khi nối BE thật.
+  evidence: Review nêu; spec cho phép N+1 ở Design Notes, kiểm ở Story 5.9.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-8-fe-trang-motion-control-gia-truc-tiep-va-ket-qua-video.md`
+  summary: Tách `MotionWorkspacePanel` khỏi `FeatureWorkspaceDialog` (hiện `useMotionControl` chạy trong mọi dialog), gỡ `selectedSeconds` còn sót, và tìm hiểu lại quyết định bỏ ô cam kết ToS/`VietQRModal` tại chỗ nếu sản phẩm cần.
+  evidence: Lệch AC 5.8 theo quyết định của người dùng (2A/3A/4B); `selectedSeconds` không còn dùng sau khi dialog nhúng `VideoTrimmer`.
