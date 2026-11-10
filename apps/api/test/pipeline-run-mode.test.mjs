@@ -46,6 +46,7 @@ describe('PipelinesService.getRunMode: chọn ai-app hoặc workflow theo env', 
 
   it('onModuleInit từ chối giá trị lạ để api và worker không khởi động sai', () => {
     process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+    process.env.RUNNINGHUB_WORKFLOW_MOTION ??= 'wf-motion';
     process.env.RUNNINGHUB_MODE_FACESWAP = 'xyz';
     assert.throws(() => svc.onModuleInit(), /RUNNINGHUB_MODE_FACESWAP không hợp lệ/);
   });

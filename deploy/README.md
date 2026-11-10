@@ -56,3 +56,7 @@ Presigned PUT ký kèm `Content-Type` và `Content-Length`: client phải PUT đ
 Biến chỉ có tác dụng khi `NODE_ENV=test` (bị bỏ qua ở production): `TOPUP_QR_TTL_MS` (rút hạn QR), `TOPUP_FAKE_NOW` (ISO, giả đồng hồ tính `approve_by`), `TOPUP_SWEEP_INTERVAL` (chu kỳ bộ quét, ms). Biến cấu hình thật: `TOPUP_BANK_BIN`, `TOPUP_BANK_ACCOUNT_NO`, `TOPUP_BANK_ACCOUNT_NAME`, `DISCORD_WEBHOOK_URL`, `ADMIN_EMAILS` (xem `deploy/.env.example`; giá trị smoke là giả).
 
 Cảnh báo quá hạn duyệt đơn nạp dùng cột `overdue_notify_attempts` (tối đa 5 lượt, giãn 60 giây giữa các lượt); Discord sập kéo dài thì dừng sau lượt thứ 5 và ghi log lỗi. `TOPUP_BANK_BIN` phải đủ 6 chữ số và `TOPUP_BANK_ACCOUNT_NO` 6 đến 19 chữ số, sai định dạng thì tạo/hiển thị đơn trả 500 và ghi log.
+
+## Cắt video bằng ffmpeg (Story 5.4)
+
+Worker cắt video Motion Control ở bước chuẩn bị: một ffmpeg mỗi lúc (khóa FIFO trong tiến trình worker), chạy với `nice -n 19`, thư mục tạm riêng cho từng Task trong `$TMPDIR/flowvis-trim` và xóa khi xong, khi lỗi, khi hủy và khi worker khởi động. Cần đĩa trống tối thiểu 3 lần kích thước video đầu vào. Việc đo CPU và đĩa thật trên VPS 4 vCPU thuộc bước kiểm thử ffmpeg của Epic 6.

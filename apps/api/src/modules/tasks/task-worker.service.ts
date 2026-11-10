@@ -18,6 +18,7 @@ import { PipelinesService } from '../pipelines/pipelines.service.js';
 import { PRICING_CONFIG } from '../wallet/tier.js';
 import { clampCoins } from './result-ingestor.js';
 import { isTerminal } from './task-transitions.js';
+import { PrepareError, videoTrim } from './video-trim.service.js';
 import { TASKS_QUEUE, TasksService } from './tasks.service.js';
 
 export const WORKER_CONCURRENCY = 2;
@@ -87,8 +88,13 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
     @Inject(RESULT_INGESTOR) private readonly ingestor: ResultIngestor,
   ) {}
 
-  onModuleInit(): void {
+  async onModuleInit(): Promise<void> {
     if (process.env.MOTION_PROCESS_ROLE !== 'worker') return;
+    try {
+      await videoTrim.cleanupStale();
+    } catch (err) {
+      this.logger.warn(`Không dọn được thư mục tạm ffmpeg: ${String(err)}`);
+    }
     this.worker = new Worker(
       TASKS_QUEUE,
       async (job) => {
@@ -187,6 +193,11 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
   /** (a) chuẩn bị, (b) cổng, (c) upload, (d) submit, rồi poll. */
   private async runFromUpload(row: TaskRow, signal: AbortSignal, gatePassed: boolean): Promise<void> {
     const taskId = row.id;
+    // TẠM: gỡ ở Story 5.5 (pipeline Motion chưa sẵn sàng chạy RunningHub).
+    if (row.pipeline === 'motion_control') {
+      await this.finish(taskId, 'failed', 'INTERNAL_ERROR');
+      return;
+    }
     const config = this.pipelines.getConfig(row.pipeline);
     const workflowId = config ? this.pipelines.getWorkflowId(config) : null;
     if (!config || !workflowId) {
@@ -196,10 +207,20 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
 
     // (a)
     let inputs: Record<string, Buffer>;
+    const prepDeadline = config.prepare && row.prepDeadlineAt ? AbortSignal.timeout(Math.max(0, row.prepDeadlineAt.getTime() - Date.now())) : null;
     try {
-      inputs = await this.loadInputs(row, config, signal);
+      inputs = await this.loadInputs(row, config, prepDeadline ? AbortSignal.any([signal, prepDeadline]) : signal);
     } catch (err) {
       if (signal.aborted) return;
+      if (prepDeadline?.aborted) {
+        await this.finish(taskId, 'timed_out', 'PREP_TIMEOUT');
+        return;
+      }
+      if (err instanceof PrepareError) {
+        this.logger.warn(`Bước chuẩn bị Task ${taskId} lỗi (${err.reason}): ${err.message}`);
+        await this.finish(taskId, 'failed', err.reason);
+        return;
+      }
       this.logger.warn(`Không đọc được input của Task ${taskId}: ${String(err)}`);
       await this.finish(taskId, 'failed', 'INPUT_FETCH_ERROR');
       return;
@@ -275,6 +296,7 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async loadInputs(row: TaskRow, config: PipelineConfig, signal?: AbortSignal): Promise<Record<string, Buffer>> {
+    if (config.prepare) return config.prepare({ row, storage: this.storage, signal: signal ?? new AbortController().signal });
     const keys = (row.inputKeys ?? {}) as Record<string, string>;
     const out: Record<string, Buffer> = {};
     for (const m of config.inputs) {
@@ -282,7 +304,7 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
       if (!key) throw new Error(`Thiếu input ${m.inputKey}`);
       out[m.inputKey] = await this.storage.getObject(key, signal);
     }
-    return config.prepare ? config.prepare(out) : out;
+    return out;
   }
 
   /** Trả true khi đã qua cổng (deadline_at đã ghi). */

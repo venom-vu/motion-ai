@@ -71,6 +71,7 @@ Queue.prototype.getJob = async function (id) {
 };
 
 process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+process.env.RUNNINGHUB_WORKFLOW_MOTION ??= 'wf-motion';
 
 describe('Story 2.4: [BE] Máy trạng thái Task bằng compare-and-set', () => {
   let app, baseUrl, pool, prisma, jwt, svc;

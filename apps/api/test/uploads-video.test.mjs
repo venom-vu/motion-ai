@@ -112,6 +112,7 @@ VideoProbeService.prototype.runFfprobe = function (url) {
 };
 
 process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+process.env.RUNNINGHUB_WORKFLOW_MOTION ??= 'wf-motion';
 
 describe('Story 5.2: [BE] Tải video lên và kiểm tra bằng ffprobe', () => {
   let app, baseUrl, pool, prisma, jwt;

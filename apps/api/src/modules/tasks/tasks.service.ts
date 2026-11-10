@@ -13,9 +13,15 @@ import { InjectQueue } from '@nestjs/bullmq';
 import {
   ApiErrorCode,
   getApiErrorMessageVi,
+  getValidationReasonMessageVi,
+  type MotionCreateResponse,
   BodyRetouchCreateRequestSchema,
   type BodyRetouchCreateRequest,
   type FaceSwapCreateRequest,
+  type MotionCreateRequest,
+  type ValidationReason,
+  MOTION_MIN_TRIM_SECONDS,
+  motionPrice,
   type ReasonCode,
   type Task,
   type TaskListQuery,
@@ -387,21 +393,73 @@ export class TasksService {
     });
   }
 
-  private async createPipelineTask(
-    userId: string,
-    spec: {
-      pipeline: 'face_swap' | 'body_retouch';
-      amount: number;
-      inputKeys: Record<string, string>;
-      params: Record<string, unknown>;
-    },
-  ): Promise<Task> {
-    const owned = await this.uploads.areConfirmedKeysOwnedBy(userId, Object.values(spec.inputKeys));
-    if (!owned) {
-      throw new BadRequestException({
+  private trimError(reason: ValidationReason, cap?: number): BadRequestException {
+    return new BadRequestException({
+      code: ApiErrorCode.VALIDATION_FAILED,
+      message: getValidationReasonMessageVi(reason, cap),
+      details: { reason, ...(cap !== undefined ? { cap } : {}) },
+    });
+  }
+
+  async createMotionControl(userId: string, req: MotionCreateRequest): Promise<MotionCreateResponse> {
+    const { characterKey, videoKey, trimStart, trimEnd } = req;
+    if (!Number.isInteger(trimStart) || !Number.isInteger(trimEnd)) {
+      throw this.trimError('TRIM_NOT_WHOLE_SECOND');
+    }
+    const invalid = () =>
+      new BadRequestException({
         code: ApiErrorCode.VALIDATION_FAILED,
         message: getApiErrorMessageVi(ApiErrorCode.VALIDATION_FAILED),
       });
+    if (characterKey === videoKey) throw invalid();
+    const [imageOk, durationSeconds] = await Promise.all([
+      this.uploads.areConfirmedKeysOwnedBy(userId, [characterKey], 'image'),
+      this.uploads.getConfirmedVideoDuration(userId, videoKey),
+    ]);
+    if (!imageOk || durationSeconds === null) throw invalid();
+    if (trimStart < 0 || trimEnd > durationSeconds) throw this.trimError('TRIM_OUT_OF_VIDEO');
+    const seconds = trimEnd - trimStart;
+    if (seconds < MOTION_MIN_TRIM_SECONDS) throw this.trimError('TRIM_TOO_SHORT');
+    const price = motionPrice(seconds);
+    const task = await this.createPipelineTask(userId, {
+      pipeline: 'motion_control',
+      amount: price,
+      inputKeys: { characterKey, videoKey },
+      params: { trimStart, trimEnd, seconds, price },
+      keysVerified: true,
+      postHold: (snapshot) => {
+        // Cap theo Tier Snapshot do ví đọc trong transaction; ném lỗi để rollback cả HOLD.
+        const cap = snapshot.maxVideoSeconds;
+        if (!Number.isFinite(cap) || cap < MOTION_MIN_TRIM_SECONDS) {
+          throw new Error(`Cap Tier Snapshot không hợp lệ: ${String(cap)}`);
+        }
+        if (seconds > cap) {
+          throw this.trimError('TRIM_EXCEEDS_CAP', snapshot.maxVideoSeconds);
+        }
+      },
+    });
+    return { ...task, pipeline: 'motion_control', price } as MotionCreateResponse;
+  }
+
+  private async createPipelineTask(
+    userId: string,
+    spec: {
+      pipeline: 'face_swap' | 'body_retouch' | 'motion_control';
+      amount: number;
+      inputKeys: Record<string, string>;
+      params: Record<string, unknown>;
+      keysVerified?: boolean;
+      postHold?: (snapshot: TierSnapshot) => void;
+    },
+  ): Promise<Task> {
+    if (!spec.keysVerified) {
+      const owned = await this.uploads.areConfirmedKeysOwnedBy(userId, Object.values(spec.inputKeys));
+      if (!owned) {
+        throw new BadRequestException({
+          code: ApiErrorCode.VALIDATION_FAILED,
+          message: getApiErrorMessageVi(ApiErrorCode.VALIDATION_FAILED),
+        });
+      }
     }
 
     const taskId = crypto.randomUUID();
@@ -423,6 +481,7 @@ export class TasksService {
       if (active >= MAX_ACTIVE_TASKS_PER_USER) throw new TaskLimitException();
 
       const snapshot: TierSnapshot = await this.wallet.hold(tx, userId, taskId, amount);
+      spec.postHold?.(snapshot);
       const task = await tx.task.create({
         data: {
           id: taskId,

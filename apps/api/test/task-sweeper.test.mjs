@@ -55,6 +55,7 @@ async function ensureInfra() {
 
 
 process.env.RUNNINGHUB_WORKFLOW_BODY_RESHAPE ??= 'wf-body';
+process.env.RUNNINGHUB_WORKFLOW_MOTION ??= 'wf-motion';
 
 describe('Story 2.7: [BE] Bộ quét Task treo và hạn chót', () => {
   let app, baseUrl, pool, prisma, jwt, svc, worker, sweeper, queue;
