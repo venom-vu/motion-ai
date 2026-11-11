@@ -185,7 +185,7 @@ export class RunningHubOpenApiAdapter implements RunningHubPort {
     const payload =
       mode === 'workflow'
         ? { addMetadata: false, nodeInfoList, instanceType: 'default', usePersonalQueue: 'false' }
-        : { nodeInfoList, instanceType: 'default' };
+        : { nodeInfoList, instanceType: 'default', usePersonalQueue: 'false' };
     const env = await this.post(path, JSON.stringify(payload), signal);
     const err = v2ErrorCode(env);
     // Bận/giới hạn tần suất: task chưa được tạo nên thử lại an toàn (requestSent=false).

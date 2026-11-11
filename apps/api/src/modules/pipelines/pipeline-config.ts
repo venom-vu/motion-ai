@@ -29,6 +29,8 @@ export interface PipelineConfig {
   readonly inputs: readonly PipelineInputMapping[];
   /** Tham số từ tasks.params truyền cho workflow (giá trị dạng chuỗi). */
   readonly params?: readonly PipelineParamMapping[];
+  /** Node có giá trị cố định, luôn gửi kèm (vd. tắt lưu bản trung gian, tốc độ khung hình). */
+  readonly fixedNodes?: readonly { readonly nodeId: string; readonly fieldName: string; readonly fieldValue: string }[];
   /** true: thiếu biến môi trường workflow thì api/worker không khởi động. */
   readonly requiredAtStartup?: boolean;
   /** Khóa trong tasks.input_keys của ảnh tham chiếu: ảnh kết quả phải cùng kích thước (sau xoay EXIF) với ảnh này. */
@@ -45,10 +47,10 @@ export const PIPELINE_CONFIGS: Readonly<Record<string, PipelineConfig>> = {
     workflowEnvVar: 'RUNNINGHUB_WORKFLOW_FACESWAP',
     runModeEnvVar: 'RUNNINGHUB_MODE_FACESWAP',
     defaultRunMode: 'ai-app',
-    // [ASSUMPTION] nodeId/fieldName (137 = nguồn, 10 = đích) chưa được xác nhận bằng một lần chạy thật; phải đối chiếu với AI App trên RunningHub.
+    // AI App Face Swap: node 137 = Reference image (ảnh đích, giữ bố cục và kích thước), node 10 = Face image (ảnh nguồn, khuôn mặt).
     inputs: [
-      { inputKey: 'sourceKey', nodeId: '137', fieldName: 'image' },
-      { inputKey: 'targetKey', nodeId: '10', fieldName: 'image' },
+      { inputKey: 'targetKey', nodeId: '137', fieldName: 'image' },
+      { inputKey: 'sourceKey', nodeId: '10', fieldName: 'image' },
     ],
     referenceInputKey: 'targetKey',
   },
@@ -56,13 +58,10 @@ export const PIPELINE_CONFIGS: Readonly<Record<string, PipelineConfig>> = {
     pipeline: 'body_retouch',
     workflowEnvVar: 'RUNNINGHUB_WORKFLOW_BODY_RESHAPE',
     runModeEnvVar: 'RUNNINGHUB_MODE_BODY_RESHAPE',
-    defaultRunMode: 'workflow',
+    defaultRunMode: 'ai-app',
     requiredAtStartup: true,
-    // Theo workflow Flux Kontext + LoRA "kontext_big_breasts_and_butts": node 198 = LoadImage (ảnh đầu vào).
-    // Prompt (node 6), LoRA (node 202) và KSampler cố định trong workflow nên không truyền từ API.
-    // intensity (1-10, mặc định 5) -> strength_model của LoRA (node 202): 5 => 1.0 (mặc định workflow), 10 => 2.0.
-    inputs: [{ inputKey: 'imageKey', nodeId: '198', fieldName: 'image' }],
-    params: [{ paramKey: 'intensity', nodeId: '202', fieldName: 'strength_model', scale: 0.2 }],
+    // AI App Body Reshape chỉ có một node đầu vào: node 4 = LoadImage (ảnh). Không còn node LoRA nên `intensity` không truyền sang RunningHub.
+    inputs: [{ inputKey: 'imageKey', nodeId: '4', fieldName: 'image' }],
     referenceInputKey: 'imageKey',
   },
   motion_control: {
@@ -71,10 +70,10 @@ export const PIPELINE_CONFIGS: Readonly<Record<string, PipelineConfig>> = {
     runModeEnvVar: 'RUNNINGHUB_MODE_MOTION',
     defaultRunMode: 'workflow',
     requiredAtStartup: true,
-    // [ASSUMPTION] nodeId/fieldName chưa được xác nhận bằng một lần chạy thật; đối chiếu khi chạy benchmark ở Story 5.9.
+    // AI App Motion Control chỉ có hai node đầu vào: node 64 = ảnh nhân vật, node 65 = video chuyển động.
     inputs: [
-      { inputKey: 'characterKey', nodeId: '1', fieldName: 'image' },
-      { inputKey: 'videoKey', nodeId: '2', fieldName: 'video' },
+      { inputKey: 'characterKey', nodeId: '64', fieldName: 'image' },
+      { inputKey: 'videoKey', nodeId: '65', fieldName: 'video' },
     ],
     deadlineMs: 360_000,
     prepare: (ctx) => videoTrim.prepare(ctx),

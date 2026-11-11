@@ -284,14 +284,14 @@ export class TasksService {
       ORDER BY queued_at LIMIT ${limit}`;
   }
 
-  /** Bộ quét: Task running có hạn chót nào đó đã qua (deadline_at, gate_deadline hoặc prep_deadline_at). */
+  /** Bộ quét: Task running chưa qua cổng mà gate_deadline hoặc prep_deadline_at đã qua. */
   async sweepRunningExpired(limit = 100) {
     return this.prisma.$queryRaw<SweepRow[]>`
       SELECT id, enqueue_attempts, (tier_snapshot->>'priority')::int AS priority,
         deadline_at, prep_deadline_at, gate_deadline
       FROM tasks
-      WHERE status = 'running' AND (deadline_at <= now()
-        OR (deadline_at IS NULL AND (gate_deadline <= now() OR prep_deadline_at <= now()))) IS TRUE
+      WHERE status = 'running' AND (deadline_at IS NULL
+        AND (gate_deadline <= now() OR prep_deadline_at <= now())) IS TRUE
       ORDER BY running_at LIMIT ${limit}`;
   }
 
@@ -301,8 +301,8 @@ export class TasksService {
       SELECT id, enqueue_attempts, (tier_snapshot->>'priority')::int AS priority,
         deadline_at, prep_deadline_at, gate_deadline
       FROM tasks
-      WHERE status = 'running' AND (deadline_at <= now()
-        OR (deadline_at IS NULL AND (gate_deadline <= now() OR prep_deadline_at <= now()))) IS NOT TRUE
+      WHERE status = 'running' AND (deadline_at IS NULL
+        AND (gate_deadline <= now() OR prep_deadline_at <= now())) IS NOT TRUE
       ORDER BY running_at LIMIT ${limit}`;
   }
 

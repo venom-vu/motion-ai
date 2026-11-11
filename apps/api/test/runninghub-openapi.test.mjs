@@ -74,7 +74,7 @@ describe('RunningHubOpenApiAdapter', () => {
     assert.equal(req.url, '/openapi/v2/run/ai-app/1915026059757322242');
     assert.equal(req.headers.authorization, `Bearer ${API_KEY}`);
     const body = JSON.parse(req.body.toString());
-    assert.deepEqual(body, { nodeInfoList: nodes, instanceType: 'default' });
+    assert.deepEqual(body, { nodeInfoList: nodes, instanceType: 'default', usePersonalQueue: 'false' });
     assert.ok(!('apiKey' in body));
   });
 

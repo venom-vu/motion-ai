@@ -407,7 +407,7 @@ describe('Smoke Motion Control FE-BE trên stack Compose (Story 5.9)', () => {
         assert.equal(sub1.workflowId, 'smoke-workflow-motion');
         assert.deepEqual(
           sub1.nodeInfoList.map((n) => [n.nodeId, n.fieldName]),
-          [['1', 'image'], ['2', 'video']],
+          [['64', 'image'], ['65', 'video']],
         );
         const upNames = new Set(rh.uploads.map((u) => u.fileName));
         assert.ok(upNames.has(sub1.nodeInfoList[0].fieldValue), 'node image là tên file đã tải lên RH');

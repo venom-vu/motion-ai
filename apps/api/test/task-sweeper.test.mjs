@@ -183,33 +183,15 @@ describe('Story 2.7: [BE] Bộ quét Task treo và hạn chót', () => {
     assert.equal((await ledger(id, 'CAPTURED')).length, 0);
   });
 
-  it('Running quá deadline_at (job chết): timed_out/RH_TIMEOUT, orphan ~10 phút, RELEASED', async () => {
+  it('Running đã qua cổng, quá deadline_at: không bao giờ hết hạn, vẫn running, không RELEASED', async () => {
     await clean();
     const id = await running(await newUser());
-    await upd(id, `deadline_at = now() - interval '1 second'`);
+    await upd(id, `deadline_at = now() - interval '1 hour'`);
     await sweeper.sweep();
     const r = await row(id);
-    assert.equal(r.status, 'timed_out');
-    assert.equal(r.reason_code, 'RH_TIMEOUT');
-    const ms = r.rh_orphan_until.getTime() - Date.now();
-    assert.ok(ms > 9 * 60_000 && ms <= 10 * 60_000 + 5000, String(ms));
-    assert.equal((await ledger(id, 'RELEASED')).length, 1);
-    assert.equal((await ledger(id, 'CAPTURED')).length, 0);
-  });
-
-  it('Running quá deadline_at (job còn sống): timed_out, job bị xóa, signal bị hủy', async () => {
-    await clean();
-    const id = await running(await newUser());
-    await upd(id, `deadline_at = now() - interval '1 second'`);
-    await queue.add('process', { taskId: id }, { jobId: id, delay: 600_000 });
-    const ctrl = new AbortController();
-    worker.controllers.set(id, ctrl);
-    try {
-      await sweeper.sweep();
-    } finally { worker.controllers.delete(id); }
-    assert.equal((await row(id)).status, 'timed_out');
-    assert.equal(await queue.getJob(id), undefined);
-    assert.equal(ctrl.signal.aborted, true);
+    assert.equal(r.status, 'running');
+    assert.equal(r.reason_code, null);
+    assert.equal((await ledger(id, 'RELEASED')).length, 0);
   });
 
   it('Running quá prep, job chết: timed_out/PREP_TIMEOUT, không orphan', async () => {

@@ -341,8 +341,8 @@ describe('Story 5.3: [BE] Tạo Task Motion Control', () => {
       assert.equal(calls.submit, 1);
       assert.equal(r.runninghub_task_id, 'rh-m1');
       assert.deepEqual(calls.nodes[1], [
-        { nodeId: '1', fieldName: 'image', fieldValue: 'f1' },
-        { nodeId: '2', fieldName: 'video', fieldValue: 'f2' },
+        { nodeId: '64', fieldName: 'image', fieldValue: 'f1' },
+        { nodeId: '65', fieldName: 'video', fieldValue: 'f2' },
       ]);
       assert.equal(ingestCalls.length, 1);
       assert.equal(r.status, 'failed');
@@ -378,19 +378,15 @@ describe('Story 5.3: [BE] Tạo Task Motion Control', () => {
       });
     }
 
-    it('quá deadline_at khi poll => timed_out/RH_TIMEOUT, orphan, kết quả muộn bị bỏ qua', async () => {
+    it('quá deadline_at khi poll: không timed_out, vẫn nhận kết quả RunningHub SUCCESS', async () => {
       reset(); await clearGate();
-      outputsQueue = [{ status: 'RUNNING' }];
+      outputsQueue = [{ status: 'RUNNING' }, { status: 'SUCCESS', fileUrl: 'http://x/y.mp4', consumeMoney: 3 }];
       const id = await mkTask();
       await tasksSvc.transition(id, 'queued', 'running');
-      await upd(id, `deadline_at=now()+interval '300 milliseconds', submit_started_at=now(), runninghub_task_id='rh-late'`);
+      await upd(id, `deadline_at=now()-interval '1 hour', submit_started_at=now(), runninghub_task_id='rh-late'`);
       await worker.processTask(id);
-      const r = await row(id);
-      assert.equal(r.status, 'timed_out');
-      assert.equal(r.reason_code, 'RH_TIMEOUT');
-      assert.ok(r.rh_orphan_until > new Date());
-      assert.equal((await ledger(id, 'RELEASED')).length, 1);
-      assert.equal(ingestCalls.length, 0);
+      assert.notEqual((await row(id)).reason_code, 'RH_TIMEOUT');
+      assert.equal(ingestCalls.length, 1);
     });
 
     it('khởi động lại có runninghub_task_id: poll tiếp, không prepare/upload/submit lại', async () => {

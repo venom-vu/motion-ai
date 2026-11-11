@@ -141,7 +141,7 @@ export class ResultIngestorService implements ResultIngestor {
     const gpuCoins = clampCoins(consumeMoney);
     const row = await this.tasks.getWorkerRow(task.id);
     if (!row || row.status !== 'running') return;
-    const deadlineAt = row.deadlineAt ?? null;
+    const deadlineAt: Date | null = null; // RunningHub đã SUCCESS thì không bỏ dở vì hạn
 
     const fail = (reason: ReasonCode) =>
       this.tasks.transition(task.id, 'running', 'failed', reason, { gpuCoins });
@@ -505,15 +505,18 @@ export class ResultIngestorService implements ResultIngestor {
       throw new OutputInvalidError('ảnh toàn đen');
     }
 
+    // Workflow có thể trả ảnh khác kích thước (vd. làm tròn bội số 64): RunningHub đã thành công thì không báo lỗi, đưa về đúng kích thước ảnh tham chiếu.
+    let target: { width: number; height: number } | undefined;
     const refKey = this.pipelines.getConfig(pipeline)?.referenceInputKey;
     if (refKey) {
       const key = ((inputKeys ?? {}) as Record<string, string | undefined>)[refKey];
       if (!key) throw new Error(`Thiếu ảnh tham chiếu ${refKey}`);
       const refMeta = await sharp(await this.storage.getObject(key, signal)).metadata();
       const ref = displaySize(refMeta);
-      if (ref.width !== size.width || ref.height !== size.height) {
-        throw new OutputInvalidError(
-          `kích thước ${size.width}x${size.height} khác ảnh tham chiếu ${ref.width}x${ref.height}`,
+      if (ref.width && ref.height && (ref.width !== size.width || ref.height !== size.height)) {
+        target = { width: ref.width, height: ref.height };
+        this.logger.warn(
+          `Kích thước kết quả ${size.width}x${size.height} khác ảnh tham chiếu ${ref.width}x${ref.height}, co giãn về ${ref.width}x${ref.height}`,
         );
       }
     }
@@ -523,6 +526,7 @@ export class ResultIngestorService implements ResultIngestor {
       .rotate()
       .keepIccProfile()
       .withExif({ IFD0: { Software: EXIF_SOFTWARE }, IFD2: { UserComment: EXIF_COMMENT } });
+    if (target) pipe = pipe.resize(target.width, target.height, { fit: 'cover', kernel: 'lanczos3' });
     if (meta.format === 'png') pipe = pipe.png();
     else if (meta.format === 'jpeg') pipe = pipe.jpeg({ quality: JPEG_WEBP_QUALITY });
     else pipe = pipe.webp({ quality: JPEG_WEBP_QUALITY });

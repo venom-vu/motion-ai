@@ -79,7 +79,7 @@ describe('Story 4.3: [BE] Kết quả Body Retouch', () => {
   const runId = crypto.randomBytes(4).toString('hex');
   const users = [];
   const saved = {};
-  let store, fetchImpl, putCalls;
+  let store, fetchImpl;
 
   const fakeStorage = {
     async getObject(key) {
@@ -91,11 +91,10 @@ describe('Story 4.3: [BE] Kết quả Body Retouch', () => {
       const o = store.get(key);
       return o ? { sizeBytes: o.body.length, etag: '"e"', contentType: o.contentType } : null;
     },
-    async putObject(key, body, contentType) { putCalls++; store.set(key, { body, contentType }); return '"etag"'; },
+    async putObject(key, body, contentType) { store.set(key, { body, contentType }); return '"etag"'; },
     async delete(key) { store.delete(key); },
     async presignGet(key, ttl) { return `https://r2.example.test/${key}?X-Amz-Expires=${ttl}`; },
   };
-  const outKeys = () => [...store.keys()].filter((k) => k.startsWith('out/'));
 
   async function newUser() {
     const n = users.length;
@@ -156,7 +155,7 @@ describe('Story 4.3: [BE] Kết quả Body Retouch', () => {
     svc = app.get(TasksService);
     ingestor = app.get(ResultIngestorService);
     share = app.get(ShareService);
-    store = new Map(); putCalls = 0;
+    store = new Map();
     fetchImpl = async () => asResponse(await solid(40, 60, 'png'));
     svc.storage = fakeStorage;
     share.storage = fakeStorage;
@@ -179,7 +178,7 @@ describe('Story 4.3: [BE] Kết quả Body Retouch', () => {
   });
 
   beforeEach(() => {
-    store = new Map(); putCalls = 0;
+    store = new Map();
     fetchImpl = async () => asResponse(await solid(40, 60, 'png'));
   });
 
@@ -202,18 +201,18 @@ describe('Story 4.3: [BE] Kết quả Body Retouch', () => {
       assert.ok(exif.includes('AI Generator'));
     });
 
-    it('lệch kích thước: failed/OUTPUT_INVALID, một RELEASED, không còn out/', async () => {
+    it('lệch kích thước: vẫn succeeded, ảnh lưu co giãn về kích thước ảnh gốc', async () => {
       fetchImpl = async () => asResponse(await solid(41, 60, 'png'));
       const u = await newUser();
       const t = await runningTask(u);
       await ingest(t);
       const r = await row(t.id);
-      assert.equal(r.status, 'failed');
-      assert.equal(r.reason_code, 'OUTPUT_INVALID');
-      assert.equal((await ledger(t.id, 'RELEASED')).length, 1);
-      assert.equal((await ledger(t.id, 'CAPTURED')).length, 0);
-      assert.equal(putCalls, 0);
-      assert.deepEqual(outKeys(), []);
+      assert.equal(r.status, 'succeeded');
+      assert.equal((await ledger(t.id, 'CAPTURED')).length, 1);
+      assert.equal((await ledger(t.id, 'RELEASED')).length, 0);
+      const meta = await sharp(store.get(r.result_key).body).metadata();
+      assert.equal(meta.width, 40);
+      assert.equal(meta.height, 60);
     });
 
     it('ảnh đầu vào EXIF orientation 6, kết quả khớp kích thước sau xoay: succeeded', async () => {
@@ -240,19 +239,17 @@ describe('Story 4.3: [BE] Kết quả Body Retouch', () => {
       assert.ok(meta.exif && meta.exif.toString('latin1').includes('AI Generator'), 'EXIF Software phải còn sau khi xoay');
     });
 
-    it('ảnh đầu vào EXIF orientation 6, kết quả 60x40 (kích thước thô, chưa xoay): failed/OUTPUT_INVALID', async () => {
+    it('ảnh đầu vào EXIF orientation 6, kết quả 60x40 (chưa xoay): succeeded, co giãn về 40x60', async () => {
       const input = await sharp(await noisy(60, 40, 'jpeg')).withMetadata({ orientation: 6 }).jpeg().toBuffer();
       fetchImpl = async () => asResponse(await solid(60, 40, 'png'));
       const u = await newUser();
       const t = await runningTask(u, input);
       await ingest(t);
       const r = await row(t.id);
-      assert.equal(r.status, 'failed');
-      assert.equal(r.reason_code, 'OUTPUT_INVALID');
-      assert.equal((await ledger(t.id, 'RELEASED')).length, 1);
-      assert.equal((await ledger(t.id, 'CAPTURED')).length, 0);
-      assert.equal(putCalls, 0);
-      assert.deepEqual(outKeys(), []);
+      assert.equal(r.status, 'succeeded');
+      const meta = await sharp(store.get(r.result_key).body).metadata();
+      assert.equal(meta.width, 40);
+      assert.equal(meta.height, 60);
     });
   });
 

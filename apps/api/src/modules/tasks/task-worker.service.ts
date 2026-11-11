@@ -27,7 +27,7 @@ export const WORKER_CONCURRENCY = 2;
 const RH_CALL_TIMEOUT_MS = 10_000;
 const DEFAULT_DEADLINE_MS = 180_000;
 
-/** Hạn chót RunningHub; chỉ cho phép ghi đè (RH_DEADLINE_MS) khi NODE_ENV === 'test'. */
+/** Mốc deadline_at chỉ đánh dấu Task đã qua cổng RunningHub; không còn dùng để hết hạn Task (RunningHub chạy bao lâu cũng chờ). Chỉ cho phép ghi đè (RH_DEADLINE_MS) khi NODE_ENV === 'test'. */
 export function deadlineMs(pipeline?: string): number {
   const base = (pipeline && PIPELINE_CONFIGS[pipeline]?.deadlineMs) || DEFAULT_DEADLINE_MS;
   if (process.env.NODE_ENV !== 'test') return base;
@@ -172,13 +172,7 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
       await this.finish(taskId, 'failed', 'RH_SUBMIT_UNKNOWN', { orphanForMs: ORPHAN_MS });
       return;
     }
-    if (row.deadlineAt) {
-      if (row.deadlineAt.getTime() <= now) {
-        await this.finish(taskId, 'timed_out', 'RH_TIMEOUT');
-        return;
-      }
-      return this.runFromUpload(row, signal, true);
-    }
+    if (row.deadlineAt) return this.runFromUpload(row, signal, true);
     if (row.prepDeadlineAt && row.prepDeadlineAt.getTime() <= now) {
       await this.finish(taskId, 'timed_out', 'PREP_TIMEOUT');
       return;
@@ -282,7 +276,7 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
         this.logger.log(`Task ${taskId}: đã upload ${m.inputKey} (${bytes.length} byte) -> ${name}`);
         nodeInfo.push({ nodeId: m.nodeId, fieldName: m.fieldName, fieldValue: name });
       }
-      nodeInfo.push(...paramNodes);
+      nodeInfo.push(...paramNodes, ...(config.fixedNodes ?? []));
     } catch (err) {
       if (signal.aborted) return;
       this.logger.warn(`Upload RunningHub lỗi cho Task ${taskId}: ${String(err)}`);
@@ -393,10 +387,6 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
       if (signal.aborted) return;
       const row = await this.tasks.getWorkerRow(taskId);
       if (!row || row.status !== 'running') return;
-      if (row.deadlineAt && row.deadlineAt.getTime() <= Date.now()) {
-        await this.finish(taskId, 'timed_out', 'RH_TIMEOUT', { orphanForMs: ORPHAN_MS });
-        return;
-      }
       try {
         const out = await this.rh.outputs(rhId, this.timeoutSignal(signal));
         if (out.status !== lastStatus) {

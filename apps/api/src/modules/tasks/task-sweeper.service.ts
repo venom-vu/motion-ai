@@ -5,7 +5,7 @@ import type { ReasonCode } from '@flowvis/contracts';
 import type { Job, Queue } from 'bullmq';
 import { NOTIFIER_PORT, type NotifierPort } from '../../ports/index.js';
 import { AlertService } from '../ops/alert.service.js';
-import { FREE_WAIT_MS, ORPHAN_MS, TaskWorkerService } from './task-worker.service.js';
+import { FREE_WAIT_MS, TaskWorkerService } from './task-worker.service.js';
 import { TASKS_QUEUE, TasksService, type SweepRow } from './tasks.service.js';
 
 export const SWEEP_INTERVAL_MS = 30_000;
@@ -121,9 +121,8 @@ export class TaskSweeperService {
     const now = Date.now();
     for (const row of await this.tasks.sweepRunningExpired(BATCH)) {
       try {
-        if (row.deadline_at) {
-          await this.expire(row.id, 'RH_TIMEOUT', { orphanForMs: ORPHAN_MS });
-        } else if (row.gate_deadline && row.gate_deadline.getTime() <= now) {
+        // Task đã qua cổng (deadline_at) không bao giờ hết hạn ở đây: chờ RunningHub trả kết quả.
+        if (row.gate_deadline && row.gate_deadline.getTime() <= now) {
           await this.expire(row.id, 'RH_GATE_TIMEOUT');
         } else {
           const live = await this.liveJob(row.id);
