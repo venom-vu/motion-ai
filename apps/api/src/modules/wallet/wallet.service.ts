@@ -50,6 +50,14 @@ export class WalletConflictException extends HttpException {
 
 type Amount = number | bigint;
 
+export interface AdjustResult {
+  entry: LedgerEntry;
+  balanceBefore: number;
+  balanceAfter: number;
+  held: number;
+  tier: AccountTier;
+}
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -166,10 +174,10 @@ export class WalletService {
     heldDelta: bigint,
     locked: LockedUser,
     recomputeTier?: { topupPack?: TopupPackId },
-  ): Promise<void> {
+  ): Promise<string | null> {
     if (!recomputeTier) {
       await tx.$executeRaw`UPDATE users SET balance = balance + ${balanceDelta}, held = held + ${heldDelta} WHERE id = ${userId}::uuid`;
-      return;
+      return locked.tierPack;
     }
     const total =
       locked.balance + locked.held + balanceDelta + heldDelta;
@@ -179,6 +187,7 @@ export class WalletService {
       topupPack: recomputeTier.topupPack,
     });
     await tx.$executeRaw`UPDATE users SET balance = balance + ${balanceDelta}, held = held + ${heldDelta}, tier_pack = ${tierPack} WHERE id = ${userId}::uuid`;
+    return tierPack;
   }
 
   async hold(
@@ -289,12 +298,12 @@ export class WalletService {
     await this.applyDelta(tx, userId, value, 0n, locked, { topupPack: pack });
   }
 
-  /** ADJUST tối thiểu: amount khác 0, không cho balance âm, rồi tính lại Tier. */
+  /** ADJUST có dấu: amount khác 0, không cho balance âm, tính lại Tier; trả bút toán và số dư trước/sau. */
   async adjust(
     tx: PrismaTransactionClient,
     userId: string,
     amount: Amount,
-  ): Promise<void> {
+  ): Promise<AdjustResult> {
     this.assertTx(tx);
     this.assertId(userId, 'userId');
     if (typeof amount === 'number' && !Number.isSafeInteger(amount)) {
@@ -313,8 +322,33 @@ export class WalletService {
     if (locked.balance + value < 0n) {
       throw new InsufficientCreditException();
     }
-    await this.insertEntry(tx, { userId, type: 'ADJUST', amount: value });
-    await this.applyDelta(tx, userId, value, 0n, locked, {});
+    let created;
+    try {
+      created = await tx.ledgerEntry.create({ data: { userId, type: 'ADJUST', amount: value } });
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new WalletConflictException('Bút toán trùng lặp, giao dịch bị hủy');
+      }
+      throw err;
+    }
+    const tierPack = await this.applyDelta(tx, userId, value, 0n, locked, {});
+    return {
+      entry: {
+        id: created.id,
+        userId,
+        type: 'ADJUST',
+        labelVi: LEDGER_ENTRY_LABELS_VI.ADJUST,
+        amount: toSafeNumber(value, 'amount'),
+        taskId: null,
+        topupId: null,
+        pack: null,
+        createdAt: created.createdAt.toISOString(),
+      },
+      balanceBefore: toSafeNumber(locked.balance, 'balance'),
+      balanceAfter: toSafeNumber(locked.balance + value, 'balance'),
+      held: toSafeNumber(locked.held, 'held'),
+      tier: tierFromPack(tierPack),
+    };
   }
 
   private requirePrisma(): PrismaService {

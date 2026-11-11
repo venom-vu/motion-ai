@@ -293,3 +293,16 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-6-3-be-xu-ly-het-ngan-sach-runninghub-va-canh-bao-so-du.md`
   summary: Điều tra lần fail không lặp lại của 26 test Story 2.5 (`task-worker.test.mjs`) khi chạy suite đầy đủ.
   evidence: Một lần chạy ra 31 fail, lần ngay sau 5 fail có sẵn, chạy riêng 31/31 pass; chưa xác định nguyên nhân, nghi trạng thái dùng chung giữa các suite.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-4-be-khoa-tai-khoan-va-cong-bu-credit.md`
+  summary: Chặn admin tự khóa tài khoản mình hoặc tài khoản admin khác.
+  evidence: Spec 6.4 không cấm; admin có thể tự khóa và mất quyền `/admin`. Cần quyết định nghiệp vụ trước khi sửa.
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-4-be-khoa-tai-khoan-va-cong-bu-credit.md`
+  summary: Thay test "không có route sửa/xóa admin_audit" bằng kiểm tra thật.
+  evidence: Test hiện gọi `/admin/audit` (không tồn tại) nên luôn 404; thêm `@Delete` vẫn pass. Cần guard hoặc test mức CSDL.
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-4-be-khoa-tai-khoan-va-cong-bu-credit.md`
+  summary: Thêm test Task queued/running của tài khoản bị khóa vẫn kết thúc bình thường.
+  evidence: Chưa test nào tạo Task rồi khóa; AC của epic nêu hành vi này.
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-4-be-khoa-tai-khoan-va-cong-bu-credit.md`
+  summary: Xác minh refresh token đang xoay vòng đồng thời với lockAccount không cấp token mới sau khi khóa (unverified, nếu đúng là medium).
+  evidence: Cần đọc luồng refresh trong auth.service xem có đọc locked_at sau khi khóa dòng user hay không.

@@ -4,6 +4,7 @@ import {
   ConflictException,
   Injectable,
   Logger,
+  NotFoundException,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -15,7 +16,7 @@ import {
   type AuthGoogleCallbackQuery,
   type UserRole,
 } from '@flowvis/contracts';
-import { PrismaService } from '../../infra/prisma.service.js';
+import { PrismaService, type PrismaTransactionClient } from '../../infra/prisma.service.js';
 import { RedisService } from '../../infra/redis.service.js';
 import { GoogleOAuthService, type GoogleUserProfile } from './google-oauth.service.js';
 import {
@@ -73,6 +74,25 @@ export class AuthService {
     private readonly googleOAuthService: GoogleOAuthService,
     private readonly walletService: WalletService,
   ) {}
+
+  /** Khóa tài khoản trong transaction của bên gọi: khóa dòng, đặt locked_at, thu hồi mọi refresh token. Trả lockedAt trước đó. */
+  async lockAccount(tx: PrismaTransactionClient, userId: string): Promise<{ before: Date | null; after: Date }> {
+    const rows = await tx.$queryRaw<Array<{ locked_at: Date | null }>>`SELECT locked_at FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
+    if (rows.length !== 1) throw new NotFoundException({ code: ApiErrorCode.NOT_FOUND, message: getApiErrorMessageVi(ApiErrorCode.NOT_FOUND) });
+    const after = rows[0].locked_at ?? new Date();
+    await tx.user.update({ where: { id: userId }, data: { lockedAt: after } });
+    await tx.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+    return { before: rows[0].locked_at, after };
+  }
+
+  /** Mở khóa tài khoản trong transaction của bên gọi. */
+  async unlockAccount(tx: PrismaTransactionClient, userId: string): Promise<{ before: Date | null }> {
+    const rows = await tx.$queryRaw<Array<{ locked_at: Date | null }>>`SELECT locked_at FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
+    if (rows.length !== 1) throw new NotFoundException({ code: ApiErrorCode.NOT_FOUND, message: getApiErrorMessageVi(ApiErrorCode.NOT_FOUND) });
+    await tx.user.update({ where: { id: userId }, data: { lockedAt: null } });
+    return { before: rows[0].locked_at };
+  }
+
 
   private getJwtSecret(): string {
     return (
