@@ -21,6 +21,8 @@ import {
   type MotionCreateRequest,
   type ValidationReason,
   MOTION_MIN_TRIM_SECONDS,
+  MOTION_ASPECT_RATIO_DEFAULT,
+  getMotionAspectRatio,
   CONTENT_REMOVED_MESSAGE_VI,
   motionPrice,
   type ReasonCode,
@@ -556,6 +558,8 @@ export class TasksService {
 
   async createMotionControl(userId: string, req: MotionCreateRequest): Promise<MotionCreateResponse> {
     const { characterKey, videoKey, trimStart, trimEnd } = req;
+    const frame = getMotionAspectRatio(req.aspectRatio ?? MOTION_ASPECT_RATIO_DEFAULT);
+    const prompt = (req.prompt ?? '').trim();
     if (!Number.isInteger(trimStart) || !Number.isInteger(trimEnd)) {
       throw this.trimError('TRIM_NOT_WHOLE_SECOND');
     }
@@ -578,7 +582,7 @@ export class TasksService {
       pipeline: 'motion_control',
       amount: price,
       inputKeys: { characterKey, videoKey },
-      params: { trimStart, trimEnd, seconds, price },
+      params: { trimStart, trimEnd, seconds, price, aspectRatio: frame.id, width: frame.width, height: frame.height, prompt },
       keysVerified: true,
       postHold: (snapshot) => {
         // Cap theo Tier Snapshot do ví đọc trong transaction; ném lỗi để rollback cả HOLD.

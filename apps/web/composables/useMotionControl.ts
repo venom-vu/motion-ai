@@ -1,5 +1,10 @@
 import { computed, ref, watch } from 'vue';
-import { MOTION_MIN_TRIM_SECONDS, type Task } from '@flowvis/contracts';
+import {
+  MOTION_ASPECT_RATIO_DEFAULT,
+  MOTION_MIN_TRIM_SECONDS,
+  type MotionAspectRatio,
+  type Task,
+} from '@flowvis/contracts';
 import { useApiClient } from '~/composables/useApiClient';
 import { usePricingConfig } from '~/composables/usePricingConfig';
 import {
@@ -30,6 +35,8 @@ export function useMotionControl() {
   const videoKey = ref<string | null>(null);
   const trimStart = ref<number>(0);
   const trimEnd = ref<number>(0);
+  const aspectRatio = ref<MotionAspectRatio>(MOTION_ASPECT_RATIO_DEFAULT);
+  const prompt = ref<string>('');
   const activeTask = ref<Task | null>(null);
   const isSubmitting = ref<boolean>(false);
   const submitErrorVi = ref<string | null>(null);
@@ -155,6 +162,8 @@ export function useMotionControl() {
         videoKey: videoKey.value!,
         trimStart: trimStart.value,
         trimEnd: trimEnd.value,
+        aspectRatio: aspectRatio.value,
+        prompt: prompt.value.trim(),
       });
       activeTask.value = task;
       refreshAll().catch(() => {});
@@ -176,6 +185,8 @@ export function useMotionControl() {
     videoKey.value = null;
     trimStart.value = 0;
     trimEnd.value = 0;
+    aspectRatio.value = MOTION_ASPECT_RATIO_DEFAULT;
+    prompt.value = '';
   }
 
   function reset(): void {
@@ -192,6 +203,8 @@ export function useMotionControl() {
     videoKey,
     trimStart,
     trimEnd,
+    aspectRatio,
+    prompt,
     activeTask,
     isSubmitting,
     submitErrorVi,

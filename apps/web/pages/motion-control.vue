@@ -18,6 +18,8 @@ const {
   currentTier,
   isAuthenticated,
   characterKey,
+  aspectRatio,
+  prompt,
   activeTask,
   isSubmitting,
   submitErrorVi,
@@ -137,6 +139,17 @@ const {
             @change="onTrimChange"
           />
         </div>
+      </div>
+
+      <div
+        class="rounded-2xl border border-cyber-border bg-cyber-surface/60 p-4 sm:p-5"
+      >
+        <MotionOptions
+          v-model:aspect-ratio="aspectRatio"
+          v-model:prompt="prompt"
+          id-prefix="motion"
+          :disabled="isSubmitting"
+        />
       </div>
 
       <div

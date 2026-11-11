@@ -246,15 +246,40 @@ const TrimSecondSchema = (label: string) =>
     .number({ invalid_type_error: `${label} phải là số nguyên giây.` })
     .int(`${label} phải là số nguyên giây.`)
     .nonnegative(`${label} không được âm.`);
+/** Khung hình phổ biến cho video Motion Control (rộng x cao tính bằng pixel, bội số 16). */
+export const MOTION_ASPECT_RATIOS = [
+  { id: '9:16', labelVi: 'Dọc 9:16 (TikTok, Reels, Shorts)', width: 576, height: 1024 },
+  { id: '16:9', labelVi: 'Ngang 16:9 (YouTube)', width: 1024, height: 576 },
+  { id: '1:1', labelVi: 'Vuông 1:1 (Instagram, Facebook)', width: 768, height: 768 },
+  { id: '4:5', labelVi: 'Dọc 4:5 (Instagram, Facebook feed)', width: 640, height: 800 },
+  { id: '3:4', labelVi: 'Dọc 3:4', width: 672, height: 896 },
+  { id: '4:3', labelVi: 'Ngang 4:3', width: 896, height: 672 },
+] as const;
+export type MotionAspectRatio = (typeof MOTION_ASPECT_RATIOS)[number]['id'];
+export const MOTION_ASPECT_RATIO_DEFAULT: MotionAspectRatio = '9:16';
+export const MotionAspectRatioSchema = z.enum(
+  MOTION_ASPECT_RATIOS.map((a) => a.id) as [MotionAspectRatio, ...MotionAspectRatio[]],
+);
+export const MOTION_PROMPT_MAX_LENGTH = 300;
+export function getMotionAspectRatio(id: MotionAspectRatio) {
+  return MOTION_ASPECT_RATIOS.find((a) => a.id === id)!;
+}
+
 export const MotionCreateRequestSchema = z
   .object({
     characterKey: ConfirmedUploadKeySchema,
     videoKey: ConfirmedUploadKeySchema,
     trimStart: TrimSecondSchema('Điểm bắt đầu cắt'),
     trimEnd: TrimSecondSchema('Điểm kết thúc cắt'),
+    aspectRatio: MotionAspectRatioSchema.default(MOTION_ASPECT_RATIO_DEFAULT),
+    prompt: z
+      .string()
+      .trim()
+      .max(MOTION_PROMPT_MAX_LENGTH, `Prompt tối đa ${MOTION_PROMPT_MAX_LENGTH} ký tự.`)
+      .default(''),
   })
   .strict();
-export type MotionCreateRequest = z.infer<typeof MotionCreateRequestSchema>;
+export type MotionCreateRequest = z.input<typeof MotionCreateRequestSchema>;
 /** Task Motion kèm `price` (bằng `creditCost`, = `motionPrice(số giây)`). */
 export const MotionCreateResponseSchema = TaskBaseSchema.extend({
   pipeline: z.literal('motion_control'),

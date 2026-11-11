@@ -169,6 +169,15 @@ describe('RunningHubOpenApiAdapter', () => {
     assert.equal(out.fileUrl, 'https://cdn.example/out.jpg');
   });
 
+  it('query: SUCCESS nhiều đầu ra (zip trước png): chọn ảnh, bỏ file zip', async () => {
+    next = { body: { taskId: '1', status: 'SUCCESS', errorCode: '', errorMessage: '', results: [
+      { url: 'https://cdn.example/pack.zip', outputType: 'zip' },
+      { url: 'https://cdn.example/out.png', outputType: 'png' },
+    ] } };
+    const out = await adapter().outputs('1', signal());
+    assert.equal(out.fileUrl, 'https://cdn.example/out.png');
+  });
+
   it('query: SUCCESS không có url thì trả SUCCESS không fileUrl (worker hoàn credit)', async () => {
     next = { body: { taskId: '1', status: 'SUCCESS', errorCode: '', errorMessage: '', results: [] } };
     const out = await adapter().outputs('1', signal());

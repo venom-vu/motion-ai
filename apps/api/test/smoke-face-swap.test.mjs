@@ -388,7 +388,7 @@ describe('Smoke Face Swap FE-BE trên stack Compose (Story 2.14)', () => {
           assert.equal(b.workflowId, 'smoke-workflow-faceswap');
           assert.deepEqual(
             b.nodeInfoList.map((n) => [n.nodeId, n.fieldName]),
-            [['137', 'image'], ['10', 'image']],
+            [['470', 'image'], ['475', 'image']],
           );
           for (const n of b.nodeInfoList) assert.match(n.fieldValue, /^rh-.*\.png$/);
         }

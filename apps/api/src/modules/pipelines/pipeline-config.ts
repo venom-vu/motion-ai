@@ -16,6 +16,8 @@ export interface PipelineParamMapping {
   readonly fieldName: string;
   /** Hệ số nhân cho giá trị số trước khi gửi (vd. intensity 1-10 -> strength LoRA). */
   readonly scale?: number;
+  /** Giá trị dùng khi tasks.params thiếu khóa (Task tạo trước khi có tham số này). */
+  readonly fallback?: string;
 }
 
 export interface PipelineConfig {
@@ -41,16 +43,19 @@ export interface PipelineConfig {
   readonly deadlineMs?: number;
 }
 
+/** Prompt mặc định khi người dùng để trống (workflow gốc dùng tiếng Trung). */
+const DEFAULT_MOTION_PROMPT = '美女跳舞';
+
 export const PIPELINE_CONFIGS: Readonly<Record<string, PipelineConfig>> = {
   face_swap: {
     pipeline: 'face_swap',
     workflowEnvVar: 'RUNNINGHUB_WORKFLOW_FACESWAP',
     runModeEnvVar: 'RUNNINGHUB_MODE_FACESWAP',
     defaultRunMode: 'ai-app',
-    // AI App Face Swap: node 137 = Reference image (ảnh đích, giữ bố cục và kích thước), node 10 = Face image (ảnh nguồn, khuôn mặt).
+    // [ASSUMPTION] AI App Face Swap có hai node ảnh, curl mẫu không ghi mô tả: giả định node 470 = ảnh đích (giữ bố cục, kích thước), node 475 = ảnh nguồn (khuôn mặt). Nếu kết quả bị ngược thì hoán đổi hai nodeId.
     inputs: [
-      { inputKey: 'targetKey', nodeId: '137', fieldName: 'image' },
-      { inputKey: 'sourceKey', nodeId: '10', fieldName: 'image' },
+      { inputKey: 'targetKey', nodeId: '470', fieldName: 'image' },
+      { inputKey: 'sourceKey', nodeId: '475', fieldName: 'image' },
     ],
     referenceInputKey: 'targetKey',
   },
@@ -60,21 +65,30 @@ export const PIPELINE_CONFIGS: Readonly<Record<string, PipelineConfig>> = {
     runModeEnvVar: 'RUNNINGHUB_MODE_BODY_RESHAPE',
     defaultRunMode: 'ai-app',
     requiredAtStartup: true,
-    // AI App Body Reshape chỉ có một node đầu vào: node 4 = LoadImage (ảnh). Không còn node LoRA nên `intensity` không truyền sang RunningHub.
+    // AI App nâng ngực (2095511080751996930): node 4 = LoadImage (ảnh), node 56 = strength_model của LoRA (intensity 1-10 x 0.1 -> 0.1-1.0; mặc định 5 -> 0.5).
     inputs: [{ inputKey: 'imageKey', nodeId: '4', fieldName: 'image' }],
+    params: [{ paramKey: 'intensity', nodeId: '56', fieldName: 'strength_model', scale: 0.1 }],
     referenceInputKey: 'imageKey',
   },
   motion_control: {
     pipeline: 'motion_control',
     workflowEnvVar: 'RUNNINGHUB_WORKFLOW_MOTION',
     runModeEnvVar: 'RUNNINGHUB_MODE_MOTION',
-    defaultRunMode: 'workflow',
+    defaultRunMode: 'ai-app',
     requiredAtStartup: true,
-    // AI App Motion Control chỉ có hai node đầu vào: node 64 = ảnh nhân vật, node 65 = video chuyển động.
+    // AI App Motion Control (2108650752700166145): node 30 = ảnh nhân vật, node 33 = video chuyển động.
     inputs: [
-      { inputKey: 'characterKey', nodeId: '64', fieldName: 'image' },
-      { inputKey: 'videoKey', nodeId: '65', fieldName: 'video' },
+      { inputKey: 'characterKey', nodeId: '30', fieldName: 'image' },
+      { inputKey: 'videoKey', nodeId: '33', fieldName: 'video' },
     ],
+    // Tham số người dùng chọn: 134/135 = rộng/cao theo khung hình, 277 = prompt (mặc định dọc 576x1024).
+    params: [
+      { paramKey: 'width', nodeId: '134', fieldName: 'value', fallback: '576' },
+      { paramKey: 'height', nodeId: '135', fieldName: 'value', fallback: '1024' },
+      { paramKey: 'prompt', nodeId: '277', fieldName: 'text', fallback: DEFAULT_MOTION_PROMPT },
+    ],
+    // Node cố định: 278 = fps.
+    fixedNodes: [{ nodeId: '278', fieldName: 'value', fieldValue: '24' }],
     deadlineMs: 360_000,
     prepare: (ctx) => videoTrim.prepare(ctx),
   },

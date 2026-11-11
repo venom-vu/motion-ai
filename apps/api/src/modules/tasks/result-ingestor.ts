@@ -14,11 +14,10 @@ import {
 } from '../../ports/index.js';
 import { PipelinesService } from '../pipelines/pipelines.service.js';
 import { TasksService } from './tasks.service.js';
-import { TRIM_DURATION_TOLERANCE, TRIM_FPS, buildLocalFfprobeArgs, parseFps, run, videoTrim } from './video-trim.service.js';
+import { buildLocalFfprobeArgs, run, videoTrim } from './video-trim.service.js';
 
 export const OUTPUT_MAX_BYTES = 20 * 1024 * 1024;
 export const VIDEO_OUTPUT_MAX_BYTES = 100 * 1024 * 1024;
-export const VIDEO_SHORT_SIDE = 720;
 const VIDEO_DIR_NAME = 'ingest';
 export const OUTPUT_FETCH_TIMEOUT_MS = 30_000;
 export const OUTPUT_MAX_ATTEMPTS = 3;
@@ -38,24 +37,24 @@ class OutputAbortedError extends Error {}
 class OutputRetriesExhaustedError extends Error {}
 class FfmpegError extends Error {}
 
-/** Hàm thuần: một luồng video H.264, 24 FPS, cạnh ngắn 720, độ dài = seconds ± 0,5 giây. */
-export function evaluateIngestProbe(json: unknown, seconds: number): string | null {
+/**
+ * Hàm thuần: kết quả chỉ cần có ít nhất một luồng video xem được. FPS, độ phân giải, độ dài do workflow
+ * RunningHub quyết định; RunningHub đã SUCCESS thì không từ chối vì các thuộc tính này.
+ */
+export function evaluateIngestProbe(json: unknown): string | null {
   const data = (json ?? {}) as {
-    format?: { duration?: string | number };
-    streams?: Array<{ codec_type?: string; codec_name?: string; width?: number; height?: number; r_frame_rate?: string }>;
+    streams?: Array<{ codec_type?: string; codec_name?: string; width?: number; height?: number }>;
   };
-  const videos = (data.streams ?? []).filter((x) => x.codec_type === 'video');
-  if (videos.length !== 1) return 'không đúng một luồng video';
-  const v = videos[0]!;
-  if (v.codec_name !== 'h264') return 'không phải H.264';
-  const fps = parseFps(v.r_frame_rate);
-  if (!Number.isFinite(fps) || Math.abs(fps - TRIM_FPS) > 0.01) return 'FPS khác 24';
-  if (Math.min(Number(v.width), Number(v.height)) !== VIDEO_SHORT_SIDE) return 'cạnh ngắn khác 720';
-  const duration = Number(data.format?.duration);
-  if (data.format?.duration == null || !Number.isFinite(duration) || Math.abs(duration - seconds) > TRIM_DURATION_TOLERANCE) {
-    return 'độ dài lệch quá 0,5 giây';
-  }
+  const video = (data.streams ?? []).find((x) => x.codec_type === 'video');
+  if (!video) return 'không có luồng video';
+  if (!(Number(video.width) > 0) || !(Number(video.height) > 0)) return 'kích thước video không hợp lệ';
   return null;
+}
+
+/** Codec khác H.264 thì mã hóa lại sang H.264 để mọi trình duyệt phát được. */
+export function needsReencode(json: unknown): boolean {
+  const streams = ((json ?? {}) as { streams?: Array<{ codec_type?: string; codec_name?: string }> }).streams ?? [];
+  return streams.find((x) => x.codec_type === 'video')?.codec_name !== 'h264';
 }
 
 function retryDelayMs(): number {
@@ -230,11 +229,6 @@ export class ResultIngestorService implements ResultIngestor {
   ): Promise<void> {
     const fail = (reason: ReasonCode) =>
       this.tasks.transition(task.id, 'running', 'failed', reason, { gpuCoins });
-    const seconds = ((row.params ?? {}) as Record<string, unknown>).seconds;
-    if (!Number.isInteger(seconds) || (seconds as number) <= 0) {
-      await fail('INTERNAL_ERROR');
-      return;
-    }
     const root = path.join(videoTrim.tmpRoot, VIDEO_DIR_NAME);
     let dir: string | undefined;
     const keys: string[] = [];
@@ -278,12 +272,15 @@ export class ResultIngestorService implements ResultIngestor {
             if (signal.aborted) throw err;
             throw new OutputInvalidError(`ffprobe không đọc được: ${String(err)}`);
           }
-          const bad = evaluateIngestProbe(probe, seconds as number);
+          const bad = evaluateIngestProbe(probe);
           if (bad) throw new OutputInvalidError(bad);
           try {
             await run(
               'nice',
-              ['-n', '19', 'ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', inFile, '-map', '0:v:0', '-c', 'copy',
+              ['-n', '19', 'ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', inFile, '-map', '0:v:0',
+                ...(needsReencode(probe)
+                  ? ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', 'veryfast', '-crf', '20']
+                  : ['-c', 'copy']),
                 '-metadata', `comment=${EXIF_COMMENT}`, '-metadata', `software=${EXIF_SOFTWARE}`,
                 '-movflags', '+faststart+use_metadata_tags', outFile],
               signal,

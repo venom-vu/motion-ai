@@ -407,7 +407,7 @@ describe('Smoke Motion Control FE-BE trên stack Compose (Story 5.9)', () => {
         assert.equal(sub1.workflowId, 'smoke-workflow-motion');
         assert.deepEqual(
           sub1.nodeInfoList.map((n) => [n.nodeId, n.fieldName]),
-          [['64', 'image'], ['65', 'video']],
+          [['30', 'image'], ['33', 'video'], ['134', 'value'], ['135', 'value'], ['277', 'text'], ['278', 'value']],
         );
         const upNames = new Set(rh.uploads.map((u) => u.fileName));
         assert.ok(upNames.has(sub1.nodeInfoList[0].fieldValue), 'node image là tên file đã tải lên RH');
@@ -504,7 +504,7 @@ describe('Smoke Motion Control FE-BE trên stack Compose (Story 5.9)', () => {
         assert.equal(still.status, 'timed_out', 'kết quả đến muộn bị bỏ qua');
         assert.equal(await balance(frank), frankBal);
 
-        // 7. Lệch độ dài
+        // 7. Lệch độ dài vẫn succeeded
         const gina = await login('gina');
         await becomeTier(gina, admin, 'creator', 'MT-REF-5');
         const ginaBal = await balance(gina);
@@ -517,17 +517,15 @@ describe('Smoke Motion Control FE-BE trên stack Compose (Story 5.9)', () => {
         assert.equal(await balance(gina), ginaBal - 500, 'không hoàn phần lẻ');
         rh.resultVideo = results[10.6];
         const t7b = await createMotion(gina, 0, 10);
-        const bad = await waitFor(gina, t7b.id, (t) => t.status === 'failed', '10,6 s failed');
-        assert.equal(bad.reasonCode, 'OUTPUT_INVALID');
-        assert.ok((await ledgerTypes(gina, t7b.id)).includes('RELEASED'));
-        assert.equal(await balance(gina), ginaBal - 500);
+        const lenient = await waitFor(gina, t7b.id, (t) => t.status === 'succeeded', '10,6 s vẫn succeeded');
+        assert.ok(!(await ledgerTypes(gina, t7b.id)).includes('RELEASED'));
 
         // Hợp đồng
         for (const t of Object.values(MOCK_MOTION_TASKS_BY_STATUS)) MotionCreateResponseSchema.parse(t);
         TaskResultResponseSchema.parse(MOCK_MOTION_RESULT_RESPONSE);
         ShareInfoResponseSchema.parse(MOCK_SHARE_INFO_VIDEO_RESPONSE);
         const mockKeys = new Set(Object.values(MOCK_MOTION_TASKS_BY_STATUS).flatMap((t) => Object.keys(t)));
-        for (const t of [t1, done, failed, timedOut, bad]) {
+        for (const t of [t1, done, failed, timedOut, lenient]) {
           for (const k of Object.keys(t)) assert.ok(mockKeys.has(k), `khóa Task thật lạ: ${k}`);
         }
         for (const k of Object.keys(result)) assert.ok(k in MOCK_MOTION_RESULT_RESPONSE, `khóa result lạ: ${k}`);

@@ -257,7 +257,9 @@ export class TaskWorkerService implements OnModuleInit, OnModuleDestroy {
     const paramNodes: RunningHubNodeInfo[] = [];
     const params = (row.params ?? {}) as Record<string, unknown>;
     for (const m of config.params ?? []) {
-      const v = params[m.paramKey];
+      let v = params[m.paramKey];
+      // Chuỗi rỗng (vd. prompt để trống) hoặc thiếu khóa thì dùng giá trị mặc định nếu có.
+      if ((v === undefined || v === '') && m.fallback !== undefined) v = m.fallback;
       if (typeof v !== 'string' && typeof v !== 'number' && typeof v !== 'boolean') {
         this.logger.error(`Task ${taskId}: thiếu hoặc sai tham số "${m.paramKey}" trong tasks.params`);
         await this.finish(taskId, 'failed', 'INTERNAL_ERROR');

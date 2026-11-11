@@ -353,8 +353,9 @@ describe('Smoke Body Retouch FE-BE trên stack Compose (Story 4.6)', () => {
         assert.equal(sub1.workflowId, 'smoke-workflow-body-reshape');
         assert.deepEqual(
           sub1.nodeInfoList.map((n) => [n.nodeId, n.fieldName]),
-          [['4', 'image']],
+          [['4', 'image'], ['56', 'strength_model']],
         );
+        assert.equal(sub1.nodeInfoList[1].fieldValue, '0.8');
         assert.match(sub1.nodeInfoList[0].fieldValue, /^rh-.*\.png$/);
 
         // 2. NO_POSE

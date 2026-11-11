@@ -79,6 +79,8 @@ function isTransientCode(code: unknown): boolean {
   return typeof n === 'number' && TRANSIENT_CODES.has(n);
 }
 
+const MEDIA_OUTPUT_TYPES = new Set(['png', 'jpg', 'jpeg', 'webp', 'mp4', 'webm', 'mov']);
+
 function v2FailureMessage(env: Envelope): string {
   const reason = env.failedReason as { exception_message?: unknown } | null | undefined;
   if (typeof reason?.exception_message === 'string' && reason.exception_message.trim()) {
@@ -209,8 +211,10 @@ export class RunningHubOpenApiAdapter implements RunningHubPort {
     const err = v2ErrorCode(env);
 
     if (status === 'SUCCESS') {
-      const results = Array.isArray(env.results) ? (env.results as Array<{ url?: unknown }>) : [];
-      const first = results.find((r) => typeof r?.url === 'string' && r.url);
+      const results = Array.isArray(env.results) ? (env.results as Array<{ url?: unknown; outputType?: unknown }>) : [];
+      const withUrl = results.filter((r) => typeof r?.url === 'string' && r.url);
+      // Một workflow có thể trả nhiều đầu ra (vd. zip rồi png): ưu tiên ảnh/video, bỏ qua file đóng gói.
+      const first = withUrl.find((r) => MEDIA_OUTPUT_TYPES.has(String(r.outputType ?? '').toLowerCase())) ?? withUrl[0];
       // SUCCESS mà không có url: worker ghi OUTPUT_UPLOAD_ERROR và hoàn credit.
       return { status: 'SUCCESS', fileUrl: first?.url as string | undefined };
     }

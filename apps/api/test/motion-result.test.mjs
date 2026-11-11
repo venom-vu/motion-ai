@@ -77,14 +77,13 @@ describe('Story 5.6: [BE] Nhập kết quả video, ảnh bìa và chia sẻ', (
   const runId = crypto.randomBytes(4).toString('hex');
   const users = [];
   const saved = {};
-  let store, fetchImpl, putCalls, failPut;
+  let store, fetchImpl, failPut;
   let good;
 
   const fakeStorage = {
     async getObject(key) { const o = store.get(key); if (!o) throw new Error(`NoSuchKey ${key}`); return o.body; },
     async head(key) { const o = store.get(key); return o ? { sizeBytes: o.body.length, etag: '"e"', contentType: o.contentType } : null; },
     async putObject(key, body, contentType) {
-      putCalls++;
       if (failPut?.(key)) throw new Error('R2 down');
       store.set(key, { body, contentType });
       return '"etag"';
@@ -181,20 +180,18 @@ describe('Story 5.6: [BE] Nhập kết quả video, ảnh bìa và chia sẻ', (
   });
 
   beforeEach(() => {
-    store = new Map(); putCalls = 0; failPut = null;
+    store = new Map(); failPut = null;
     fetchImpl = async () => asResponse(good);
   });
 
-  it('evaluateIngestProbe: ranh giới', () => {
+  it('evaluateIngestProbe: chỉ cần có luồng video xem được', () => {
     const ok = { streams: [{ codec_type: 'video', codec_name: 'h264', width: 720, height: 1280, r_frame_rate: '24/1' }], format: { duration: '5.2' } };
-    assert.equal(evaluateIngestProbe(ok, 5), null);
-    assert.equal(evaluateIngestProbe({ ...ok, streams: [{ ...ok.streams[0], width: 1280, height: 720 }] }, 5), null);
-    assert.ok(evaluateIngestProbe({ ...ok, format: { duration: '6.2' } }, 5));
-    assert.ok(evaluateIngestProbe({ ...ok, streams: [{ ...ok.streams[0], codec_name: 'hevc' }] }, 5));
-    assert.ok(evaluateIngestProbe({ ...ok, streams: [{ ...ok.streams[0], r_frame_rate: '30/1' }] }, 5));
-    assert.ok(evaluateIngestProbe({ ...ok, streams: [{ ...ok.streams[0], width: 540 }] }, 5));
-    assert.ok(evaluateIngestProbe({ ...ok, streams: [ok.streams[0], ok.streams[0]] }, 5));
-    assert.ok(evaluateIngestProbe({}, 5));
+    assert.equal(evaluateIngestProbe(ok), null);
+    assert.equal(evaluateIngestProbe({ ...ok, format: { duration: '99' } }), null);
+    assert.equal(evaluateIngestProbe({ ...ok, streams: [{ ...ok.streams[0], r_frame_rate: '30/1', width: 540 }] }), null);
+    assert.equal(evaluateIngestProbe({ ...ok, streams: [{ ...ok.streams[0], codec_name: 'hevc' }] }), null);
+    assert.ok(evaluateIngestProbe({ streams: [{ codec_type: 'audio' }] }));
+    assert.ok(evaluateIngestProbe({}));
   });
 
   it('thành công: succeeded, CAPTURED đúng HOLD, .mp4 + .jpg, thẻ metadata, thư mục tạm sạch', async () => {
@@ -223,13 +220,13 @@ describe('Story 5.6: [BE] Nhập kết quả video, ảnh bìa và chia sẻ', (
     assert.deepEqual(leftovers(), []);
   });
 
-  it('lệch quá 0,5 giây: OUTPUT_INVALID, không lưu R2', async () => {
+  it('lệch độ dài: vẫn succeeded, CAPTURED', async () => {
     const u = await newUser();
     const t = await runningTask(u);
     fetchImpl = async () => asResponse(makeVideo('long.mp4', { dur: 6.2 }));
     await ingest(t);
-    await expectFailed(t, 'OUTPUT_INVALID');
-    assert.equal(putCalls, 0);
+    assert.equal((await row(t.id)).status, 'succeeded');
+    assert.equal((await ledger(t.id, 'RELEASED')).length, 0);
   });
 
   it('file rỗng hoặc hỏng: OUTPUT_INVALID', async () => {
@@ -242,14 +239,19 @@ describe('Story 5.6: [BE] Nhập kết quả video, ảnh bìa và chia sẻ', (
     }
   });
 
-  it('sai thông số: FPS, cạnh ngắn, codec', async () => {
+  it('FPS, cạnh ngắn, codec khác spec: vẫn succeeded, kết quả là H.264', async () => {
     const u = await newUser();
-    const bad = [makeVideo('fps.mp4', { fps: 30 }), makeVideo('side.mp4', { w: 540, h: 960 }), makeVideo('mpeg4.mp4', { codec: 'mpeg4' })];
-    for (const body of bad) {
+    const odd = [makeVideo('fps.mp4', { fps: 30 }), makeVideo('side.mp4', { w: 540, h: 960 }), makeVideo('mpeg4.mp4', { codec: 'mpeg4' })];
+    for (const body of odd) {
       const t = await runningTask(u);
       fetchImpl = async () => asResponse(body);
       await ingest(t);
-      await expectFailed(t, 'OUTPUT_INVALID');
+      const r = await row(t.id);
+      assert.equal(r.status, 'succeeded');
+      const f = path.join(vdir, 'odd.mp4');
+      fs.writeFileSync(f, store.get(r.result_key).body);
+      const v = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-print_format', 'json', '-show_streams', f]).toString()).streams.find((x) => x.codec_type === 'video');
+      assert.equal(v.codec_name, 'h264');
     }
   });
 

@@ -141,7 +141,7 @@ describe('Story 5.3: [BE] Tạo Task Motion Control', () => {
       assert.equal(t.price, motionPrice(s));
       assert.equal(t.creditCost, motionPrice(s));
       const r = await row(t.id);
-      assert.deepEqual(r.params, { trimStart: 1, trimEnd: 1 + s, seconds: s, price: motionPrice(s) });
+      assert.deepEqual(r.params, { trimStart: 1, trimEnd: 1 + s, seconds: s, price: motionPrice(s), aspectRatio: '9:16', width: 576, height: 1024, prompt: '' });
       assert.equal(r.hold_amount, motionPrice(s));
       assert.equal(r.status, 'queued');
       assert.deepEqual(r.input_keys, { characterKey: c, videoKey: v });
@@ -341,8 +341,12 @@ describe('Story 5.3: [BE] Tạo Task Motion Control', () => {
       assert.equal(calls.submit, 1);
       assert.equal(r.runninghub_task_id, 'rh-m1');
       assert.deepEqual(calls.nodes[1], [
-        { nodeId: '64', fieldName: 'image', fieldValue: 'f1' },
-        { nodeId: '65', fieldName: 'video', fieldValue: 'f2' },
+        { nodeId: '30', fieldName: 'image', fieldValue: 'f1' },
+        { nodeId: '33', fieldName: 'video', fieldValue: 'f2' },
+        { nodeId: '134', fieldName: 'value', fieldValue: '576' },
+        { nodeId: '135', fieldName: 'value', fieldValue: '1024' },
+        { nodeId: '277', fieldName: 'text', fieldValue: '美女跳舞' },
+        { nodeId: '278', fieldName: 'value', fieldValue: '24' },
       ]);
       assert.equal(ingestCalls.length, 1);
       assert.equal(r.status, 'failed');

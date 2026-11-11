@@ -62,6 +62,8 @@ const motionSeconds = motion.seconds;
 const motionInsufficientNoteVi = motion.insufficientNoteVi;
 const motionSubmitErrorVi = motion.submitErrorVi;
 const motionIsSubmitting = motion.isSubmitting;
+const motionAspectRatio = motion.aspectRatio;
+const motionPrompt = motion.prompt;
 const motionKey = ref<number>(0);
 
 // Dọn sạch trạng thái Motion và buộc VideoTrimmer/ImageUploader remount.
@@ -570,6 +572,12 @@ onBeforeUnmount(() => {
               :cap-seconds="motionCapSeconds"
               :tier-name="userTier"
               @change="onMotionTrimChange"
+            />
+            <MotionOptions
+              v-model:aspect-ratio="motionAspectRatio"
+              v-model:prompt="motionPrompt"
+              id-prefix="workspace-motion"
+              :disabled="motionIsSubmitting"
             />
             <p
               v-if="motionSeconds > 0"
