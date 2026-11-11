@@ -338,6 +338,27 @@ export class TopupsService {
     };
   }
 
+  /** Số đơn `approved` có updated_at trong [from, to], theo nhóm user của `userIds`. */
+  async countApproved(from: Date, to: Date, userIds: string[], benchmark: boolean): Promise<number> {
+    const rows = await this.prisma.$queryRaw<Array<{ n: number }>>`
+      SELECT COUNT(*)::int AS n FROM topups
+      WHERE status = 'approved' AND updated_at >= ${from}::timestamptz AND updated_at <= ${to}::timestamptz
+        AND ((user_id = ANY(${userIds}::uuid[])) = ${benchmark}::boolean)`;
+    return rows[0]?.n ?? 0;
+  }
+
+  /** Trong các tài khoản (id + created_at), tập id có đơn `approved` trong `days` ngày kể từ created_at. */
+  async accountsWithApprovedWithin(accounts: Array<{ id: string; createdAt: Date }>, days: number): Promise<Set<string>> {
+    if (accounts.length === 0) return new Set();
+    const ids = accounts.map((a) => a.id);
+    const created = accounts.map((a) => a.createdAt);
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT DISTINCT a.id FROM unnest(${ids}::uuid[], ${created}::timestamptz[]) AS a(id, created_at)
+      JOIN topups t ON t.user_id = a.id AND t.status = 'approved'
+        AND t.updated_at >= a.created_at AND t.updated_at <= a.created_at + (${days}::int * interval '1 day')`;
+    return new Set(rows.map((r) => r.id));
+  }
+
   /** CAS trong transaction: trả dòng trước khi đổi, hoặc ném NOT_FOUND / TOPUP_STATE_INVALID. */
   private async casTransition(
     tx: PrismaTransactionClient,

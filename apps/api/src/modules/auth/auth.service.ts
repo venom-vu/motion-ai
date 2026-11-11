@@ -75,6 +75,29 @@ export class AuthService {
     private readonly walletService: WalletService,
   ) {}
 
+  /** Id user theo danh sách email (không phân biệt hoa thường). */
+  async findUserIdsByEmails(emails: string[]): Promise<string[]> {
+    const lowered = emails.map((e) => e.trim().toLowerCase()).filter(Boolean);
+    if (lowered.length === 0) return [];
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM users WHERE lower(email) = ANY(${lowered}::text[])`;
+    return rows.map((r) => r.id);
+  }
+
+  /** Tài khoản tạo trong [from, to], theo nhóm user của `userIds`. */
+  async listUsersCreatedBetween(
+    from: Date,
+    to: Date,
+    userIds: string[],
+    benchmark: boolean,
+  ): Promise<Array<{ id: string; createdAt: Date }>> {
+    const rows = await this.prisma.$queryRaw<Array<{ id: string; created_at: Date }>>`
+      SELECT id, created_at FROM users
+      WHERE created_at >= ${from}::timestamptz AND created_at <= ${to}::timestamptz
+        AND ((id = ANY(${userIds}::uuid[])) = ${benchmark}::boolean)`;
+    return rows.map((r) => ({ id: r.id, createdAt: r.created_at }));
+  }
+
   /** Khóa tài khoản trong transaction của bên gọi: khóa dòng, đặt locked_at, thu hồi mọi refresh token. Trả lockedAt trước đó. */
   async lockAccount(tx: PrismaTransactionClient, userId: string): Promise<{ before: Date | null; after: Date }> {
     const rows = await tx.$queryRaw<Array<{ locked_at: Date | null }>>`SELECT locked_at FROM users WHERE id = ${userId}::uuid FOR UPDATE`;

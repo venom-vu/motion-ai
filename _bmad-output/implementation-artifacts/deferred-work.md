@@ -310,3 +310,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-6-5-be-go-bo-noi-dung-khan-cap.md`
   summary: Gỡ nội dung xóa cả khóa `in/` có thể đang dùng chung với Task khác của cùng chủ.
   evidence: `areConfirmedKeysOwnedBy` không đánh dấu upload đã dùng nên một khóa `in/` có thể xuất hiện trong nhiều Task; takedown xóa mọi khóa `in/` của Task theo spec. Cần xác minh luồng tạo Task có cho dùng lại upload hay không.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-6-be-thong-ke-van-hanh-va-nhat-ky-admin.md`
+  summary: Log JSON có `taskId`/`userId` và không chứa email, token, khóa bí mật (NFR7), kèm test, cho `api` và `worker`.
+  evidence: Tách khỏi Story 6.6 theo lựa chọn của người dùng. Hiện chỉ dùng `Logger` văn bản của Nest, chưa có trường có cấu trúc; `auth.service.ts` ghi email thô vào log khi googleId xung đột.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-6-be-thong-ke-van-hanh-va-nhat-ky-admin.md`
+  summary: Loại tài khoản admin/nội bộ khỏi chỉ số `scope=real` của thống kê.
+  evidence: Spec chỉ loại email trong `BENCHMARK_USER_EMAILS`; tài khoản admin tạo trong kỳ làm tăng mẫu số SM-1, số Task và `gpuCostUsd`. Cần quyết định loại theo role hay yêu cầu đưa admin vào danh sách benchmark.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-6-be-thong-ke-van-hanh-va-nhat-ky-admin.md`
+  summary: Thêm cột `approved_at` cho đơn nạp thay cho `updated_at` trong thống kê.
+  evidence: `countApproved` và `accountsWithApprovedWithin` dùng `updated_at`; mọi lần ghi sau đó vào đơn đã duyệt (sửa `bank_ref`, backfill) làm đơn dịch chuyển giữa các kỳ và cửa sổ 30 ngày của SM-1.

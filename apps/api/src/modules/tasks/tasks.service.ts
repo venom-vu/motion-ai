@@ -55,6 +55,19 @@ export const SYSTEM_FAILURE_REASONS: readonly ReasonCode[] = [
   'INTERNAL_ERROR',
 ];
 
+export interface TaskPipelineStatsRow {
+  pipeline: string;
+  counts: Record<string, number>;
+  succeeded: number;
+  system_failed: number;
+  avg_proc: number | null;
+  p95_proc: number | null;
+  ok_gpu_sum: number | null;
+  wasted_gpu: number | null;
+  ok_seconds: number | null;
+  all_gpu: number | null;
+}
+
 export const TASKS_QUEUE = 'tasks';
 export const MAX_ACTIVE_TASKS_PER_USER = 3;
 /** Giới hạn chờ enqueue để phản hồi tạo Task luôn dưới 2 giây khi Redis treo; bộ quét sẽ enqueue lại. */
@@ -198,6 +211,55 @@ export class TasksService {
       } else streak = false;
     }
     return { eligible: rows.length, systemFailures, consecutiveFailures };
+  }
+
+  /** Thống kê Task theo pipeline trong [from, to] (created_at); `benchmark` chọn nhóm user của `userIds`. */
+  async statsByPipeline(from: Date, to: Date, userIds: string[], benchmark: boolean): Promise<TaskPipelineStatsRow[]> {
+    const reasons = [...SYSTEM_FAILURE_REASONS];
+    const rows = await this.prisma.$queryRaw<Array<Omit<TaskPipelineStatsRow, 'counts'>>>`
+      SELECT pipeline,
+        SUM(ok)::int AS succeeded,
+        SUM(sys_fail)::int AS system_failed,
+        AVG(proc)::float8 AS avg_proc,
+        percentile_cont(0.95) WITHIN GROUP (ORDER BY proc)::float8 AS p95_proc,
+        SUM(ok_gpu)::float8 AS ok_gpu_sum,
+        SUM(wasted)::float8 AS wasted_gpu,
+        SUM(ok_seconds)::float8 AS ok_seconds,
+        SUM(all_gpu)::float8 AS all_gpu
+      FROM (
+        SELECT pipeline,
+          (status = 'succeeded')::int AS ok,
+          (status IN ('failed','timed_out') AND reason_code = ANY(${reasons}::text[]))::int AS sys_fail,
+          CASE WHEN status = 'succeeded' AND finished_at IS NOT NULL AND running_at IS NOT NULL
+            THEN EXTRACT(EPOCH FROM (finished_at - running_at)) END AS proc,
+          CASE WHEN status = 'succeeded' THEN COALESCE(gpu_coins, 0) ELSE 0 END AS ok_gpu,
+          CASE WHEN status IN ('failed','timed_out','cancelled') THEN COALESCE(gpu_coins, 0) ELSE 0 END AS wasted,
+          CASE WHEN status = 'succeeded' AND jsonb_typeof(params->'seconds') = 'number'
+            THEN (params->>'seconds')::float8 ELSE 0 END AS ok_seconds,
+          COALESCE(gpu_coins, 0) AS all_gpu
+        FROM tasks
+        WHERE created_at >= ${from}::timestamptz AND created_at <= ${to}::timestamptz
+          AND ((user_id = ANY(${userIds}::uuid[])) = ${benchmark}::boolean)
+      ) t
+      GROUP BY pipeline`;
+    const countRows = await this.prisma.$queryRaw<Array<{ pipeline: string; status: string; n: number }>>`
+      SELECT pipeline, status, COUNT(*)::int AS n FROM tasks
+      WHERE created_at >= ${from}::timestamptz AND created_at <= ${to}::timestamptz
+        AND ((user_id = ANY(${userIds}::uuid[])) = ${benchmark}::boolean)
+      GROUP BY pipeline, status`;
+    return rows.map((r) => {
+      const counts: Record<string, number> = {};
+      for (const c of countRows) if (c.pipeline === r.pipeline) counts[c.status] = c.n;
+      return { ...r, counts };
+    });
+  }
+
+  /** Tập user (trong `userIds`) có ít nhất một Task. */
+  async userIdsWithTasks(userIds: string[]): Promise<Set<string>> {
+    if (userIds.length === 0) return new Set();
+    const rows = await this.prisma.$queryRaw<Array<{ user_id: string }>>`
+      SELECT DISTINCT user_id FROM tasks WHERE user_id = ANY(${userIds}::uuid[])`;
+    return new Set(rows.map((r) => r.user_id));
   }
 
   /** Bộ quét: Task queued quá `olderThanMs` kể từ queued_at. */
