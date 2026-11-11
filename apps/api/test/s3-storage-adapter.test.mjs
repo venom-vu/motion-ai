@@ -92,4 +92,16 @@ describe('S3StorageAdapter (client giả)', () => {
     assert.ok(u.searchParams.get('X-Amz-Signature'));
     assert.equal(u.searchParams.get('x-id'), 'GetObject');
   });
+
+  it('list: phân trang theo NextContinuationToken, gom mọi khóa', async () => {
+    const tokens = [];
+    const a = adapterWith(async (cmd) => {
+      tokens.push(cmd.input.ContinuationToken);
+      return cmd.input.ContinuationToken
+        ? { Contents: [{ Key: 'p/b', Size: 2 }], IsTruncated: false }
+        : { Contents: [{ Key: 'p/a', Size: 1 }], IsTruncated: true, NextContinuationToken: 'T1' };
+    });
+    assert.deepEqual(await a.list('p/'), [{ key: 'p/a', sizeBytes: 1 }, { key: 'p/b', sizeBytes: 2 }]);
+    assert.deepEqual(tokens, [undefined, 'T1']);
+  });
 });

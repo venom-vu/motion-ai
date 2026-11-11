@@ -322,3 +322,19 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-6-6-be-thong-ke-van-hanh-va-nhat-ky-admin.md`
   summary: Thêm cột `approved_at` cho đơn nạp thay cho `updated_at` trong thống kê.
   evidence: `countApproved` và `accountsWithApprovedWithin` dùng `updated_at`; mọi lần ghi sau đó vào đơn đã duyệt (sửa `bank_ref`, backfill) làm đơn dịch chuyển giữa các kỳ và cửa sổ 30 ngày của SM-1.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-7-be-sao-luu-postgresql-len-r2.md`
+  summary: Thêm vào CI bước `pg_dump --version` trên image worker và bước chạy restore-drill trên một dump nhỏ (làm trên nhánh `shared/*`).
+  evidence: Nhánh `be/*` không được sửa `.github/` (scripts/check-branch-boundaries.mjs l.38–44); story 6.7 yêu cầu cả hai bước CI. Script `apps/api/src/scripts/restore-drill.ts` và lệnh kiểm tra phiên bản đã có sẵn để CI gọi.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-7-be-sao-luu-postgresql-len-r2.md`
+  summary: Hỗ trợ kết nối TLS cho sao lưu (ánh xạ `sslmode`, `sslrootcert` trong `DATABASE_URL` sang `PGSSL*`, truyền `PGSSL*`/`HOME`/`TMPDIR` cho tiến trình con).
+  evidence: `pgConnectionFromUrl` cắt toàn bộ query của `DATABASE_URL` và `childEnv` chỉ truyền `PATH`, `LANG`, `PG*`; hiện đúng vì Postgres trong compose cùng mạng không TLS, sẽ sai khi chuyển sang DB từ xa yêu cầu TLS.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-7-be-sao-luu-postgresql-len-r2.md`
+  summary: Ghim vân tay khóa PGDG trong `deploy/Dockerfile` và gỡ `curl`/`gnupg` khỏi image runtime.
+  evidence: Khóa PGDG tải qua mạng lúc build không kiểm vân tay; `curl`/`gnupg` còn lại trong image runtime. Build hiện thành công và `pg_dump` ra 16.15.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-7-be-sao-luu-postgresql-len-r2.md`
+  summary: Ghi quyết định ngoài MVP: mã hóa phía ứng dụng cho bản sao lưu và khóa R2 riêng cho `db-backup/`.
+  evidence: `deploy/README.md` đã nêu việc này nằm ngoài MVP theo AC; chưa có mục theo dõi để làm ở giai đoạn sau.

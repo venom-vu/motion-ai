@@ -3,6 +3,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -11,6 +12,7 @@ import { Injectable } from '@nestjs/common';
 import {
   StoragePreconditionFailedError,
   type StorageHeadResult,
+  type StorageListItem,
   type StoragePort,
   type StoragePresignPutInput,
   type StoragePresignPutResult,
@@ -153,5 +155,20 @@ export class S3StorageAdapter implements StoragePort {
 
   async delete(key: string): Promise<void> {
     await this.s3.send(new DeleteObjectCommand({ Bucket: getBucketName(), Key: key }));
+  }
+
+  async list(prefix: string): Promise<StorageListItem[]> {
+    const items: StorageListItem[] = [];
+    let token: string | undefined;
+    do {
+      const res = await this.s3.send(
+        new ListObjectsV2Command({ Bucket: getBucketName(), Prefix: prefix, ContinuationToken: token }),
+      );
+      for (const o of res.Contents ?? []) {
+        if (o.Key) items.push({ key: o.Key, sizeBytes: Number(o.Size ?? 0) });
+      }
+      token = res.IsTruncated ? res.NextContinuationToken : undefined;
+    } while (token);
+    return items;
   }
 }

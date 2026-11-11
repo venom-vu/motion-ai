@@ -45,6 +45,8 @@ Script đặt CORS chỉ cho `FRONTEND_URL` (PUT/GET/HEAD) và lifecycle: `in-ra
 
 Presigned PUT ký kèm `Content-Type` và `Content-Length`: client phải PUT đúng `Content-Type` trả về trong `headers` và body có độ dài đúng bằng `sizeBytes` đã khai báo (không dùng chunked/stream), nếu không R2 trả 403.
 
+Tiền tố `db-backup/` (sao lưu PostgreSQL, Story 6.7) không nằm trong quy tắc lifecycle nào; chỉ job sao lưu giữ 7 bản mới nhất. Mã hóa phía ứng dụng và khóa R2 riêng cho sao lưu nằm ngoài MVP (R2 mã hóa lưu trữ mặc định). Xem `deploy/RESTORE.md`.
+
 ## Smoke test Body Retouch (Story 4.6)
 
 `apps/api/test/smoke-body-retouch.test.mjs` dựng stack bốn container (project `flowvis-smoke-bd`, api `3105`, Postgres `15436`, Redis `16383`); RunningHub giả (`3197`), S3/R2 giả (`3198`), Google giả (`3199`) chạy trong tiến trình test. Chạy: `RUN_COMPOSE_E2E=1 pnpm --filter @flowvis/api test`. Kịch bản: thành công `intensity` 8 (500 -> 400, RH nhận `smoke-workflow-body-reshape` với node `10/image` và `20/intensity` = `8`, `/result` có `sourceUrl`), `NO_POSE` (failed, RELEASED, thông báo Body Retouch), chung hàng đợi với Face Swap (không quá 2 Task đồng thời, mỗi Task một HOLD và một CAPTURED), ảnh gốc hết hạn (xóa đối tượng `in/` khỏi S3 giả nên `sourceUrl` là `null`), rồi `reconcile.js`. Benchmark Epic 6 phải có ít nhất một ảnh nhạy cảm chạy qua Body Retouch.

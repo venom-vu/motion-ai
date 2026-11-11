@@ -36,6 +36,8 @@ async function main(): Promise<void> {
       },
     }),
   );
+  // Mỗi quy tắc lifecycle dưới đây chỉ theo tiền tố riêng (in-raw/, in/, out/) nên không áp dụng
+  // cho db-backup/; bản sao lưu chỉ bị xóa bởi job giữ 7 bản. Không thêm quy tắc theo toàn bucket.
   await client.send(
     new PutBucketLifecycleConfigurationCommand({
       Bucket: bucket,

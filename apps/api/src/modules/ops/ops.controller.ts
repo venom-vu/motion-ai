@@ -52,7 +52,7 @@ export class OpsController {
       rhBudgetExhausted: await this.settings.isRhBudgetExhausted(),
       lastBreakerTrigger: await this.settings.getLastBreakerTrigger(),
       rhBalance: await this.settings.getRhBalance(),
-      lastBackup: null,
+      lastBackup: await this.settings.getLastBackup(),
     };
   }
 }

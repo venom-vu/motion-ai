@@ -5,3 +5,4 @@ export * from './settings.service.js';
 export * from './intake-open.guard.js';
 export * from './ops-admin.module.js';
 export * from './breaker.service.js';
+export * from './backup.service.js';

@@ -9,6 +9,9 @@ export const SETTING_KEYS = {
   lastBreakerTrigger: 'last_breaker_trigger',
   rhBalance: 'rh_balance',
   rhBalanceState: 'rh_balance_state',
+  lastBackup: 'last_backup',
+  lastBackupSuccessAt: 'last_backup_success_at',
+  backupStaleState: 'backup_stale_alerted',
 } as const;
 
 export const ALERT_KEY_PREFIX = 'alert:';
@@ -22,6 +25,18 @@ export interface RhBalanceState {
   failStreak: number;
   failAlerted: boolean;
   lowAlerted: boolean;
+}
+
+export interface LastBackupRecord {
+  at: string;
+  result: 'success' | 'failed';
+  sizeBytes: number | null;
+}
+
+export interface BackupStaleState {
+  alerted: boolean;
+  /** Mốc khởi điểm khi hệ thống chưa từng có bản sao lưu. */
+  watchSince: string | null;
 }
 
 export interface BreakerTriggerRecord {
@@ -82,6 +97,36 @@ export class SettingsService {
 
   async saveRhBalance(reading: RhBalanceReading): Promise<void> {
     await this.writeJson(SETTING_KEYS.rhBalance, reading);
+  }
+
+  async getLastBackup(): Promise<LastBackupRecord | null> {
+    const v = await this.read(this.prisma, SETTING_KEYS.lastBackup);
+    if (!v || typeof v !== 'object') return null;
+    const { at, result, sizeBytes } = v as Partial<LastBackupRecord>;
+    if (typeof at !== 'string' || (result !== 'success' && result !== 'failed')) return null;
+    return { at, result, sizeBytes: typeof sizeBytes === 'number' ? sizeBytes : null };
+  }
+
+  /** Ghi kết quả sao lưu; bản thành công đồng thời cập nhật mốc thành công gần nhất. */
+  async saveLastBackup(record: LastBackupRecord): Promise<void> {
+    await this.writeJson(SETTING_KEYS.lastBackup, record);
+    if (record.result === 'success') await this.writeJson(SETTING_KEYS.lastBackupSuccessAt, record.at);
+  }
+
+  async getLastBackupSuccessAt(): Promise<Date | null> {
+    const v = await this.read(this.prisma, SETTING_KEYS.lastBackupSuccessAt);
+    if (typeof v !== 'string') return null;
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  async getBackupStaleState(): Promise<BackupStaleState> {
+    const v = (await this.read(this.prisma, SETTING_KEYS.backupStaleState)) as Partial<BackupStaleState> | null;
+    return { alerted: v?.alerted === true, watchSince: typeof v?.watchSince === 'string' ? v.watchSince : null };
+  }
+
+  async setBackupStaleState(state: BackupStaleState): Promise<void> {
+    await this.writeJson(SETTING_KEYS.backupStaleState, state);
   }
 
   /** Trạng thái một cảnh báo (khóa không gồm tiền tố). */

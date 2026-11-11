@@ -113,6 +113,13 @@ export interface StoragePort {
   /** Ném StoragePreconditionFailedError khi ETag nguồn khác `etag`. */
   copyIfMatch(sourceKey: string, destKey: string, etag: string): Promise<void>;
   delete(key: string): Promise<void>;
+  /** Liệt kê mọi khóa có tiền tố (tự phân trang). */
+  list(prefix: string): Promise<StorageListItem[]>;
+}
+
+export interface StorageListItem {
+  readonly key: string;
+  readonly sizeBytes: number;
 }
 
 export interface NotifierEvent {
