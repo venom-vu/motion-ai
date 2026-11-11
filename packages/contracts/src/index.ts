@@ -10,4 +10,6 @@ export * from './wallet.js';
 export * from './uploads.js';
 export * from './tasks.js';
 export * from './topups.js';
+export * from './ops.js';
+export * from './admin.js';
 export * from './mocks.js';

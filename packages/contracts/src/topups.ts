@@ -142,7 +142,7 @@ export const TopupListQuerySchema = z.object({
 });
 export type TopupListQuery = z.infer<typeof TopupListQuerySchema>;
 
-function pagedResponse<T extends z.ZodTypeAny>(item: T, noun: string) {
+export function pagedResponse<T extends z.ZodTypeAny>(item: T, noun: string) {
   return z
     .object({
       items: z.array(item),

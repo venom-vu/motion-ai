@@ -80,3 +80,15 @@ Gói hợp đồng dùng chung (Shared Contracts) giữa Backend (`@flowvis/api`
 - `GET /tasks/{id}/result` thêm `mediaType` (`image`|`video`; vắng mặt hiểu là ảnh), `posterUrl` và `durationSeconds` (chỉ video); `sourceUrl` Motion luôn `null`. `GET /s/{token}/info` (`ShareInfoResponseSchema`) và `GET /s/{token}/poster` (chuyển hướng, không body).
 - `NO_POSE`/`NO_FACE` riêng cho `motion_control` qua `getReasonCodeMessageVi(code, 'motion_control')`.
 - Mock: `MOCK_MOTION_CREATE_REQUEST`, `MOCK_MOTION_TASKS_BY_STATUS` (6 trạng thái), `MOCK_UPLOAD_VIDEO_CONFIRM_RESPONSE`, `MOCK_MOTION_RESULT_RESPONSE`, `MOCK_SHARE_INFO_*`.
+
+### 9. Vận hành và quản trị (Epic 6: `src/ops.ts`, `src/admin.ts`, `src/tasks.ts`)
+
+- `GET /system/status` (công khai): `SystemStatusResponseSchema` đúng `{ intakePaused: boolean }` `.strict()`, không lý do, không số liệu.
+- `GET /admin/ops/status` (`OpsStatusResponseSchema`: `intakePaused`, `rhBudgetExhausted`, `lastBreakerTrigger`, `rhBalance`, `lastBackup`, các nhóm sau nullable); `POST /admin/ops/resume` body rỗng `.strict()`, trả cùng hình dạng status.
+- `GET /admin/stats` (`AdminStatsQuerySchema`: `from`, `to` ISO, `to >= from`, `scope` `real|benchmark` mặc định `real`, `motionPricePerSecond`, `imagePrice` số nguyên dương tùy chọn; `AdminStatsResponseSchema`: theo pipeline, biên gộp pipeline × gói × kịch bản `retail|standardPack`, SM-1…SM-4 trong `successMetrics`).
+- `GET /admin/audit` (lọc `action`, `target`, phân trang cursor, chỉ đọc).
+- `GET /admin/users?email=` (trả một tài khoản, không thấy thì 404), `GET /admin/users/{id}`, `GET /admin/users/{id}/ledger` (dùng `LedgerEntrySchema`); `POST /admin/users/{id}/lock|unlock` `{ reason }`; `POST /admin/users/{id}/adjust` `{ amount (số nguyên khác 0), reason, requestId (uuid) }`; `GET /admin/tasks/lookup` (đúng một trong `taskId`|`shareUrl`); `POST /admin/tasks/{id}/takedown` `{ reason }`. `reason` được `trim`, không rỗng.
+- `VALIDATION_REASONS` thêm `REASON_REQUIRED`, `TASK_NOT_FINISHED`, `ADJUST_OVER_LIMIT`, `ADJUST_INSUFFICIENT_BALANCE` (không kèm `cap`); `ApiErrorCode` không thêm giá trị.
+- `Task.filesRemovedAt` (datetime, nullable, tùy chọn); hằng `CONTENT_REMOVED_MESSAGE_VI`.
+- `pagedResponse` được export từ `src/topups.ts`.
+- Mock: `MOCK_SYSTEM_STATUS_*`, `MOCK_OPS_STATUS_NORMAL|PAUSED|BUDGET_EXHAUSTED`, `MOCK_ADMIN_STATS_RESPONSE`, `MOCK_ADMIN_USER_*`, `MOCK_ADMIN_ADJUST_REQUEST`, `MOCK_ADMIN_TASK_LOOKUP_RESPONSE`, `MOCK_ADMIN_AUDIT_RESPONSE`.

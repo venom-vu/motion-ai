@@ -130,6 +130,8 @@ const TaskBaseSchema = z.object({
       .nullable()
       .optional(),
     creditCost: z.number().int().positive(),
+    /** Thời điểm nội dung bị gỡ (vi phạm hoặc theo yêu cầu); vắng/null nghĩa là chưa gỡ. */
+    filesRemovedAt: z.string().datetime().nullable().optional(),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
   });
@@ -284,6 +286,10 @@ export const VALIDATION_REASONS = [
   'TRIM_EXCEEDS_CAP',
   'TRIM_OUT_OF_VIDEO',
   'TRIM_NOT_WHOLE_SECOND',
+  'REASON_REQUIRED',
+  'TASK_NOT_FINISHED',
+  'ADJUST_OVER_LIMIT',
+  'ADJUST_INSUFFICIENT_BALANCE',
 ] as const;
 export type ValidationReason = (typeof VALIDATION_REASONS)[number];
 export const ValidationReasonSchema = z.enum(VALIDATION_REASONS);
@@ -318,7 +324,15 @@ export const VALIDATION_REASON_MESSAGES_VI: Readonly<Record<ValidationReason, st
   TRIM_EXCEEDS_CAP: 'Gói của bạn cho phép tối đa {cap} giây',
   TRIM_OUT_OF_VIDEO: 'Đoạn cắt nằm ngoài độ dài của video.',
   TRIM_NOT_WHOLE_SECOND: 'Đoạn cắt phải tính theo từng giây nguyên.',
+  REASON_REQUIRED: 'Vui lòng nhập lý do.',
+  TASK_NOT_FINISHED: 'Tác vụ chưa kết thúc nên chưa thể gỡ nội dung.',
+  ADJUST_OVER_LIMIT: 'Số credit điều chỉnh vượt quá giới hạn cho phép.',
+  ADJUST_INSUFFICIENT_BALANCE: 'Số dư tài khoản không đủ để trừ số credit này.',
 };
+
+/** Thông báo thay cho nội dung đã bị gỡ (Task có `filesRemovedAt`). */
+export const CONTENT_REMOVED_MESSAGE_VI =
+  'Nội dung đã bị gỡ do vi phạm hoặc theo yêu cầu';
 
 const API_VALIDATION_FALLBACK_VI = 'Dữ liệu không hợp lệ.';
 

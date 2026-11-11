@@ -266,3 +266,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-5-9-integration-noi-fe-voi-be-va-smoke-test-motion-control.md`
   summary: Job `smoke` của CI không cài hoặc kiểm `ffmpeg`/`ffprobe` (libx264) trên runner host trước khi smoke Motion Control sinh video mẫu.
   evidence: Smoke gọi `ffmpeg -f lavfi ... libx264` trên host `ubuntu-latest`; nếu image runner đổi, lỗi là ENOENT khó hiểu; cần bước `ffmpeg -version` hoặc cài đặt rõ ràng.
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-1-contract-hop-dong-cho-van-hanh-va-quan-tri.md`
+  summary: Chốt ánh xạ SM-1…SM-4 sang trường `successMetrics` (hiện 3 trường).
+  evidence: SM-1/2 gộp vào `conversionRate`; BE 6.6 cần xác nhận và bổ sung nếu thiếu.
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-1-contract-hop-dong-cho-van-hanh-va-quan-tri.md`
+  summary: Định nghĩa `pausedReason` và hành vi `POST /admin/ops/resume` khi ví RunningHub vẫn cạn.
+  evidence: Hợp đồng 6.1 chưa nêu; thuộc 6.2/6.3.
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-1-contract-hop-dong-cho-van-hanh-va-quan-tri.md`
+  summary: Chốt enum `rule`/`metrics` ngắt mạch và `action`/`target` nhật ký audit.
+  evidence: Đang là chuỗi tự do; BE 6.2/6.4/6.5 có thể phát tên lệch nhau.
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-1-contract-hop-dong-cho-van-hanh-va-quan-tri.md`
+  summary: Định nghĩa hình dạng `GET /tasks/{id}/result` và `/s/{token}/info` cho Task đã gỡ (có `filesRemovedAt`).
+  evidence: Chỉ có `filesRemovedAt` và hằng thông báo; BE 6.5 và FE 6.9 cần cùng quyết định.

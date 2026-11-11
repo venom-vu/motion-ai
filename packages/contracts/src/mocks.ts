@@ -21,6 +21,19 @@ import {
   TaskStatus,
 } from './tasks.js';
 import type {
+  AdminAdjustRequest,
+  AdminTaskLookupResponse,
+  AdminUser,
+  AdminUserLedgerResponse,
+  AdminUserSearchResponse,
+} from './admin.js';
+import type {
+  AdminAuditResponse,
+  AdminStatsResponse,
+  OpsStatusResponse,
+  SystemStatusResponse,
+} from './ops.js';
+import type {
   AdminTopup,
   AdminTopupListResponse,
   Topup,
@@ -661,6 +674,158 @@ export const MOCK_ADMIN_TOPUP_LIST_RESPONSE: AdminTopupListResponse = {
     MOCK_ADMIN_TOPUPS_BY_STATUS.pending,
     MOCK_ADMIN_TOPUPS_BY_STATUS.needs_review,
     MOCK_ADMIN_TOPUPS_BY_STATUS.expired,
+  ],
+  pageSize: 20,
+  hasMore: false,
+  nextCursor: null,
+};
+
+/* ------------------------------ Epic 6 ------------------------------ */
+
+export const MOCK_SYSTEM_STATUS_NORMAL: SystemStatusResponse = { intakePaused: false };
+export const MOCK_SYSTEM_STATUS_PAUSED: SystemStatusResponse = { intakePaused: true };
+
+export const MOCK_OPS_STATUS_NORMAL: OpsStatusResponse = {
+  intakePaused: false,
+  rhBudgetExhausted: false,
+  lastBreakerTrigger: null,
+  rhBalance: { coins: 52000, readAt: '2026-11-11T02:00:00.000Z' },
+  lastBackup: { at: '2026-11-10T20:00:00.000Z', result: 'success', sizeBytes: 12582912 },
+};
+
+export const MOCK_OPS_STATUS_PAUSED: OpsStatusResponse = {
+  ...MOCK_OPS_STATUS_NORMAL,
+  intakePaused: true,
+  lastBreakerTrigger: {
+    at: '2026-11-11T01:30:00.000Z',
+    rule: 'ERROR_RATE_15_PERCENT_20_TASKS_30_MIN',
+    metrics: { eligibleTasks: 24, systemFailures: 5, errorRate: 0.208 },
+  },
+};
+
+export const MOCK_OPS_STATUS_BUDGET_EXHAUSTED: OpsStatusResponse = {
+  ...MOCK_OPS_STATUS_NORMAL,
+  intakePaused: true,
+  rhBudgetExhausted: true,
+  rhBalance: { coins: 0, readAt: '2026-11-11T02:05:00.000Z' },
+  lastBackup: { at: '2026-11-10T20:00:00.000Z', result: 'failed', sizeBytes: null },
+};
+
+export const MOCK_ADMIN_STATS_RESPONSE: AdminStatsResponse = {
+  from: '2026-11-01T00:00:00.000Z',
+  to: '2026-11-11T00:00:00.000Z',
+  scope: 'real',
+  pipelines: [
+    {
+      pipeline: 'face_swap',
+      taskCounts: { queued: 0, running: 1, succeeded: 90, failed: 6, timed_out: 2, cancelled: 1 },
+      successRate: 0.9,
+      avgProcessingSeconds: 42.5,
+      p95ProcessingSeconds: 88,
+      avgGpuCoins: 20,
+      wastedGpuCoins: 160,
+      avgCostVnd: { retail: 1200, standardPack: 980 },
+    },
+    {
+      pipeline: 'body_retouch',
+      taskCounts: { queued: 0, running: 0, succeeded: 0, failed: 0, timed_out: 0, cancelled: 0 },
+      successRate: null,
+      avgProcessingSeconds: null,
+      p95ProcessingSeconds: null,
+      avgGpuCoins: null,
+      wastedGpuCoins: 0,
+      avgCostVnd: null,
+    },
+  ],
+  margins: [
+    {
+      pipeline: 'face_swap',
+      pack: 'starter',
+      scenario: 'retail',
+      revenueVnd: 980,
+      costVnd: 1200,
+      marginVnd: -220,
+      marginRate: -0.2245,
+    },
+    {
+      pipeline: 'face_swap',
+      pack: 'creator',
+      scenario: 'standardPack',
+      revenueVnd: 663,
+      costVnd: 980,
+      marginVnd: -317,
+      marginRate: -0.478,
+    },
+  ],
+  successMetrics: { approvedTopups: 14, conversionRate: 0.12, gpuCostUsd: 18.4 },
+};
+
+const mockAdminUserId = '90000000-0000-4000-8000-000000000001';
+const mockAdminId = '90000000-0000-4000-8000-0000000000aa';
+
+export const MOCK_ADMIN_USER: AdminUser = {
+  id: mockAdminUserId,
+  email: 'user@example.com',
+  role: 'user',
+  tier: 'Starter',
+  balance: 4200,
+  held: 100,
+  lockedAt: null,
+  createdAt: '2026-10-20T08:00:00.000Z',
+};
+
+export const MOCK_ADMIN_USER_LOCKED: AdminUser = {
+  ...MOCK_ADMIN_USER,
+  lockedAt: '2026-11-10T09:00:00.000Z',
+};
+
+export const MOCK_ADMIN_USER_SEARCH_RESPONSE: AdminUserSearchResponse = MOCK_ADMIN_USER;
+
+export const MOCK_ADMIN_USER_LEDGER_RESPONSE: AdminUserLedgerResponse = {
+  items: [
+    {
+      id: '90000000-0000-4000-8000-000000000011',
+      userId: mockAdminUserId,
+      type: 'ADJUST',
+      labelVi: LEDGER_ENTRY_LABELS_VI.ADJUST,
+      amount: 300,
+      note: 'Bù credit do lỗi hệ thống',
+      createdAt: '2026-11-10T10:00:00.000Z',
+    },
+  ],
+  pageSize: 20,
+  hasMore: false,
+  nextCursor: null,
+};
+
+export const MOCK_ADMIN_ADJUST_REQUEST: AdminAdjustRequest = {
+  amount: 300,
+  reason: 'Bù credit do lỗi hệ thống',
+  requestId: '90000000-0000-4000-8000-0000000000c1',
+};
+
+export const MOCK_ADMIN_TASK_LOOKUP_RESPONSE: AdminTaskLookupResponse = {
+  id: '70000000-0000-4000-8000-000000000003',
+  userId: mockAdminUserId,
+  userEmail: 'user@example.com',
+  pipeline: 'face_swap',
+  status: 'succeeded',
+  creditCost: 100,
+  filesRemovedAt: null,
+  createdAt: '2026-11-10T08:00:00.000Z',
+};
+
+export const MOCK_ADMIN_AUDIT_RESPONSE: AdminAuditResponse = {
+  items: [
+    {
+      id: '90000000-0000-4000-8000-000000000021',
+      adminId: mockAdminId,
+      action: 'ADJUST',
+      target: `user:${mockAdminUserId}`,
+      reason: 'Bù credit do lỗi hệ thống',
+      requestId: '90000000-0000-4000-8000-0000000000c1',
+      createdAt: '2026-11-10T10:00:00.000Z',
+    },
   ],
   pageSize: 20,
   hasMore: false,

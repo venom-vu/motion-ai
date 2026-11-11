@@ -115,6 +115,39 @@ import {
   MOCK_BODY_RETOUCH_CREATE_REQUEST,
   MOCK_BODY_RETOUCH_TASKS_BY_STATUS,
   MOCK_BODY_RETOUCH_RESULT_RESPONSE,
+  SystemStatusResponseSchema,
+  OpsStatusResponseSchema,
+  OpsResumeRequestSchema,
+  AdminStatsQuerySchema,
+  AdminStatsResponseSchema,
+  AdminAuditResponseSchema,
+  AdminAdjustRequestSchema,
+  AdminUserLockRequestSchema,
+  AdminTaskLookupQuerySchema,
+  AdminTaskTakedownRequestSchema,
+  AdminUserSearchResponseSchema,
+  AdminUserLedgerResponseSchema,
+  AdminTaskLookupResponseSchema,
+  CONTENT_REMOVED_MESSAGE_VI,
+  AdminUserLockResponseSchema,
+  AdminAdjustResponseSchema,
+  AdminTaskTakedownResponseSchema,
+  AdminUserSearchQuerySchema,
+  AdminUserLedgerQuerySchema,
+  AdminAuditQuerySchema,
+  MOCK_ADMIN_USER,
+  MOCK_ADMIN_USER_LOCKED,
+  MOCK_SYSTEM_STATUS_NORMAL,
+  MOCK_SYSTEM_STATUS_PAUSED,
+  MOCK_OPS_STATUS_NORMAL,
+  MOCK_OPS_STATUS_PAUSED,
+  MOCK_OPS_STATUS_BUDGET_EXHAUSTED,
+  MOCK_ADMIN_STATS_RESPONSE,
+  MOCK_ADMIN_USER_SEARCH_RESPONSE,
+  MOCK_ADMIN_USER_LEDGER_RESPONSE,
+  MOCK_ADMIN_ADJUST_REQUEST,
+  MOCK_ADMIN_TASK_LOOKUP_RESPONSE,
+  MOCK_ADMIN_AUDIT_RESPONSE,
 } from '../dist/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1133,7 +1166,7 @@ describe('@flowvis/contracts', () => {
     });
 
     it('validates reasons and messages', () => {
-      assert.equal(VALIDATION_REASONS.length, 6);
+      assert.equal(VALIDATION_REASONS.length, 10);
       for (const reason of VALIDATION_REASONS) {
         const d = reason === 'TRIM_EXCEEDS_CAP' ? { reason, cap: 10 } : { reason };
         assert.equal(ValidationDetailsSchema.safeParse(d).success, true, reason);
@@ -1160,6 +1193,103 @@ describe('@flowvis/contracts', () => {
       assert.equal(Object.keys(MOCK_MOTION_TASKS_BY_STATUS).length, 6);
       assert.equal(PricingConfigResponseSchema.safeParse(MOCK_PRICING_CONFIG_RESPONSE).success, true);
       assert.equal(MOCK_PRICING_CONFIG_RESPONSE.pipelines.motionControlMinSeconds, 3);
+    });
+  });
+
+  describe('Epic 6 contracts', () => {
+    const uuid = '90000000-0000-4000-8000-0000000000c1';
+    it('system status is a strict boolean only', () => {
+      assert.equal(SystemStatusResponseSchema.safeParse({ intakePaused: true }).success, true);
+      assert.equal(SystemStatusResponseSchema.safeParse({ intakePaused: true, reason: 'x' }).success, false);
+    });
+    it('adjust request', () => {
+      const ok = { amount: 300, reason: 'Bù', requestId: uuid };
+      assert.equal(AdminAdjustRequestSchema.safeParse(ok).success, true);
+      assert.equal(AdminAdjustRequestSchema.safeParse({ ...ok, amount: -50 }).success, true);
+      for (const bad of [
+        { ...ok, amount: 0 },
+        { ...ok, amount: 1.5 },
+        { amount: 300, reason: 'Bù' },
+        { ...ok, reason: '' },
+        { ...ok, reason: '   ' },
+      ]) {
+        assert.equal(AdminAdjustRequestSchema.safeParse(bad).success, false);
+      }
+      assert.equal(AdminUserLockRequestSchema.safeParse({ reason: '  ' }).success, false);
+      assert.equal(AdminTaskTakedownRequestSchema.safeParse({ reason: ' ok ' }).data.reason, 'ok');
+    });
+    it('lookup requires exactly one key', () => {
+      const id = '70000000-0000-4000-8000-000000000003';
+      const url = 'https://example.com/s/abc';
+      assert.equal(AdminTaskLookupQuerySchema.safeParse({ taskId: id }).success, true);
+      assert.equal(AdminTaskLookupQuerySchema.safeParse({ shareUrl: url }).success, true);
+      assert.equal(AdminTaskLookupQuerySchema.safeParse({ taskId: id, shareUrl: url }).success, false);
+      assert.equal(AdminTaskLookupQuerySchema.safeParse({}).success, false);
+    });
+    it('stats query', () => {
+      const base = { from: '2026-11-01T00:00:00.000Z', to: '2026-11-02T00:00:00.000Z' };
+      assert.equal(AdminStatsQuerySchema.parse(base).scope, 'real');
+      assert.equal(AdminStatsQuerySchema.safeParse({ ...base, scope: 'benchmark' }).success, true);
+      assert.equal(AdminStatsQuerySchema.safeParse({ ...base, scope: 'all' }).success, false);
+      assert.equal(AdminStatsQuerySchema.safeParse({ from: base.to, to: base.from }).success, false);
+      assert.equal(AdminStatsQuerySchema.safeParse({ ...base, imagePrice: 0 }).success, false);
+      assert.equal(AdminStatsQuerySchema.safeParse({ ...base, motionPricePerSecond: '40' }).success, true);
+    });
+    it('resume body is empty strict', () => {
+      assert.equal(OpsResumeRequestSchema.safeParse({}).success, true);
+      assert.equal(OpsResumeRequestSchema.safeParse({ a: 1 }).success, false);
+    });
+    it('new validation reasons and task filesRemovedAt', () => {
+      for (const reason of ['REASON_REQUIRED', 'TASK_NOT_FINISHED', 'ADJUST_OVER_LIMIT', 'ADJUST_INSUFFICIENT_BALANCE']) {
+        assert.equal(ValidationDetailsSchema.safeParse({ reason }).success, true, reason);
+        assert.equal(ValidationDetailsSchema.safeParse({ reason, cap: 5 }).success, false, reason);
+        assert.notEqual(getValidationReasonMessageVi(reason), 'Dữ liệu không hợp lệ.');
+      }
+      assert.equal(ValidationDetailsSchema.safeParse({ reason: 'LẠ' }).success, false);
+      assert.equal(CONTENT_REMOVED_MESSAGE_VI, 'Nội dung đã bị gỡ do vi phạm hoặc theo yêu cầu');
+      const t = MOCK_TASKS_BY_STATUS.succeeded;
+      assert.equal(TaskSchema.safeParse(t).success, true);
+      assert.equal(TaskSchema.safeParse({ ...t, filesRemovedAt: '2026-11-11T00:00:00.000Z' }).success, true);
+      assert.equal(TaskSchema.safeParse({ ...t, filesRemovedAt: null }).success, true);
+    });
+    it('paged responses reject hasMore mismatch', () => {
+      assert.equal(AdminAuditResponseSchema.safeParse({ ...MOCK_ADMIN_AUDIT_RESPONSE, hasMore: true }).success, false);
+      assert.equal(AdminUserLedgerResponseSchema.safeParse({ ...MOCK_ADMIN_USER_LEDGER_RESPONSE, nextCursor: 'x' }).success, false);
+    });
+    it('response and query schemas are pinned', () => {
+      assert.equal(AdminUserLockResponseSchema.safeParse(MOCK_ADMIN_USER_LOCKED).success, true);
+      const entry = MOCK_ADMIN_USER_LEDGER_RESPONSE.items[0];
+      assert.equal(AdminAdjustResponseSchema.safeParse({ user: MOCK_ADMIN_USER, entry }).success, true);
+      assert.equal(AdminAdjustResponseSchema.safeParse({ user: MOCK_ADMIN_USER }).success, false);
+      const ts = '2026-11-11T00:00:00.000Z';
+      assert.equal(AdminTaskTakedownResponseSchema.safeParse({ taskId: MOCK_ADMIN_TASK_LOOKUP_RESPONSE.id, filesRemovedAt: ts }).success, true);
+      assert.equal(AdminTaskTakedownResponseSchema.safeParse({ taskId: MOCK_ADMIN_TASK_LOOKUP_RESPONSE.id, filesRemovedAt: null }).success, false);
+      assert.equal(AdminUserSearchQuerySchema.safeParse({ email: '   ' }).success, false);
+      assert.equal(AdminUserSearchQuerySchema.safeParse({ email: 'a@b.co' }).success, true);
+      for (const schema of [AdminUserLedgerQuerySchema, AdminAuditQuerySchema]) {
+        assert.equal(schema.parse({}).pageSize, 20);
+        assert.equal(schema.safeParse({ pageSize: 0 }).success, false);
+        assert.equal(schema.safeParse({ pageSize: 101 }).success, false);
+      }
+      const adj = { amount: 300, reason: 'Bù', requestId: uuid };
+      assert.equal(AdminAdjustRequestSchema.safeParse({ ...adj, amount: 2 ** 60 }).success, false);
+    });
+    it('ApiErrorCode is unchanged by Epic 6', () => {
+      assert.equal(Object.values(ApiErrorCode).length, 15);
+    });
+    it('mocks parse against schemas', () => {
+      for (const m of [MOCK_SYSTEM_STATUS_NORMAL, MOCK_SYSTEM_STATUS_PAUSED]) {
+        assert.equal(SystemStatusResponseSchema.safeParse(m).success, true);
+      }
+      for (const m of [MOCK_OPS_STATUS_NORMAL, MOCK_OPS_STATUS_PAUSED, MOCK_OPS_STATUS_BUDGET_EXHAUSTED]) {
+        assert.equal(OpsStatusResponseSchema.safeParse(m).success, true);
+      }
+      assert.equal(AdminStatsResponseSchema.safeParse(MOCK_ADMIN_STATS_RESPONSE).success, true);
+      assert.equal(AdminUserSearchResponseSchema.safeParse(MOCK_ADMIN_USER_SEARCH_RESPONSE).success, true);
+      assert.equal(AdminUserLedgerResponseSchema.safeParse(MOCK_ADMIN_USER_LEDGER_RESPONSE).success, true);
+      assert.equal(AdminAdjustRequestSchema.safeParse(MOCK_ADMIN_ADJUST_REQUEST).success, true);
+      assert.equal(AdminTaskLookupResponseSchema.safeParse(MOCK_ADMIN_TASK_LOOKUP_RESPONSE).success, true);
+      assert.equal(AdminAuditResponseSchema.safeParse(MOCK_ADMIN_AUDIT_RESPONSE).success, true);
     });
   });
 });
