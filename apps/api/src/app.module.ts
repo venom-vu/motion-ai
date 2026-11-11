@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { HealthController } from './health.controller.js';
 import { InfraModule } from './infra/index.js';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module.js';
+import { AdminTasksModule } from './modules/admin-tasks/admin-tasks.module.js';
 import { AuditModule } from './modules/audit/index.js';
 import { AuthModule } from './modules/auth/index.js';
 import { OpsModule } from './modules/ops/index.js';
@@ -25,6 +26,7 @@ import { WalletModule } from './modules/wallet/index.js';
     OpsAdminModule,
     AuditModule,
     AdminUsersModule,
+    AdminTasksModule,
   ],
   controllers: [HealthController],
 })

@@ -128,6 +128,7 @@ model Task {
   gateDeadline     DateTime?     @map("gate_deadline") @db.Timestamptz(6)
   runninghubTaskId String?       @map("runninghub_task_id")
   gpuCoins         Int?          @map("gpu_coins")
+  filesRemovedAt   DateTime?     @map("files_removed_at") @db.Timestamptz(6)
   createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
   user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -21,6 +21,7 @@ import {
   type MotionCreateRequest,
   type ValidationReason,
   MOTION_MIN_TRIM_SECONDS,
+  CONTENT_REMOVED_MESSAGE_VI,
   motionPrice,
   type ReasonCode,
   type Task,
@@ -31,7 +32,7 @@ import {
   type TierSnapshot,
 } from '@flowvis/contracts';
 import type { Queue } from 'bullmq';
-import { PrismaService } from '../../infra/prisma.service.js';
+import { PrismaService, type PrismaTransactionClient } from '../../infra/prisma.service.js';
 import { RedisService } from '../../infra/redis.service.js';
 import { assertValidTransition, isTerminal } from './task-transitions.js';
 import { AccountLockedException } from '../auth/guards/account-locked.guard.js';
@@ -303,6 +304,21 @@ export class TasksService {
     return this.getById(userId, taskId);
   }
 
+  /** Tra cứu Task cho Admin (kèm email chủ). */
+  async findForAdmin(taskId: string) {
+    return this.prisma.task.findUnique({ where: { id: taskId }, include: { user: { select: { email: true } } } });
+  }
+
+  /** Đặt files_removed_at = now() nếu còn null (CAS). Trả thời điểm hiện hành và `applied`. */
+  async markFilesRemoved(taskId: string, client: PrismaService | PrismaTransactionClient = this.prisma): Promise<{ filesRemovedAt: Date; applied: boolean }> {
+    const now = new Date();
+    const r = await client.task.updateMany({ where: { id: taskId, filesRemovedAt: null }, data: { filesRemovedAt: now } });
+    if (r.count > 0) return { filesRemovedAt: now, applied: true };
+    const row = await client.task.findUnique({ where: { id: taskId }, select: { filesRemovedAt: true } });
+    if (!row?.filesRemovedAt) throw this.apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
+    return { filesRemovedAt: row.filesRemovedAt, applied: false };
+  }
+
   async getById(userId: string, taskId: string): Promise<Task> {
     const row = await this.prisma.task.findUnique({ where: { id: taskId } });
     if (!row || row.userId !== userId) throw this.apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
@@ -315,6 +331,7 @@ export class TasksService {
       queuePosition: queued ? await this.queuePosition(row.id) : null,
       resultKey: row.resultKey ?? null,
       creditCost: row.holdAmount,
+      filesRemovedAt: row.filesRemovedAt ? row.filesRemovedAt.toISOString() : null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
@@ -381,6 +398,7 @@ export class TasksService {
           queuePosition: queuePos,
           resultKey: row.resultKey ?? null,
           creditCost: row.holdAmount,
+          filesRemovedAt: row.filesRemovedAt ? row.filesRemovedAt.toISOString() : null,
           createdAt: row.createdAt.toISOString(),
           updatedAt: row.updatedAt.toISOString(),
         };
@@ -399,6 +417,9 @@ export class TasksService {
   async getResult(userId: string, taskId: string): Promise<TaskResultResponse> {
     const row = await this.prisma.task.findUnique({ where: { id: taskId } });
     if (!row || row.userId !== userId) throw this.apiError(NotFoundException, ApiErrorCode.NOT_FOUND);
+    if (row.filesRemovedAt) {
+      throw new ConflictException({ code: ApiErrorCode.CONFLICT, message: CONTENT_REMOVED_MESSAGE_VI });
+    }
     if (row.status !== 'succeeded' || !row.resultKey) {
       throw this.apiError(ConflictException, ApiErrorCode.CONFLICT);
     }

@@ -306,3 +306,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-6-4-be-khoa-tai-khoan-va-cong-bu-credit.md`
   summary: Xác minh refresh token đang xoay vòng đồng thời với lockAccount không cấp token mới sau khi khóa (unverified, nếu đúng là medium).
   evidence: Cần đọc luồng refresh trong auth.service xem có đọc locked_at sau khi khóa dòng user hay không.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-5-be-go-bo-noi-dung-khan-cap.md`
+  summary: Gỡ nội dung xóa cả khóa `in/` có thể đang dùng chung với Task khác của cùng chủ.
+  evidence: `areConfirmedKeysOwnedBy` không đánh dấu upload đã dùng nên một khóa `in/` có thể xuất hiện trong nhiều Task; takedown xóa mọi khóa `in/` của Task theo spec. Cần xác minh luồng tạo Task có cho dùng lại upload hay không.
