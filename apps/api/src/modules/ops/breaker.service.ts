@@ -1,6 +1,6 @@
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { NOTIFIER_PORT, type NotifierPort } from '../../ports/index.js';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { TasksService } from '../tasks/tasks.service.js';
+import { AlertService } from './alert.service.js';
 import { SettingsService, type BreakerTriggerRecord } from './settings.service.js';
 
 export const BREAKER_WINDOW_MS = 30 * 60_000;
@@ -11,12 +11,10 @@ export const BREAKER_CONSECUTIVE = 5;
 
 @Injectable()
 export class BreakerService implements OnModuleInit {
-  private readonly logger = new Logger(BreakerService.name);
-
   constructor(
     private readonly tasks: TasksService,
     private readonly settings: SettingsService,
-    @Inject(NOTIFIER_PORT) private readonly notifier: NotifierPort,
+    private readonly alerts: AlertService,
   ) {}
 
   onModuleInit(): void {
@@ -48,16 +46,12 @@ export class BreakerService implements OnModuleInit {
       },
     };
     if (!(await this.settings.pauseIntake(trigger))) return false;
-    try {
-      await this.notifier.notify({
-        kind: 'ops.breaker_triggered',
-        severity: 'error',
-        message: 'Ngắt mạch đã tạm dừng nhận Task mới do lỗi hệ thống tăng cao. Admin cần kiểm tra rồi mở lại.',
-        data: { rule, ...trigger.metrics },
-      });
-    } catch (err) {
-      this.logger.error(`Không gửi được cảnh báo ngắt mạch: ${String(err)}`);
-    }
+    await this.alerts.raise(`breaker:${trigger.at}`, {
+      kind: 'ops.breaker_triggered',
+      severity: 'error',
+      message: 'Ngắt mạch đã tạm dừng nhận Task mới do lỗi hệ thống tăng cao. Admin cần kiểm tra rồi mở lại.',
+      data: { rule, ...trigger.metrics },
+    });
     return true;
   }
 }

@@ -160,7 +160,7 @@ export class RunningHubOpenApiAdapter implements RunningHubPort {
       throw new RunningHubNetworkError(`RunningHub bận (code ${String(env.code)})`, false);
     }
     if (env.code !== CODE_OK || typeof fileName !== 'string' || !fileName) {
-      throw new RunningHubError(`RunningHub từ chối upload (code ${String(env.code)})`);
+      throw new RunningHubError(`RunningHub từ chối upload (code ${String(env.code)}${typeof env.msg === 'string' && env.msg ? `: ${env.msg}` : ''})`);
     }
     return fileName;
   }
@@ -193,7 +193,7 @@ export class RunningHubOpenApiAdapter implements RunningHubPort {
       throw new RunningHubNetworkError(`RunningHub bận (errorCode ${err})`, false);
     }
     if (err || env.status === 'FAILED') {
-      throw new RunningHubError(`RunningHub từ chối task (errorCode ${err ?? 'FAILED'})`);
+      throw new RunningHubError(`RunningHub từ chối task (errorCode ${err ?? 'FAILED'}${typeof env.errorMessage === 'string' && env.errorMessage ? `: ${env.errorMessage}` : ''})`);
     }
     const id = env.taskId;
     if ((typeof id !== 'string' && typeof id !== 'number') || String(id) === '') {
@@ -223,5 +223,20 @@ export class RunningHubOpenApiAdapter implements RunningHubPort {
       throw new RunningHubError(`RunningHub báo lỗi khi truy vấn (errorCode ${err})`);
     }
     throw new RunningHubError(`RunningHub trả trạng thái không rõ (${status || 'rỗng'})`);
+  }
+
+  /** Đọc số dư qua đường dẫn cấu hình `RH_BALANCE_ENDPOINT` (POST, trả `data.remainCoins`/`data.coins`/`coins`). */
+  async getBalance(signal: AbortSignal): Promise<number> {
+    const endpoint = process.env.RH_BALANCE_ENDPOINT?.trim();
+    if (!endpoint) throw new RunningHubError('Chưa cấu hình RH_BALANCE_ENDPOINT');
+    const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const env = await this.post(path, JSON.stringify({ apiKey: this.apiKey }), signal);
+    const data = (env.data ?? {}) as { remainCoins?: unknown; coins?: unknown };
+    const raw = data.remainCoins ?? data.coins ?? (env as { coins?: unknown }).coins;
+    const n = typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : raw;
+    if (typeof n !== 'number' || !Number.isFinite(n) || n < 0) {
+      throw new RunningHubError('Phản hồi số dư không hợp lệ');
+    }
+    return n;
   }
 }

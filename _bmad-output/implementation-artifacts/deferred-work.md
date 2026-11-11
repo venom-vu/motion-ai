@@ -284,3 +284,12 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-6-2-be-ngat-mach-va-chan-tao-task-khi-tam-dung.md`
   summary: Thêm assert Cancel và chia sẻ không bị chặn khi `intake_paused` bật.
   evidence: `IntakeOpenGuard` chỉ gắn ba route tạo Task; test hiện chỉ kiểm GET /tasks và /system/status.
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-3-be-xu-ly-het-ngan-sach-runninghub-va-canh-bao-so-du.md`
+  summary: Xác nhận chéo hết ngân sách bằng `getBalance()` trước khi bật `intake_paused` để tránh bật nhầm vì từ khóa trong thông điệp lỗi.
+  evidence: Khớp từ khóa trên chuỗi tự do của RunningHub có thể trùng một thông điệp lỗi thường và dừng nhận Task cho mọi người.
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-3-be-xu-ly-het-ngan-sach-runninghub-va-canh-bao-so-du.md`
+  summary: Thêm công tắc tắt job đọc số dư khi `RH_BALANCE_ENDPOINT` chưa cấu hình.
+  evidence: Endpoint rỗng nên job báo 'không đọc được' sau 30 phút ở mọi môi trường cho đến khi vận hành điền giá trị (6.10/6.11).
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-3-be-xu-ly-het-ngan-sach-runninghub-va-canh-bao-so-du.md`
+  summary: Điều tra lần fail không lặp lại của 26 test Story 2.5 (`task-worker.test.mjs`) khi chạy suite đầy đủ.
+  evidence: Một lần chạy ra 31 fail, lần ngay sau 5 fail có sẵn, chạy riêng 31/31 pass; chưa xác định nguyên nhân, nghi trạng thái dùng chung giữa các suite.

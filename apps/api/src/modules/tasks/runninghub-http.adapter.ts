@@ -75,6 +75,14 @@ export class RunningHubHttpAdapter implements RunningHubPort {
       consumeMoney: typeof body.consumeMoney === 'number' ? body.consumeMoney : undefined,
     };
   }
+
+  async getBalance(signal: AbortSignal): Promise<number> {
+    const body = await this.call('/balance', { method: 'GET' }, signal);
+    if (typeof body.coins !== 'number' || !Number.isFinite(body.coins) || body.coins < 0) {
+      throw new RunningHubError('Phản hồi số dư không hợp lệ');
+    }
+    return body.coins;
+  }
 }
 
 /**

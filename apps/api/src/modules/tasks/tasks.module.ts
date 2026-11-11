@@ -10,6 +10,7 @@ import { WalletModule } from '../wallet/wallet.module.js';
 import { ResultIngestorService } from './result-ingestor.js';
 import { createRunningHubPort } from './runninghub-http.adapter.js';
 import { UnconfiguredRunningHubAdapter } from './runninghub-unconfigured.adapter.js';
+import { RhBalanceService } from './rh-balance.service.js';
 import { TaskSweeperService } from './task-sweeper.service.js';
 import { TaskWorkerService } from './task-worker.service.js';
 import { TasksController } from './tasks.controller.js';
@@ -34,6 +35,7 @@ import { TASKS_QUEUE, TasksService } from './tasks.service.js';
     { provide: RESULT_INGESTOR, useExisting: ResultIngestorService },
     TaskWorkerService,
     TaskSweeperService,
+    RhBalanceService,
   ],
   exports: [TasksService],
 })

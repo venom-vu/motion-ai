@@ -7,7 +7,22 @@ export const SETTING_KEYS = {
   rhBudgetExhausted: 'rh_budget_exhausted',
   breakerResetAt: 'breaker_reset_at',
   lastBreakerTrigger: 'last_breaker_trigger',
+  rhBalance: 'rh_balance',
+  rhBalanceState: 'rh_balance_state',
 } as const;
+
+export const ALERT_KEY_PREFIX = 'alert:';
+
+export interface RhBalanceReading {
+  coins: number;
+  readAt: string;
+}
+
+export interface RhBalanceState {
+  failStreak: number;
+  failAlerted: boolean;
+  lowAlerted: boolean;
+}
 
 export interface BreakerTriggerRecord {
   at: string;
@@ -43,6 +58,71 @@ export class SettingsService {
   async getLastBreakerTrigger(): Promise<BreakerTriggerRecord | null> {
     const v = await this.read(this.prisma, SETTING_KEYS.lastBreakerTrigger);
     return v && typeof v === 'object' ? (v as BreakerTriggerRecord) : null;
+  }
+
+  async getRhBalance(): Promise<RhBalanceReading | null> {
+    const v = await this.read(this.prisma, SETTING_KEYS.rhBalance);
+    if (!v || typeof v !== 'object') return null;
+    const { coins, readAt } = v as Partial<RhBalanceReading>;
+    return typeof coins === 'number' && typeof readAt === 'string' ? { coins, readAt } : null;
+  }
+
+  async getRhBalanceState(): Promise<RhBalanceState> {
+    const v = (await this.read(this.prisma, SETTING_KEYS.rhBalanceState)) as Partial<RhBalanceState> | null;
+    return {
+      failStreak: typeof v?.failStreak === 'number' ? v.failStreak : 0,
+      failAlerted: v?.failAlerted === true,
+      lowAlerted: v?.lowAlerted === true,
+    };
+  }
+
+  async setRhBalanceState(state: RhBalanceState): Promise<void> {
+    await this.writeJson(SETTING_KEYS.rhBalanceState, state);
+  }
+
+  async saveRhBalance(reading: RhBalanceReading): Promise<void> {
+    await this.writeJson(SETTING_KEYS.rhBalance, reading);
+  }
+
+  /** Trạng thái một cảnh báo (khóa không gồm tiền tố). */
+  async getAlertState<T>(key: string): Promise<T | null> {
+    const v = await this.read(this.prisma, ALERT_KEY_PREFIX + key);
+    return v && typeof v === 'object' ? (v as T) : null;
+  }
+
+  async setAlertState(key: string, state: unknown): Promise<void> {
+    await this.writeJson(ALERT_KEY_PREFIX + key, state);
+  }
+
+  /** Các cảnh báo đang chờ gửi (tối đa `limit`). */
+  async listPendingAlerts<T>(limit = 50): Promise<Array<{ key: string; state: T }>> {
+    const rows = await this.prisma.$queryRaw<Array<{ key: string; value: T }>>`
+      SELECT key, value FROM settings
+      WHERE key LIKE ${ALERT_KEY_PREFIX + '%'} AND value->>'pending' = 'true'
+      ORDER BY updated_at LIMIT ${limit}`;
+    return rows.map((r) => ({ key: r.key.slice(ALERT_KEY_PREFIX.length), state: r.value }));
+  }
+
+  private async writeJson(key: string, value: unknown): Promise<void> {
+    await this.prisma.$executeRaw`
+      INSERT INTO settings (key, value, updated_at) VALUES (${key}, ${JSON.stringify(value)}::jsonb, now())
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`;
+  }
+
+  /** Bật `rh_budget_exhausted` và `intake_paused`. Trả true chỉ khi `rh_budget_exhausted` chuyển tắt -> bật. */
+  async markRhBudgetExhausted(): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        INSERT INTO settings (key, value, updated_at) VALUES (${SETTING_KEYS.intakePaused}, 'true'::jsonb, now())
+        ON CONFLICT (key) DO UPDATE SET value = 'true'::jsonb, updated_at = now()
+        WHERE settings.value IS DISTINCT FROM 'true'::jsonb`;
+      const rows = await tx.$queryRaw<Array<{ key: string }>>`
+        INSERT INTO settings (key, value, updated_at) VALUES (${SETTING_KEYS.rhBudgetExhausted}, 'true'::jsonb, now())
+        ON CONFLICT (key) DO UPDATE SET value = 'true'::jsonb, updated_at = now()
+        WHERE settings.value IS DISTINCT FROM 'true'::jsonb
+        RETURNING key`;
+      return rows.length > 0;
+    });
   }
 
   /**

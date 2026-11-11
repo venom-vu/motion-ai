@@ -18,4 +18,7 @@ export class UnconfiguredRunningHubAdapter implements RunningHubPort {
   outputs(): Promise<never> {
     return this.fail();
   }
+  getBalance(): Promise<number> {
+    return Promise.reject(new RunningHubError('RunningHub chưa được cấu hình'));
+  }
 }

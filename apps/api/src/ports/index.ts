@@ -53,6 +53,8 @@ export interface RunningHubPort {
     mode?: RunningHubRunMode,
   ): Promise<string>;
   outputs(runninghubTaskId: string, signal: AbortSignal): Promise<RunningHubOutputs>;
+  /** Số coin còn lại của tài khoản RunningHub (không âm). Ném lỗi khi không đọc được. */
+  getBalance(signal: AbortSignal): Promise<number>;
 }
 
 export interface IngestTask {

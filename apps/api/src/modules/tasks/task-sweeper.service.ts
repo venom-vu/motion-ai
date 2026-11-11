@@ -4,6 +4,7 @@ import { Interval } from '@nestjs/schedule';
 import type { ReasonCode } from '@flowvis/contracts';
 import type { Job, Queue } from 'bullmq';
 import { NOTIFIER_PORT, type NotifierPort } from '../../ports/index.js';
+import { AlertService } from '../ops/alert.service.js';
 import { FREE_WAIT_MS, ORPHAN_MS, TaskWorkerService } from './task-worker.service.js';
 import { TASKS_QUEUE, TasksService, type SweepRow } from './tasks.service.js';
 
@@ -23,6 +24,7 @@ export class TaskSweeperService {
     private readonly worker: TaskWorkerService,
     @InjectQueue(TASKS_QUEUE) private readonly queue: Queue,
     @Inject(NOTIFIER_PORT) private readonly notifier: NotifierPort,
+    private readonly alerts: AlertService,
   ) {}
 
   @Interval(SWEEP_INTERVAL_MS)
@@ -40,6 +42,7 @@ export class TaskSweeperService {
       await this.safe('queued', () => this.sweepQueued());
       await this.safe('running-expired', () => this.sweepRunningExpired());
       await this.safe('running-live', () => this.sweepRunningLive());
+      await this.safe('alerts', () => this.alerts.retryPending());
       await this.safe('breaker', () => this.tasks.emitTerminal());
     } finally {
       this.running = false;

@@ -51,7 +51,7 @@ export class OpsController {
       intakePaused: await this.settings.isIntakePaused(),
       rhBudgetExhausted: await this.settings.isRhBudgetExhausted(),
       lastBreakerTrigger: await this.settings.getLastBreakerTrigger(),
-      rhBalance: null,
+      rhBalance: await this.settings.getRhBalance(),
       lastBackup: null,
     };
   }

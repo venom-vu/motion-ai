@@ -108,6 +108,49 @@ describe('RunningHubOpenApiAdapter', () => {
     await assert.rejects(adapter().submit('app', [], signal()), RunningHubError);
   });
 
+  it('upload/submit: msg và errorMessage có từ khóa hết tiền được đưa vào RunningHubError (RH_BUDGET)', async () => {
+    const { mapRunningHubFailure } = await import('../dist/modules/pipelines/pipeline-config.js');
+    next = { body: { code: 1001, msg: 'Insufficient balance', data: null } };
+    await assert.rejects(adapter().uploadFile(PNG, 'x', signal()), (e) => {
+      assert.ok(e instanceof RunningHubError);
+      assert.equal(mapRunningHubFailure(e.message), 'RH_BUDGET');
+      return true;
+    });
+    next = { body: { taskId: '', status: '', errorCode: '821', errorMessage: 'Not enough coins', results: null } };
+    await assert.rejects(adapter().submit('app', [], signal()), (e) => {
+      assert.ok(e instanceof RunningHubError);
+      assert.equal(mapRunningHubFailure(e.message), 'RH_BUDGET');
+      return true;
+    });
+  });
+
+  it('getBalance: đọc RH_BALANCE_ENDPOINT; data.remainCoins, data.coins, coins cấp trên; lỗi khi thiếu cấu hình/không hợp lệ/không OK', async () => {
+    const saved = process.env.RH_BALANCE_ENDPOINT;
+    try {
+      delete process.env.RH_BALANCE_ENDPOINT;
+      await assert.rejects(adapter().getBalance(signal()), RunningHubError);
+      process.env.RH_BALANCE_ENDPOINT = 'balance/path';
+      seen.length = 0;
+      next = { body: { code: 0, data: { remainCoins: '12345' } } };
+      assert.equal(await adapter().getBalance(signal()), 12345);
+      assert.equal(seen[0].url, '/balance/path');
+      next = { body: { code: 0, data: { coins: 7 } } };
+      assert.equal(await adapter().getBalance(signal()), 7);
+      next = { body: { coins: 0 } };
+      assert.equal(await adapter().getBalance(signal()), 0);
+      for (const body of [{ data: { coins: 'abc' } }, { data: { coins: -1 } }, { data: {} }]) {
+        next = { body };
+        await assert.rejects(adapter().getBalance(signal()), RunningHubError);
+      }
+      next = { status: 403, body: {} };
+      await assert.rejects(adapter().getBalance(signal()), RunningHubError);
+      next = { status: 500, body: {} };
+      await assert.rejects(adapter().getBalance(signal()), RunningHubNetworkError);
+    } finally {
+      if (saved === undefined) delete process.env.RH_BALANCE_ENDPOINT; else process.env.RH_BALANCE_ENDPOINT = saved;
+    }
+  });
+
   it('query: QUEUED và RUNNING là RUNNING; gọi /openapi/v2/query với {taskId}', async () => {
     seen.length = 0;
     for (const status of ['QUEUED', 'RUNNING']) {

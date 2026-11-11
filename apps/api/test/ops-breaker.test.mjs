@@ -12,6 +12,7 @@ import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../dist/generated/prisma/client.js';
 import { bootstrapApi } from '../dist/main.js';
+import { AlertService } from '../dist/modules/ops/alert.service.js';
 import { BreakerService } from '../dist/modules/ops/breaker.service.js';
 import { CREATES_TASK_KEY, IntakeOpenGuard } from '../dist/modules/ops/intake-open.guard.js';
 import { TasksController } from '../dist/modules/tasks/tasks.controller.js';
@@ -55,7 +56,7 @@ async function ensureInfra() {
 }
 
 describe('Story 6.2: [BE] Ngắt mạch và chặn tạo Task khi tạm dừng', () => {
-  let app, baseUrl, pool, prisma, jwt, breaker, tasks, sweeper, wallet;
+  let app, baseUrl, pool, prisma, jwt, breaker, alertSvc, tasks, sweeper, wallet;
   const runId = crypto.randomBytes(4).toString('hex');
   const userIds = [];
   const alerts = [];
@@ -102,6 +103,7 @@ describe('Story 6.2: [BE] Ngắt mạch và chặn tạo Task khi tạm dừng',
     await pool.query('DELETE FROM tasks WHERE user_id = ANY($1::uuid[])', [userIds]);
     await pool.query(`UPDATE settings SET value='false'::jsonb WHERE key IN ('intake_paused','rh_budget_exhausted')`);
     await pool.query(`UPDATE settings SET value='null'::jsonb WHERE key IN ('breaker_reset_at','last_breaker_trigger')`);
+    await pool.query(`DELETE FROM settings WHERE key LIKE 'alert:%'`);
     alerts.length = 0;
   }
   const call = (who, method, url, body) =>
@@ -128,10 +130,11 @@ describe('Story 6.2: [BE] Ngắt mạch và chặn tạo Task khi tạm dừng',
     baseUrl = `http://127.0.0.1:${app.getHttpServer().address().port}`;
     jwt = app.get(JwtService);
     breaker = app.get(BreakerService);
+    alertSvc = app.get(AlertService);
     tasks = app.get(TasksService);
     sweeper = app.get(TaskSweeperService);
     wallet = app.get(WalletService);
-    breaker.notifier = { notify: async (e) => { alerts.push(e); } };
+    alertSvc.notifier = { notify: async (e) => { alerts.push(e); } };
     admin = await mkUser('admin');
     user = await mkUser('user');
     await reset();
@@ -202,11 +205,11 @@ describe('Story 6.2: [BE] Ngắt mạch và chặn tạo Task khi tạm dừng',
 
   it('gửi cảnh báo lỗi không làm hỏng đánh giá; tín hiệu sau transition không làm hỏng transition', async () => {
     await reset(); await isolate();
-    breaker.notifier = { notify: async () => { throw new Error('discord down'); } };
+    alertSvc.notifier = { notify: async () => { throw new Error('discord down'); } };
     for (let i = 0; i < 5; i++) await addTask('failed', 'RH_ERROR');
     assert.equal(await breaker.evaluate(), true);
     assert.equal(await flag('intake_paused'), true);
-    breaker.notifier = { notify: async (e) => { alerts.push(e); } };
+    alertSvc.notifier = { notify: async (e) => { alerts.push(e); } };
     await reset();
     const throwing = async () => { throw new Error('boom'); };
     tasks.onTerminal(throwing);

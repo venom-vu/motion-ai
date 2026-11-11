@@ -103,6 +103,7 @@ describe('Story 2.5: [BE] Worker xử lý Task qua RunningHub', () => {
   const ledger = (id, type) => prisma.ledgerEntry.findMany({ where: { taskId: id, type } });
   // Chỉ dọn Task của user test; slot do dữ liệu ngoài chiếm được tính để cổng luôn còn đúng 2 slot cho test.
   async function clearGate() {
+    await pool.query(`UPDATE settings SET value='false'::jsonb WHERE key IN ('intake_paused','rh_budget_exhausted')`);
     await pool.query(`UPDATE tasks SET status='failed', reason_code='RH_ERROR', finished_at=now(), rh_orphan_until=NULL WHERE user_id = ANY($1::uuid[]) AND status IN ('queued','running')`, [users]);
     await pool.query(`UPDATE tasks SET rh_orphan_until=NULL WHERE user_id = ANY($1::uuid[]) AND rh_orphan_until IS NOT NULL`, [users]);
     const foreign = await svc.countGateOccupied();
