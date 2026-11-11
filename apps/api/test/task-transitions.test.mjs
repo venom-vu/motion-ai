@@ -193,6 +193,26 @@ describe('Story 2.4: [BE] Máy trạng thái Task bằng compare-and-set', () =>
     assert.equal(TaskSchema.safeParse(t).success, true);
   });
 
+  it('finished_at được đặt trong cùng UPDATE ở cả sáu đường kết thúc (Story 6.2)', async () => {
+    const u = await newUser(1000);
+    const finishedAt = async (id) => (await prisma.task.findUnique({ where: { id } })).finishedAt;
+    const paths = [
+      ['running', 'succeeded', null, { resultKey: resultKey(u) }],
+      ['running', 'failed', 'RH_ERROR', undefined],
+      ['running', 'timed_out', 'RH_TIMEOUT', undefined],
+      ['queued', 'cancelled', 'USER_CANCEL', undefined],
+      ['queued', 'failed', 'INTERNAL_ERROR', undefined],
+      ['queued', 'timed_out', 'FREE_WAIT_EXPIRED', undefined],
+    ];
+    for (const [from, to, reason, opts] of paths) {
+      const id = from === 'running' ? await runningTask(u) : await createTask(u);
+      assert.equal(await finishedAt(id), null, `${from}->${to}: chưa có finished_at trước khi kết thúc`);
+      const r = await svc.transition(id, from, to, reason, opts);
+      assert.equal(r.applied, true, `${from}->${to}`);
+      assert.notEqual(await finishedAt(id), null, `${from}->${to}: finished_at phải được đặt`);
+    }
+  });
+
   it('kết quả đến muộn: applied=false, sổ cái không đổi', async () => {
     const u = await newUser();
     const id = await runningTask(u);

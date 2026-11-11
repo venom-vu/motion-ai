@@ -278,3 +278,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-6-1-contract-hop-dong-cho-van-hanh-va-quan-tri.md`
   summary: Định nghĩa hình dạng `GET /tasks/{id}/result` và `/s/{token}/info` cho Task đã gỡ (có `filesRemovedAt`).
   evidence: Chỉ có `filesRemovedAt` và hằng thông báo; BE 6.5 và FE 6.9 cần cùng quyết định.
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-2-be-ngat-mach-va-chan-tao-task-khi-tam-dung.md`
+  summary: Dựng cơ chế thử lại tối đa 5 lần cho cảnh báo Discord của ngắt mạch (và các cảnh báo Epic 6 khác), dùng chung ở 6.3/6.7.
+  evidence: Hiện chỉ gửi một lần; nếu Discord lỗi đúng lúc kích hoạt thì admin không nhận cảnh báo, chỉ thấy cờ ở /system/status.
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-2-be-ngat-mach-va-chan-tao-task-khi-tam-dung.md`
+  summary: Thêm assert Cancel và chia sẻ không bị chặn khi `intake_paused` bật.
+  evidence: `IntakeOpenGuard` chỉ gắn ba route tạo Task; test hiện chỉ kiểm GET /tasks và /system/status.

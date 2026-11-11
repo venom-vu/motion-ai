@@ -196,3 +196,11 @@ model AdminAudit {
   @@index([at(sort: Desc)])
   @@map("admin_audit")
 }
+
+model Setting {
+  key       String   @id @map("key")
+  value     Json     @map("value")
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("settings")
+}

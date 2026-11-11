@@ -21,6 +21,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { AccountLockedGuard } from '../auth/guards/account-locked.guard.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import type { JwtUserPayload } from '../auth/jwt.strategy.js';
+import { CreatesTask, IntakeOpenGuard } from '../ops/intake-open.guard.js';
 import { ShareService } from '../storage/share.service.js';
 import { TasksService } from './tasks.service.js';
 
@@ -33,6 +34,8 @@ export class TasksController {
   ) {}
 
   @Post('face-swap')
+  @CreatesTask()
+  @UseGuards(IntakeOpenGuard)
   async createFaceSwap(
     @CurrentUser() user: JwtUserPayload,
     @Body() body: unknown,
@@ -49,6 +52,8 @@ export class TasksController {
   }
 
   @Post('body-retouch')
+  @CreatesTask()
+  @UseGuards(IntakeOpenGuard)
   async createBodyRetouch(
     @CurrentUser() user: JwtUserPayload,
     @Body() body: unknown,
@@ -65,6 +70,8 @@ export class TasksController {
   }
 
   @Post('motion')
+  @CreatesTask()
+  @UseGuards(IntakeOpenGuard)
   async createMotion(
     @CurrentUser() user: JwtUserPayload,
     @Body() body: unknown,

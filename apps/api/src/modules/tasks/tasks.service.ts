@@ -41,6 +41,19 @@ import { UploadsService } from '../storage/uploads.service.js';
 import { PRICING_CONFIG } from '../wallet/tier.js';
 import { WalletService } from '../wallet/wallet.service.js';
 
+/** Lỗi hệ thống tính vào ngắt mạch (Story 6.2). */
+export const SYSTEM_FAILURE_REASONS: readonly ReasonCode[] = [
+  'RH_ERROR',
+  'RH_TIMEOUT',
+  'RH_SUBMIT_UNKNOWN',
+  'PREP_TIMEOUT',
+  'FFMPEG_ERROR',
+  'INPUT_FETCH_ERROR',
+  'OUTPUT_UPLOAD_ERROR',
+  'OUTPUT_INVALID',
+  'INTERNAL_ERROR',
+];
+
 export const TASKS_QUEUE = 'tasks';
 export const MAX_ACTIVE_TASKS_PER_USER = 3;
 /** Giới hạn chờ enqueue để phản hồi tạo Task luôn dưới 2 giây khi Redis treo; bộ quét sẽ enqueue lại. */
@@ -135,7 +148,55 @@ export class TasksService {
       // Chỉ là gợi ý nên không chờ: Redis treo không được làm trễ phản hồi sau khi DB đã commit.
       void this.redis.client.set(`task:terminal:${taskId}`, '1', 'EX', 30, 'NX').catch(() => {});
     }
+    if (result.applied && isTerminal(to)) this.emitTerminal();
     return result;
+  }
+
+  private readonly terminalListeners: Array<() => Promise<unknown>> = [];
+
+  /** Đăng ký bên nghe Task kết thúc (ops dùng cho ngắt mạch, tránh vòng phụ thuộc module). */
+  onTerminal(listener: () => Promise<unknown>): void {
+    this.terminalListeners.push(listener);
+  }
+
+  /** Phát tín hiệu sau commit; lỗi của bên nghe không bao giờ làm hỏng transition. Chờ được (bộ quét dùng). */
+  emitTerminal(): Promise<void> {
+    return Promise.all(
+      this.terminalListeners.map((l) =>
+        Promise.resolve()
+          .then(l)
+          .catch((err) => this.logger.error(`Bên nghe Task kết thúc lỗi: ${String(err)}`)),
+      ),
+    ).then(() => undefined);
+  }
+
+  /**
+   * Số liệu cửa sổ cho ngắt mạch: chỉ Task có finished_at sau mốc reset. Mẫu số gồm succeeded và lỗi hệ thống;
+   * lỗi do người dùng/nội dung/hủy/hết ngân sách bị loại và không cắt chuỗi lỗi liên tiếp.
+   */
+  async breakerWindowStats(
+    windowMs: number,
+    resetAt: Date | null,
+  ): Promise<{ eligible: number; systemFailures: number; consecutiveFailures: number }> {
+    const reasons = [...SYSTEM_FAILURE_REASONS];
+    const rows = await this.prisma.$queryRaw<Array<{ failure: boolean }>>`
+      SELECT (status <> 'succeeded') AS failure
+      FROM tasks
+      WHERE finished_at IS NOT NULL
+        AND finished_at > now() - (${windowMs}::int * interval '1 millisecond')
+        AND (${resetAt}::timestamptz IS NULL OR finished_at > ${resetAt}::timestamptz)
+        AND (status = 'succeeded' OR (status IN ('failed','timed_out') AND reason_code = ANY(${reasons}::text[])))
+      ORDER BY finished_at DESC, id`;
+    let systemFailures = 0;
+    let consecutiveFailures = 0;
+    let streak = true;
+    for (const r of rows) {
+      if (r.failure) {
+        systemFailures++;
+        if (streak) consecutiveFailures++;
+      } else streak = false;
+    }
+    return { eligible: rows.length, systemFailures, consecutiveFailures };
   }
 
   /** Bộ quét: Task queued quá `olderThanMs` kể từ queued_at. */

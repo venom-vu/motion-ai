@@ -40,6 +40,7 @@ export class TaskSweeperService {
       await this.safe('queued', () => this.sweepQueued());
       await this.safe('running-expired', () => this.sweepRunningExpired());
       await this.safe('running-live', () => this.sweepRunningLive());
+      await this.safe('breaker', () => this.tasks.emitTerminal());
     } finally {
       this.running = false;
     }
