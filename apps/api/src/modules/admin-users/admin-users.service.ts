@@ -7,6 +7,7 @@ import {
   type AdminAdjustResponse,
   type AdminUser,
   type AdminUserLedgerResponse,
+  type AdminUserStatsResponse,
   type LedgerEntry,
   type ValidationReason,
 } from '@flowvis/contracts';
@@ -14,8 +15,10 @@ import { PrismaService, type PrismaTransactionClient } from '../../infra/prisma.
 import type { Prisma } from '../../generated/prisma/client.js';
 import { AuditService } from '../audit/audit.service.js';
 import { AuthService } from '../auth/auth.service.js';
+import { TasksService } from '../tasks/tasks.service.js';
+import { TopupsService } from '../topups/topups.service.js';
 import { InsufficientCreditException, WalletService } from '../wallet/wallet.service.js';
-import { tierFromPack } from '../wallet/tier.js';
+import { PRICING_CONFIG, tierFromPack } from '../wallet/tier.js';
 
 const DEFAULT_ADJUST_MAX = 30000;
 
@@ -69,7 +72,37 @@ export class AdminUsersService {
     private readonly audit: AuditService,
     private readonly auth: AuthService,
     private readonly wallet: WalletService,
+    private readonly tasks: TasksService,
+    private readonly topups: TopupsService,
   ) {}
+
+  /** Số lượng tài khoản; chuỗi tài khoản mới đủ `days` ngày theo giờ VN, hôm nay ở cuối. */
+  async stats(days: number, now: Date = new Date()): Promise<AdminUserStatsResponse> {
+    const vnDay = (d: Date) => new Date(d.getTime() + 7 * 3600_000).toISOString().slice(0, 10);
+    const dates = Array.from({ length: days }, (_, i) => vnDay(new Date(now.getTime() - (days - 1 - i) * 86_400_000)));
+    const since = new Date(`${dates[0]}T00:00:00+07:00`);
+    const [counts, withTasks, paying] = await Promise.all([
+      this.auth.countUsersForStats(since),
+      this.tasks.countUsersWithTasks(),
+      this.topups.countPayingUsers(),
+    ]);
+    const tierCounts = new Map<AdminUser['tier'], number>(PRICING_CONFIG.tiers.map((t) => [t.tier, 0]));
+    for (const row of counts.byPack) {
+      const tier = tierFromPack(row.pack);
+      tierCounts.set(tier, (tierCounts.get(tier) ?? 0) + row.count);
+    }
+    const signups = new Map(counts.signupsByDay.map((r) => [r.date, r.count]));
+    return {
+      total: counts.total,
+      active: counts.total - counts.locked,
+      locked: counts.locked,
+      admins: counts.admins,
+      withTasks,
+      paying,
+      byTier: [...tierCounts].map(([tier, count]) => ({ tier, count })),
+      signupsByDay: dates.map((date) => ({ date, count: signups.get(date) ?? 0 })),
+    };
+  }
 
   private async load(client: PrismaService | PrismaTransactionClient, where: { id?: string; email?: string }): Promise<AdminUser> {
     const u =

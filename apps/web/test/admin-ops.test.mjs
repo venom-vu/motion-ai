@@ -3,15 +3,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc';
-import { createSSRApp } from 'vue';
-import { renderToString } from '@vue/server-renderer';
+import { compileScript, parse } from '@vue/compiler-sfc';
 import {
   MOCK_ADMIN_AUDIT_RESPONSE,
   MOCK_ADMIN_STATS_RESPONSE,
   MOCK_ADMIN_TASK_LOOKUP_RESPONSE,
   MOCK_ADMIN_USER,
   MOCK_ADMIN_USER_LEDGER_RESPONSE,
+  MOCK_ADMIN_USER_STATS_RESPONSE,
   MOCK_OPS_STATUS_BUDGET_EXHAUSTED,
   MOCK_OPS_STATUS_NORMAL,
   MOCK_OPS_STATUS_PAUSED,
@@ -21,6 +20,7 @@ import {
   createMotionApiClient,
   resolveAdminErrorMessageVi,
 } from '../utils/api-client.ts';
+import { compileSsr, renderAdminPage, staticPager } from './admin-sfc-helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(__dirname, '..');
@@ -67,6 +67,16 @@ describe('Story 6.8: api-client admin ops', () => {
     assert.equal(u.searchParams.get('motionPricePerSecond'), '40');
     assert.equal(u.searchParams.get('imagePrice'), '90');
     assert.equal(calls[0].method, 'GET');
+  });
+
+  it('getAdminUserStats gọi /admin/users/stats với days và parse phản hồi', async () => {
+    const { client, calls } = recorder(MOCK_ADMIN_USER_STATS_RESPONSE);
+    const res = await client.getAdminUserStats(30);
+    const u = new URL(calls[0].url);
+    assert.equal(u.pathname, '/admin/users/stats');
+    assert.equal(u.searchParams.get('days'), '30');
+    assert.equal(res.total, MOCK_ADMIN_USER_STATS_RESPONSE.total);
+    await assert.rejects(() => client.getAdminUserStats(3));
   });
 
   it('tài khoản: search, ledger, lock, unlock, adjust', async () => {
@@ -490,94 +500,93 @@ export const useApiClient = () => ({ get client() { return mockClient; } });
   });
 });
 
-describe('Story 6.8: trang /admin/ops (SSR)', () => {
-  const raw = fs.readFileSync(path.join(webRoot, 'pages/admin/ops.vue'), 'utf8');
+describe('Story 6.8: các trang quản trị vận hành (SSR)', () => {
+  const noop = () => {};
+  const base = { isMePending: false, isAdmin: true, notificationVi: null, confirmErrorVi: null };
 
-  async function render(setupData) {
-    const { descriptor } = parse(raw);
-    const compiled = compileTemplate({
-      id: `ops-${Date.now()}`,
-      filename: 'pages/admin/ops.vue',
-      source: descriptor.template.content,
-      ssr: true,
+  const renderOps = async (data) =>
+    renderAdminPage(await compileSsr('pages/admin/ops.vue'), {
+      ...base, status: null, statusErrorVi: null, isStatusLoading: false, isResuming: false,
+      canResume: false, balanceStale: false, backupStale: false, confirmOpen: false,
+      ops: { refreshStatus: noop }, openConfirm: noop, closeConfirm: noop, runConfirm: noop,
+      formatNumberVi: String, formatTopupTimestampVi: String, ...data,
     });
-    assert.equal(compiled.errors.length, 0, compiled.errors.join('; '));
-    const tmp = path.join(webRoot, 'test', `.tmp-ops-page-${process.pid}-${Math.random().toString(36).slice(2)}.mjs`);
-    fs.writeFileSync(tmp, compiled.code);
-    try {
-      const { ssrRender } = await import(pathToFileURL(tmp).href);
-      const noop = () => {};
-      const app = createSSRApp({
-        ssrRender,
-        setup() {
-          return {
-            isMePending: false, isAdmin: true, openAuthDialog: noop, btn: '', input: '', card: '',
-            status: null, statusErrorVi: null, isStatusLoading: false, isResuming: false, canResume: false,
-            balanceStale: false, backupStale: false, notificationVi: null,
-            stats: null, isStatsLoading: false, statsErrorVi: null, statsFormErrorVi: null,
-            statsFrom: '', statsTo: '', statsScope: 'real', trialMotionPrice: '', trialImagePrice: '',
-            user: null, ledger: [], ledgerHasMore: false, userErrorVi: null, isUserLoading: false,
-            isUserActionLoading: false, emailQuery: '', userReason: '', userReasonErrorVi: null,
-            adjustFormOpen: false, adjustAmount: '', adjustReason: '', adjustAmountErrorVi: null, adjustReasonErrorVi: null,
-            task: null, taskErrorVi: null, isTaskLoading: false, isTakedownLoading: false, lookupInput: '',
-            takedownReason: '', takedownReasonErrorVi: null, taskFinished: true, canTakedown: true,
-            auditItems: [], auditAction: '', auditTarget: '', auditHasMore: false, isAuditLoading: false,
-            isAuditLoadingMore: false, auditErrorVi: null, confirmKind: null, confirmErrorVi: null,
-            pendingAdjust: null, adjustBalanceAfter: null, isBusy: false,
-            ops: { refreshStatus: noop, fetchAudit: noop, lookupTask: noop, loadMoreLedger: noop },
-            submitStats: noop, submitSearch: noop, openAdjustForm: noop, requestAdjust: noop,
-            requestLockToggle: noop, requestTakedown: noop, closeConfirm: noop, runConfirm: noop,
-            formatNumberVi: String, formatVndVi: String, formatTopupTimestampVi: String,
-            pct: String, secs: String,
-            ...setupData,
-          };
-        },
-      });
-      app.component('Icon', { props: ['name'], ssrRender(_c, push) { push('<span></span>'); } });
-      app.component('NuxtLink', { props: ['to'], ssrRender(c, push, _p, _a, _s, slots) { push(`<a href="${c.to}">`); slots.default?.(); push('</a>'); } });
-      return await renderToString(app);
-    } finally {
-      fs.rmSync(tmp, { force: true });
-    }
-  }
 
-  it('non-admin thấy 403 và không lộ dữ liệu', async () => {
-    const html = await render({ isAdmin: false, status: MOCK_OPS_STATUS_PAUSED });
-    assert.match(html, /data-testid="admin-forbidden-state"/);
-    assert.match(html, /403/);
-    assert.doesNotMatch(html, /ops-status-section/);
-    assert.doesNotMatch(html, /ERROR_RATE/);
+  const renderUsers = async (data) => {
+    const d = {
+      ...base, user: null, ledger: [], ledgerHasMore: false, userErrorVi: null, isUserLoading: false,
+      isUserActionLoading: false, userActionErrorVi: null, emailQuery: '', userReason: '', userReasonErrorVi: null,
+      adjustFormOpen: false, adjustAmount: '', adjustReason: '', adjustAmountErrorVi: null, adjustReasonErrorVi: null,
+      confirmKind: null, confirmTitle: 'x', pendingAdjust: null, adjustBalanceAfter: null,
+      userStats: null, isUserStatsLoading: false, userStatsErrorVi: null, USER_DAYS: 30, SERIES_1: '#3987e5',
+      userTiles: [], tierSeries: [], tierRows: [], fmtCount: String, ops: { fetchUserStats: noop },
+      submitSearch: noop, openAdjustForm: noop, requestAdjust: noop, requestLockToggle: noop, closeConfirm: noop, runConfirm: noop,
+      formatNumberVi: String, formatTopupTimestampVi: String, ...data,
+    };
+    d.ledgerPager ??= staticPager(d.ledger, { hasMore: d.ledgerHasMore });
+    return renderAdminPage(await compileSsr('pages/admin/users.vue'), d);
+  };
+
+  const renderTakedown = async (data) =>
+    renderAdminPage(await compileSsr('pages/admin/takedown.vue'), {
+      ...base, task: null, taskErrorVi: null, isTaskLoading: false, isTakedownLoading: false, lookupInput: '',
+      takedownReason: '', takedownReasonErrorVi: null, taskFinished: true, canTakedown: true, confirmOpen: false,
+      ops: { lookupTask: noop }, requestTakedown: noop, closeConfirm: noop, runConfirm: noop,
+      formatTopupTimestampVi: String, ...data,
+    });
+
+  const renderAudit = async (data) => {
+    const d = {
+      ...base, auditItems: [], auditAction: '', auditTarget: '', auditHasMore: false, isAuditLoading: false,
+      isAuditLoadingMore: false, auditErrorVi: null, applyFilter: noop, formatTopupTimestampVi: String, ...data,
+    };
+    d.pager ??= staticPager(d.auditItems, { hasMore: d.auditHasMore });
+    return renderAdminPage(await compileSsr('pages/admin/audit.vue'), d);
+  };
+
+  it('non-admin thấy 403 và không lộ dữ liệu trên mọi trang', async () => {
+    const pages = [
+      await renderOps({ isAdmin: false, status: MOCK_OPS_STATUS_PAUSED }),
+      await renderUsers({ isAdmin: false, user: MOCK_ADMIN_USER }),
+      await renderTakedown({ isAdmin: false, task: MOCK_ADMIN_TASK_LOOKUP_RESPONSE }),
+      await renderAudit({ isAdmin: false, auditItems: MOCK_ADMIN_AUDIT_RESPONSE.items }),
+    ];
+    for (const html of pages) {
+      assert.match(html, /data-testid="admin-forbidden-state"/);
+      assert.match(html, /403/);
+      assert.doesNotMatch(html, /ops-status-section|ERROR_RATE|user@example\.com|ops-audit-list/);
+    }
   });
 
   it('tạm dừng: thẻ hiển thị và nút mở lại bật', async () => {
-    const html = await render({ status: MOCK_OPS_STATUS_PAUSED, canResume: true });
+    const html = await renderOps({ status: MOCK_OPS_STATUS_PAUSED, canResume: true });
     assert.match(html, /Đang tạm dừng/);
     assert.match(html, /ERROR_RATE_15_PERCENT/);
-    assert.doesNotMatch(html, /data-testid="ops-resume-button"[^>]*disabled/);
+    assert.doesNotMatch(html, /data-testid="ops-resume-button"[^>]*\sdisabled(?![:\w-])/);
   });
 
   it('hết ngân sách + dữ liệu cũ có nhãn cảnh báo', async () => {
-    const html = await render({ status: MOCK_OPS_STATUS_BUDGET_EXHAUSTED, canResume: true, balanceStale: true, backupStale: true });
+    const html = await renderOps({ status: MOCK_OPS_STATUS_BUDGET_EXHAUSTED, canResume: true, balanceStale: true, backupStale: true });
     assert.match(html, /Đã hết ngân sách/);
     assert.match(html, /ops-balance-stale/);
     assert.match(html, /ops-backup-stale/);
   });
 
   it('bình thường: nút mở lại bị vô hiệu', async () => {
-    const html = await render({ status: MOCK_OPS_STATUS_NORMAL, canResume: false });
-    assert.match(html, /data-testid="ops-resume-button"[^>]*disabled/);
+    const html = await renderOps({ status: MOCK_OPS_STATUS_NORMAL, canResume: false });
+    assert.match(html, /data-testid="ops-resume-button"[^>]*\sdisabled(?![:\w-])/);
   });
 
   it('Task đang chạy: nút gỡ vô hiệu kèm giải thích; có dòng token chia sẻ', async () => {
-    const html = await render({
+    const html = await renderTakedown({
       task: { ...MOCK_ADMIN_TASK_LOOKUP_RESPONSE, status: 'running' },
       taskFinished: false,
       canTakedown: false,
     });
-    assert.match(html, /data-testid="ops-takedown-button"[^>]*disabled/);
+    assert.match(html, /data-testid="ops-takedown-button"[^>]*\sdisabled(?![:\w-])/);
     assert.match(html, /ops-takedown-unfinished/);
     assert.match(html, /Token chia sẻ sẽ bị thu hồi khi gỡ/);
-    const removed = await render({
+    const removed = await renderTakedown({
       task: { ...MOCK_ADMIN_TASK_LOOKUP_RESPONSE, filesRemovedAt: '2026-11-11T00:00:00.000Z' },
       canTakedown: false,
     });
@@ -585,18 +594,18 @@ describe('Story 6.8: trang /admin/ops (SSR)', () => {
   });
 
   it('hộp xác nhận mở lại nêu rủi ro và số dư lần đọc cuối', async () => {
-    const html = await render({ status: MOCK_OPS_STATUS_BUDGET_EXHAUSTED, confirmKind: 'resume' });
+    const html = await renderOps({ status: MOCK_OPS_STATUS_BUDGET_EXHAUSTED, confirmOpen: true });
     assert.match(html, /thất bại nhanh/);
     assert.match(html, /Số dư RunningHub lần đọc cuối/);
   });
 
   it('hộp xác nhận khóa nêu email tài khoản', async () => {
-    const html = await render({ user: MOCK_ADMIN_USER, confirmKind: 'lock', userReason: 'spam' });
+    const html = await renderUsers({ user: MOCK_ADMIN_USER, confirmKind: 'lock', userReason: 'spam' });
     assert.match(html, /Tài khoản: user@example\.com/);
   });
 
   it('hộp xác nhận bù credit nêu số dư trước và sau', async () => {
-    const html = await render({
+    const html = await renderUsers({
       user: MOCK_ADMIN_USER,
       confirmKind: 'adjust',
       pendingAdjust: { amount: 300, reason: 'bù' },
@@ -604,6 +613,77 @@ describe('Story 6.8: trang /admin/ops (SSR)', () => {
     });
     assert.match(html, /Số dư trước: 4200/);
     assert.match(html, /số dư sau: 4500/);
+  });
+
+  it('thống kê: biểu đồ tính năng AI và bảng số liệu, không còn phần người dùng', async () => {
+    const statsPage = await compileSsr('pages/admin/stats.vue');
+    const { getPipelineLabelVi } = await import(pathToFileURL(path.join(webRoot, 'utils/task-format.ts')).href);
+    const s = MOCK_ADMIN_STATS_RESPONSE;
+    const html = await renderAdminPage(statsPage, {
+      ...base, stats: s, isStatsLoading: false, statsErrorVi: null, statsFormErrorVi: null,
+      statsFrom: '', statsTo: '', statsScope: 'real',
+      scopeOptions: [{ value: 'real', label: 'Thực tế (real)' }, { value: 'benchmark', label: 'Đo thử (benchmark)' }],
+      trialMotionPrice: '', trialImagePrice: '', submitStats: noop,
+      taskTotalSeries: [{ key: 'a', labelVi: 'Thành công', color: '#3987e5' }, { key: 'b', labelVi: 'Lỗi / hết giờ / hủy', color: '#d95926' }],
+      taskTotalRows: s.pipelines.map((p) => ({ labelVi: getPipelineLabelVi(p.pipeline), values: [p.taskCounts.succeeded, p.taskCounts.failed] })),
+      successSeries: [{ key: 'r', labelVi: 'Tỷ lệ thành công', color: '#3987e5' }], successRows: [],
+      timeSeries: [{ key: 'avg', labelVi: 'Trung bình', color: '#3987e5' }], timeRows: [],
+      costSeries: [{ key: 'retail', labelVi: 'Giá lẻ', color: '#3987e5' }], costRows: [],
+      fmtPct: String, fmtSecs: String, fmtVnd: String, fmtCount: String,
+      pct: String, secs: String, formatNumberVi: String, formatVndVi: String, getPipelineLabelVi,
+    });
+    // Biểu đồ nhiều series có legend
+    assert.match(html, /data-testid="stats-chart-tasks"[\s\S]*?data-testid="chart-legend"/);
+    assert.match(html, /Hoán đổi khuôn mặt/);
+    assert.match(html, /<table[^>]*data-testid="ops-stats-pipelines"/);
+    assert.match(html, /<table[^>]*data-testid="ops-stats-margins"/);
+    assert.doesNotMatch(html, /stats-users-section|Tổng tài khoản/);
+  });
+
+  it('tài khoản: tổng quan người dùng với thẻ số lượng và biểu đồ ở đầu trang', async () => {
+    const u = MOCK_ADMIN_USER_STATS_RESPONSE;
+    const html = await renderUsers({
+      userStats: u, isUserStatsLoading: false, userStatsErrorVi: null, USER_DAYS: 30, SERIES_1: '#3987e5',
+      ops: { fetchUserStats: noop },
+      userTiles: [
+        { key: 'total', labelVi: 'Tổng tài khoản', value: String(u.total), note: '' },
+        { key: 'paying', labelVi: 'Đã nạp tiền', value: String(u.paying), note: '' },
+      ],
+      tierSeries: [{ key: 'users', labelVi: 'Tài khoản', color: '#3987e5' }],
+      tierRows: u.byTier.map((t) => ({ labelVi: t.tier, values: [t.count] })),
+      fmtCount: String,
+    });
+    assert.ok(html.indexOf('stats-users-section') < html.indexOf('ops-user-section'), 'Tổng quan nằm trên phần tra cứu');
+    assert.match(html, /data-testid="stats-user-tile-total"/);
+    assert.match(html, new RegExp(`>${u.total}<`));
+    assert.match(html, /Tài khoản mới 30 ngày gần nhất/);
+    assert.match(html, /Tài khoản theo gói/);
+    for (const t of ['FREE', 'Starter', 'Pro', 'Creator']) assert.match(html, new RegExp(`>${t}<`));
+    // Mỗi ngày một cột trong biểu đồ tài khoản mới
+    const signups = html.slice(html.indexOf('stats-chart-signups'), html.indexOf('stats-chart-tiers'));
+    assert.equal((signups.match(/<rect /g) || []).length, u.signupsByDay.length);
+  });
+
+  it('tài khoản: lỗi tải số liệu người dùng hiện thông báo, phần tra cứu vẫn dùng được', async () => {
+    const html = await renderUsers({
+      userStats: null, isUserStatsLoading: false, userStatsErrorVi: 'Lỗi kết nối máy chủ.', USER_DAYS: 30,
+      ops: { fetchUserStats: noop }, userTiles: [],
+    });
+    assert.match(html, /data-testid="stats-users-error"/);
+    assert.match(html, /Lỗi kết nối máy chủ\./);
+    assert.match(html, /data-testid="ops-user-search"/);
+  });
+
+  it('sổ cái và nhật ký hiển thị dạng bảng kèm phân trang', async () => {
+    const users = await renderUsers({ user: MOCK_ADMIN_USER, ledger: MOCK_ADMIN_USER_LEDGER_RESPONSE.items, ledgerHasMore: true });
+    assert.match(users, /<table[^>]*data-testid="ops-ledger-list"/);
+    assert.match(users, /data-testid="admin-pager"/);
+    assert.doesNotMatch(users, /data-testid="admin-pager-next"[^>]*\sdisabled(?![:\w-])/);
+
+    const audit = await renderAudit({ auditItems: MOCK_ADMIN_AUDIT_RESPONSE.items });
+    assert.match(audit, /<table[^>]*data-testid="ops-audit-list"/);
+    assert.match(audit, /ADJUST/);
+    assert.match(audit, /data-testid="admin-pager-next"[^>]*\sdisabled(?![:\w-])/);
   });
 });
 
@@ -647,16 +727,22 @@ export const useApiClient = () => ({ get client() { return c; } });`);
   });
 });
 
-describe('Story 6.8: script setup thật của pages/admin/ops.vue', () => {
-  const pageSource = fs.readFileSync(path.join(webRoot, 'pages/admin/ops.vue'), 'utf8');
+describe('Story 6.8: script setup thật của các trang quản trị vận hành', () => {
   let dir;
-  let setupFn;
+  const setups = {};
   const origSetInterval = globalThis.setInterval;
 
   const calls = () => globalThis.__ops.calls;
-  const fresh = (opts = {}) => {
-    globalThis.__ops = { calls: [], role: 'admin', result: true, ...opts };
-    return setupFn({}, { expose() {} });
+  const names = (c) => c.map((x) => x[0]);
+  const fresh = (page, opts = {}) => {
+    globalThis.__ops = { calls: [], admin: true, result: true, ...opts };
+    return setups[page]({}, { expose() {} });
+  };
+  /** Khởi tạo trang rồi xóa các lời gọi tải dữ liệu ban đầu, chỉ giữ lời gọi của thao tác đang kiểm. */
+  const ready = (page, opts) => {
+    const s = fresh(page, opts);
+    globalThis.__ops.calls.length = 0;
+    return s;
   };
 
   before(async () => {
@@ -665,16 +751,17 @@ describe('Story 6.8: script setup thật của pages/admin/ops.vue', () => {
       t.unref?.();
       return t;
     };
-    dir = fs.mkdtempSync(path.join(webRoot, 'test', '.tmp-ops-page-'));
+    dir = fs.mkdtempSync(path.join(webRoot, 'test', '.tmp-ops-pages-'));
     const w = (name, code) => fs.writeFileSync(path.join(dir, name), code, 'utf8');
-    w('imports.mjs', `import { ref } from 'vue';
-export const definePageMeta = () => {};
-export const useAsyncData = () => ({ status: ref('success'), pending: ref(false), data: ref({ role: globalThis.__ops.role }) });`);
+    w('imports.mjs', `export const definePageMeta = () => {};`);
     w('vue-stub.mjs', `export * from 'vue'; export const onMounted = (fn) => fn(); export const onBeforeUnmount = () => {};`);
-    w('use-api-client.mjs', `export const ME_KEY = 'me'; export const useApiClient = () => ({ client: {} });`);
-    w('use-auth-dialog.mjs', `export const useAuthDialog = () => ({ open() {} });`);
+    w('use-admin-access.mjs', `import { ref } from 'vue';
+export const useAdminAccess = () => ({ isMePending: ref(false), isAdmin: ref(globalThis.__ops.admin) });`);
+    w('use-cursor-pager.mjs', `export { useCursorPager } from ${JSON.stringify(pathToFileURL(path.join(webRoot, 'composables/useCursorPager.ts')).href)};`);
+    w('admin-ui.mjs', `export const ui = {};`);
     w('catalog.mjs', `export const formatNumberVi = String; export const formatVndVi = String;`);
     w('topup-utils.mjs', `export const formatTopupTimestampVi = String;`);
+    w('task-format.mjs', `export const getPipelineLabelVi = String;`);
     w('use-admin-ops.mjs', `import { ref } from 'vue';
 export const BACKUP_STALE_MS = 1; export const RH_BALANCE_STALE_MS = 1;
 export const isStaleAt = () => false;
@@ -683,39 +770,45 @@ export const validateAdjustForm = (a, r) => ({ ok: true, amount: Number(a), reas
 const rec = (name, ret) => async (...args) => { globalThis.__ops.calls.push([name, ...args]); return ret === undefined ? globalThis.__ops.result : ret; };
 export const useAdminOps = () => {
   const o = globalThis.__ops;
-  const names = ['statusErrorVi','isStatusLoading','isResuming','resumeErrorVi','stats','isStatsLoading','statsErrorVi','ledger','ledgerHasMore','userErrorVi','isUserLoading','isUserActionLoading','userActionErrorVi','taskErrorVi','isTaskLoading','isTakedownLoading','takedownErrorVi','auditItems','auditAction','auditTarget','auditHasMore','isAuditLoading','isAuditLoadingMore','auditErrorVi'];
-  const r = Object.fromEntries(names.map((n) => [n, ref(n === 'ledger' || n === 'auditItems' ? [] : (n.startsWith('is') || n.endsWith('HasMore')) ? false : (n === 'stats' ? null : null))]));
+  const r = (v) => ref(v);
   return {
-    ...r,
-    status: ref(o.status ?? null), user: ref(o.user ?? { id: 'u1', email: 'a@b.c', balance: 100 }), task: ref(o.task ?? null),
-    refreshStatus: rec('refreshStatus', undefined), startStatusPolling: () => o.calls.push(['startStatusPolling']), stopStatusPolling() {},
-    fetchStats: rec('fetchStats', undefined), fetchAudit: rec('fetchAudit', undefined),
+    status: r(o.status ?? null), statusErrorVi: r(null), isStatusLoading: r(false), isResuming: r(false), resumeErrorVi: r(null),
+    stats: r(null), isStatsLoading: r(false), statsErrorVi: r(null),
+    user: r(o.user ?? { id: 'u1', email: 'a@b.c', balance: 100 }), ledger: r([]), ledgerHasMore: r(false),
+    userErrorVi: r(null), isUserLoading: r(false), isUserActionLoading: r(false), userActionErrorVi: r(o.result ? null : 'lỗi'),
+    task: r(o.task ?? null), taskErrorVi: r(null), isTaskLoading: r(false), isTakedownLoading: r(false), takedownErrorVi: r(null),
+    auditItems: r([]), auditAction: r(''), auditTarget: r(''), auditHasMore: r(false), isAuditLoading: r(false), isAuditLoadingMore: r(false), auditErrorVi: r(null),
+    refreshStatus: rec('refreshStatus', null), startStatusPolling: () => o.calls.push(['startStatusPolling']), stopStatusPolling() {},
+    fetchStats: rec('fetchStats', null), fetchAudit: rec('fetchAudit', null), fetchUserStats: rec('fetchUserStats', null),
+    userStats: r(null), isUserStatsLoading: r(false), userStatsErrorVi: r(null),
     resumeIntake: rec('resumeIntake'), adjustUser: rec('adjustUser'), lockUser: rec('lockUser'), unlockUser: rec('unlockUser'), takedown: rec('takedown'),
-    openAdjustForm: () => o.calls.push(['openAdjustForm']), searchUser: rec('searchUser', undefined), lookupTask: rec('lookupTask', undefined), loadMoreLedger: rec('loadMoreLedger', undefined),
+    openAdjustForm: () => o.calls.push(['openAdjustForm']), searchUser: rec('searchUser', null), lookupTask: rec('lookupTask', null), loadMoreLedger: rec('loadMoreLedger', null),
   };
 };`);
-    const { descriptor } = parse(pageSource);
-    let code = compileScript(descriptor, { id: 'ops-page-test' }).content;
     const map = {
       vue: 'vue-stub.mjs',
       '#imports': 'imports.mjs',
-      '~/composables/useApiClient': 'use-api-client.mjs',
+      '~/composables/useAdminAccess': 'use-admin-access.mjs',
       '~/composables/useAdminOps': 'use-admin-ops.mjs',
-      '~/composables/useAuthDialog': 'use-auth-dialog.mjs',
+      '~/composables/useCursorPager': 'use-cursor-pager.mjs',
+      '~/utils/admin-ui': 'admin-ui.mjs',
       '~/utils/catalog': 'catalog.mjs',
       '~/utils/topup': 'topup-utils.mjs',
+      '~/utils/task-format': 'task-format.mjs',
     };
-    for (const [spec, file] of Object.entries(map)) {
-      const prev = code;
-      code = code.split(`'${spec}'`).join(JSON.stringify(pathToFileURL(path.join(dir, file)).href));
-      assert.notEqual(code, prev, `import ${spec} phải được thay`);
-    }
-    const tmp = path.join(webRoot, 'test', `.tmp-ops-page-${process.pid}.ts`);
-    fs.writeFileSync(tmp, code, 'utf8');
-    try {
-      setupFn = (await import(pathToFileURL(tmp).href)).default.setup;
-    } finally {
-      fs.rmSync(tmp, { force: true });
+    for (const page of ['ops', 'stats', 'users', 'takedown', 'audit']) {
+      const { descriptor } = parse(fs.readFileSync(path.join(webRoot, `pages/admin/${page}.vue`), 'utf8'));
+      let code = compileScript(descriptor, { id: `ops-${page}-test` }).content;
+      for (const [spec, file] of Object.entries(map)) {
+        code = code.split(`'${spec}'`).join(JSON.stringify(pathToFileURL(path.join(dir, file)).href));
+      }
+      const tmp = path.join(webRoot, 'test', `.tmp-ops-${page}-${process.pid}.ts`);
+      fs.writeFileSync(tmp, code, 'utf8');
+      try {
+        setups[page] = (await import(pathToFileURL(tmp).href)).default.setup;
+      } finally {
+        fs.rmSync(tmp, { force: true });
+      }
     }
   });
 
@@ -725,71 +818,132 @@ export const useAdminOps = () => {
     delete globalThis.__ops;
   });
 
-  const names = (c) => c.map((x) => x[0]);
-
-  it('non-admin: start() không chạy, không gọi API ops nào', () => {
-    const s = fresh({ role: 'user' });
-    assert.equal(s.isAdmin.value, false);
-    assert.deepEqual(calls(), []);
-  });
-
-  it('admin: start() gọi refreshStatus, fetchStats và fetchAudit', () => {
-    fresh();
-    const n = names(calls());
-    for (const x of ['refreshStatus', 'startStatusPolling', 'fetchStats', 'fetchAudit']) {
-      assert.ok(n.includes(x), `thiếu ${x}`);
+  it('non-admin: không trang nào gọi API ops', () => {
+    for (const page of Object.keys(setups)) {
+      fresh(page, { admin: false });
+      assert.deepEqual(calls(), [], page);
     }
   });
 
-  it('resume: xác nhận gọi resumeIntake, đóng hộp, tải lại nhật ký', async () => {
-    const s = fresh();
+  it('admin: mỗi trang chỉ tải dữ liệu của chính nó', async () => {
+    fresh('ops');
+    assert.deepEqual(names(calls()), ['refreshStatus', 'startStatusPolling']);
+    fresh('stats');
+    await new Promise((r) => setImmediate(r));
+    assert.deepEqual(names(calls()), ['fetchStats']);
+    fresh('audit');
+    assert.deepEqual(calls(), [['fetchAudit', true]]);
+    fresh('users');
+    assert.deepEqual(calls(), [['fetchUserStats', 30]]);
+  });
+
+  it('resume: xác nhận gọi resumeIntake và đóng hộp', async () => {
+    const s = fresh('ops', { status: { intakePaused: true, rhBudgetExhausted: false } });
     globalThis.__ops.calls.length = 0;
-    s.confirmKind.value = 'resume';
+    assert.equal(s.canResume.value, true);
+    s.openConfirm();
     await s.runConfirm();
-    assert.deepEqual(names(calls()), ['resumeIntake', 'fetchAudit']);
+    assert.deepEqual(names(calls()), ['resumeIntake']);
+    assert.equal(s.confirmOpen.value, false);
+  });
+
+  it('adjust: gọi adjustUser(amount, reason) và đóng form', async () => {
+    const s = ready('users');
+    s.adjustFormOpen.value = true;
+    s.adjustAmount.value = '-20';
+    s.adjustReason.value = 'bù';
+    s.requestAdjust();
+    assert.equal(s.confirmKind.value, 'adjust');
+    await s.runConfirm();
+    assert.deepEqual(calls(), [['adjustUser', -20, 'bù']]);
+    assert.equal(s.adjustFormOpen.value, false);
     assert.equal(s.confirmKind.value, null);
   });
 
-  it('adjust: gọi adjustUser(amount, reason), đóng form, tải lại nhật ký', async () => {
-    const s = fresh();
-    globalThis.__ops.calls.length = 0;
-    s.pendingAdjust.value = { amount: -20, reason: 'bù' };
-    s.confirmKind.value = 'adjust';
-    await s.runConfirm();
-    assert.deepEqual(calls(), [['adjustUser', -20, 'bù'], ['fetchAudit', true]]);
-    assert.equal(s.adjustFormOpen.value, false);
-  });
-
-  it('lock / unlock / takedown gọi đúng hàm với lý do và tải lại nhật ký', async () => {
-    for (const [kind, ref_, fn] of [
-      ['lock', 'userReason', 'lockUser'],
-      ['unlock', 'userReason', 'unlockUser'],
-      ['takedown', 'takedownReason', 'takedown'],
-    ]) {
-      const s = fresh();
-      globalThis.__ops.calls.length = 0;
-      s[ref_].value = 'vi phạm';
-      s.confirmKind.value = kind;
+  it('lock / unlock / takedown gọi đúng hàm với lý do', async () => {
+    for (const [kind, fn] of [['lock', 'lockUser'], ['unlock', 'unlockUser']]) {
+      const s = ready('users');
+      s.userReason.value = 'vi phạm';
+      s.requestLockToggle(kind);
       await s.runConfirm();
-      assert.deepEqual(calls(), [[fn, 'vi phạm'], ['fetchAudit', true]], kind);
+      assert.deepEqual(calls(), [[fn, 'vi phạm']], kind);
       assert.equal(s.confirmKind.value, null);
     }
+    const t = fresh('takedown', { task: { id: 't1', status: 'succeeded', filesRemovedAt: null } });
+    t.takedownReason.value = 'vi phạm';
+    t.requestTakedown();
+    assert.equal(t.confirmOpen.value, true);
+    await t.runConfirm();
+    assert.deepEqual(calls(), [['takedown', 'vi phạm']]);
+    assert.equal(t.confirmOpen.value, false);
   });
 
-  it('thao tác thất bại: giữ hộp xác nhận, không tải lại nhật ký', async () => {
-    const s = fresh({ result: false });
-    globalThis.__ops.calls.length = 0;
+  it('thao tác thất bại: giữ hộp xác nhận và hiện lỗi', async () => {
+    const s = ready('users', { result: false });
     s.userReason.value = 'x';
-    s.confirmKind.value = 'lock';
+    s.requestLockToggle('lock');
     await s.runConfirm();
     assert.deepEqual(names(calls()), ['lockUser']);
     assert.equal(s.confirmKind.value, 'lock');
+    assert.equal(s.confirmErrorVi.value, 'lỗi');
   });
 
   it('lock/unlock/takedown thiếu lý do không mở hộp xác nhận', () => {
-    const s = fresh();
+    const s = ready('users');
     s.requestLockToggle('lock');
     assert.equal(s.confirmKind.value, null);
     assert.ok(s.userReasonErrorVi.value);
+    const t = fresh('takedown', { task: { id: 't1', status: 'succeeded', filesRemovedAt: null } });
+    t.requestTakedown();
+    assert.equal(t.confirmOpen.value, false);
+    assert.ok(t.takedownReasonErrorVi.value);
+  });
+
+  it('Task đang chạy: requestTakedown không mở hộp xác nhận', () => {
+    const t = fresh('takedown', { task: { id: 't1', status: 'running', filesRemovedAt: null } });
+    t.takedownReason.value = 'x';
+    t.requestTakedown();
+    assert.equal(t.canTakedown.value, false);
+    assert.equal(t.confirmOpen.value, false);
+  });
+
+  it('stats: khoảng thời gian ngược báo lỗi, không gọi API', async () => {
+    const s = fresh('stats');
+    await new Promise((r) => setImmediate(r));
+    globalThis.__ops.calls.length = 0;
+    s.statsFrom.value = '2026-11-10T10:00';
+    s.statsTo.value = '2026-11-01T10:00';
+    await s.submitStats();
+    assert.deepEqual(calls(), []);
+    assert.ok(s.statsFormErrorVi.value);
+  });
+});
+
+describe('useCursorPager: phân trang trên danh sách cursor', () => {
+  it('trang đã tải chuyển ngay, trang cuối thì gọi loadMore rồi sang trang mới', async () => {
+    const { ref } = await import('vue');
+    const { useCursorPager } = await import(pathToFileURL(path.join(webRoot, 'composables/useCursorPager.ts')).href);
+    const items = ref(Array.from({ length: 25 }, (_, i) => i));
+    const hasMore = ref(true);
+    let loads = 0;
+    const p = useCursorPager(items, hasMore, async () => {
+      loads += 1;
+      items.value = [...items.value, ...Array.from({ length: 20 }, (_, i) => 100 + i)];
+      hasMore.value = false;
+    });
+    assert.equal(p.pageCount.value, 2);
+    assert.deepEqual(p.pageItems.value.length, 20);
+    await p.next();
+    assert.equal(p.page.value, 2);
+    assert.equal(loads, 0);
+    await p.next();
+    assert.equal(loads, 1);
+    assert.equal(p.page.value, 3);
+    assert.equal(p.canNext.value, false);
+    p.prev();
+    assert.equal(p.page.value, 2);
+    items.value = [1];
+    await Promise.resolve();
+    assert.equal(p.page.value, 1);
   });
 });

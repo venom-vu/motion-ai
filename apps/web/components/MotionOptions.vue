@@ -48,14 +48,15 @@ const prompt = defineModel<string>('prompt', { required: true });
         <Icon name="lucide:message-square-text" class="h-4 w-4 text-cyber-violet" />
         <span>Prompt (tùy chọn)</span>
       </label>
-      <textarea
+      <BaseTextarea
         :id="`${idPrefix ?? 'motion'}-prompt`"
         v-model="prompt"
+        variant="cyber"
+        focus-accent="cyan"
         :maxlength="MOTION_PROMPT_MAX_LENGTH"
         :disabled="disabled"
         rows="3"
         placeholder="Mô tả bối cảnh hoặc hành động, ví dụ: cô gái nhảy trong phòng tập, ánh sáng ấm"
-        class="w-full resize-none rounded-xl border border-cyber-border bg-cyber-bg/60 p-3 text-xs text-cyber-text placeholder:text-cyber-muted focus:border-cyber-cyan focus:outline-none"
         :data-testid="`${idPrefix ?? 'motion'}-prompt`"
       />
       <p class="text-right font-mono text-[11px] text-cyber-muted">

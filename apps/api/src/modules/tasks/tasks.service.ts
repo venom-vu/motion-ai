@@ -264,6 +264,12 @@ export class TasksService {
     return new Set(rows.map((r) => r.user_id));
   }
 
+  /** Số tài khoản đã từng có Task. */
+  async countUsersWithTasks(): Promise<number> {
+    const rows = await this.prisma.$queryRaw<Array<{ n: number }>>`SELECT COUNT(DISTINCT user_id)::int AS n FROM tasks`;
+    return rows[0]?.n ?? 0;
+  }
+
   /** Bộ quét: Task queued quá `olderThanMs` kể từ queued_at. */
   async sweepQueued(olderThanMs: number, limit = 100) {
     return this.prisma.$queryRaw<SweepRow[]>`

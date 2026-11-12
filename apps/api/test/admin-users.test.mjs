@@ -5,7 +5,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { AdminAdjustResponseSchema, AdminUserSchema, ApiErrorCode } from '@flowvis/contracts';
+import { AdminAdjustResponseSchema, AdminUserSchema, AdminUserStatsResponseSchema, ApiErrorCode } from '@flowvis/contracts';
 import { JwtService } from '@nestjs/jwt';
 import pg from 'pg';
 import { Redis } from 'ioredis';
@@ -122,6 +122,34 @@ describe('Story 6.4: [BE] Khóa tài khoản và cộng bù credit', () => {
     assert.equal(nf.status, 404);
     assert.equal(await errCode(nf), ApiErrorCode.NOT_FOUND);
     assert.equal((await adm('GET', `/admin/users?email=nobody-${runId}@x.vn`)).status, 404);
+  });
+
+  it('thống kê số lượng tài khoản: quyền, đếm tăng theo tài khoản mới/khóa/gói, chuỗi theo ngày', async () => {
+    const u = await mkUser();
+    assert.equal((await call(null, 'GET', '/admin/users/stats')).status, 401);
+    assert.equal((await call(u, 'GET', '/admin/users/stats')).status, 403);
+    assert.equal((await adm('GET', '/admin/users/stats?days=3')).status, 400);
+
+    const get = async () => {
+      const r = await adm('GET', '/admin/users/stats?days=7');
+      assert.equal(r.status, 200);
+      return AdminUserStatsResponseSchema.parse(await r.json());
+    };
+    const s0 = await get();
+    assert.equal(s0.signupsByDay.length, 7);
+    assert.equal(s0.active + s0.locked, s0.total);
+    assert.deepEqual(s0.byTier.map((t) => t.tier), ['FREE', 'Starter', 'Pro', 'Creator']);
+    assert.equal(s0.byTier.reduce((a, t) => a + t.count, 0), s0.total);
+
+    const a = await mkUser();
+    const b = await mkUser();
+    await pool.query("UPDATE users SET locked_at = now() WHERE id = $1", [a.id]);
+    await pool.query("UPDATE users SET tier_pack = 'pro' WHERE id = $1", [b.id]);
+    const s1 = await get();
+    assert.equal(s1.total - s0.total, 2);
+    assert.equal(s1.locked - s0.locked, 1);
+    assert.equal(s1.byTier.find((t) => t.tier === 'Pro').count - s0.byTier.find((t) => t.tier === 'Pro').count, 1);
+    assert.equal(s1.signupsByDay.at(-1).count - s0.signupsByDay.at(-1).count, 2);
   });
 
   it('tra cứu theo email và id', async () => {

@@ -28,6 +28,8 @@ import {
   AdminUserLockRequestSchema,
   AdminUserLockResponseSchema,
   AdminUserSearchQuerySchema,
+  AdminUserStatsQuerySchema,
+  AdminUserStatsResponseSchema,
   AdminUserSearchResponseSchema,
   AdminUserUnlockResponseSchema,
   OpsResumeResponseSchema,
@@ -94,6 +96,7 @@ import {
   type AdminUser,
   type AdminUserLedgerQuery,
   type AdminUserLedgerResponse,
+  type AdminUserStatsResponse,
   type OpsStatusResponse,
   type AdminTopup,
   type AdminTopupApproveExpiredRequest,
@@ -180,6 +183,7 @@ export {
   type AdminUser,
   type AdminUserLedgerQuery,
   type AdminUserLedgerResponse,
+  type AdminUserStatsResponse,
   type OpsStatusResponse,
   type AdminTopup,
   type AdminTopupApproveExpiredRequest,
@@ -1100,6 +1104,18 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
         `/admin/users/${encodeURIComponent(id)}/ledger?${params.toString()}`,
         { method: 'GET', signal: options?.signal },
         (payload) => AdminUserLedgerResponseSchema.parse(payload),
+      );
+    },
+
+    async getAdminUserStats(
+      days = 30,
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminUserStatsResponse> {
+      const query = AdminUserStatsQuerySchema.parse({ days });
+      return requestLive(
+        `/admin/users/stats?days=${query.days}`,
+        { method: 'GET', signal: options?.signal },
+        (payload) => AdminUserStatsResponseSchema.parse(payload),
       );
     },
 

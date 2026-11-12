@@ -175,20 +175,17 @@ function closeWorkspace(): void {
         </button>
       </div>
 
-      <div class="relative w-full lg:max-w-xs">
+      <div class="w-full lg:max-w-xs">
         <label for="catalog-search-input" class="sr-only">
           Tìm kiếm công cụ AI
         </label>
-        <Icon
-          name="lucide:search"
-          class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-cyber-muted"
-        />
-        <input
+        <BaseInput
           id="catalog-search-input"
           v-model="searchKeyword"
+          variant="cyber"
           type="search"
+          left-icon="lucide:search"
           placeholder="Tìm kiếm công cụ AI..."
-          class="touch-target min-h-[48px] w-full rounded-xl border border-cyber-border bg-cyber-bg pl-10 pr-4 text-sm text-cyber-text placeholder-cyber-muted focus:border-cyber-violet focus:outline-none"
         />
       </div>
     </section>

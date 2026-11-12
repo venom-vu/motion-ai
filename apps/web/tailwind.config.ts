@@ -45,6 +45,9 @@ export default {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
         display: ['"Space Grotesk"', 'Inter', 'system-ui', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        // Font của trang quản trị, theo Vercel Docs
+        geist: ['Geist', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        'geist-mono': ['"Geist Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       minHeight: {
         touch: '48px',

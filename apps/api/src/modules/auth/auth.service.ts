@@ -98,6 +98,31 @@ export class AuthService {
     return rows.map((r) => ({ id: r.id, createdAt: r.created_at }));
   }
 
+  /** Đếm tài khoản cho trang thống kê Admin: tổng, bị khóa, admin, theo gói và tài khoản mới theo ngày (giờ VN). */
+  async countUsersForStats(signupsSince: Date): Promise<{
+    total: number;
+    locked: number;
+    admins: number;
+    byPack: Array<{ pack: string | null; count: number }>;
+    signupsByDay: Array<{ date: string; count: number }>;
+  }> {
+    const [totals, byPack, byDay] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ total: number; locked: number; admins: number }>>`
+        SELECT COUNT(*)::int AS total,
+               COUNT(*) FILTER (WHERE locked_at IS NOT NULL)::int AS locked,
+               COUNT(*) FILTER (WHERE role = 'admin')::int AS admins
+        FROM users`,
+      this.prisma.$queryRaw<Array<{ pack: string | null; count: number }>>`
+        SELECT tier_pack AS pack, COUNT(*)::int AS count FROM users GROUP BY tier_pack`,
+      this.prisma.$queryRaw<Array<{ date: string; count: number }>>`
+        SELECT to_char(created_at AT TIME ZONE 'Asia/Ho_Chi_Minh', 'YYYY-MM-DD') AS date, COUNT(*)::int AS count
+        FROM users WHERE created_at >= ${signupsSince}::timestamptz
+        GROUP BY 1 ORDER BY 1`,
+    ]);
+    const t = totals[0] ?? { total: 0, locked: 0, admins: 0 };
+    return { total: t.total, locked: t.locked, admins: t.admins, byPack, signupsByDay: byDay };
+  }
+
   /** Khóa tài khoản trong transaction của bên gọi: khóa dòng, đặt locked_at, thu hồi mọi refresh token. Trả lockedAt trước đó. */
   async lockAccount(tx: PrismaTransactionClient, userId: string): Promise<{ before: Date | null; after: Date }> {
     const rows = await tx.$queryRaw<Array<{ locked_at: Date | null }>>`SELECT locked_at FROM users WHERE id = ${userId}::uuid FOR UPDATE`;

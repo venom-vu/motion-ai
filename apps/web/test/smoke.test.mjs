@@ -444,14 +444,14 @@ describe('@flowvis/web — Story 1.4 Nuxt 4 mobile-first & API client', () => {
       }
     }
 
-    // 5. Kiểm tra layout /admin dùng Left Sidebar 220px, nền #0A0A0A, font-mono
+    // 5. Kiểm tra layout /admin dùng Left Sidebar 220px, nền #0A0A0A, font Geist (Vercel Docs)
     const adminLayoutRaw = fs.readFileSync(
       path.join(webRoot, 'layouts/admin.vue'),
       'utf8',
     );
     assert.match(adminLayoutRaw, /lg:w-\[220px\]/);
     assert.match(adminLayoutRaw, /#0A0A0A/);
-    assert.match(adminLayoutRaw, /font-mono/);
+    assert.match(adminLayoutRaw, /font-geist/);
 
     // 6. Quét toàn bộ file nguồn trong apps/web đảm bảo không có emoji UTF-8
     const sourceFiles = collectFiles(webRoot, ['.vue', '.ts', '.css']);
@@ -466,7 +466,7 @@ describe('@flowvis/web — Story 1.4 Nuxt 4 mobile-first & API client', () => {
     }
   });
 
-  it('AC1, AC2, AC5: SSR render cả 4 route (/, /history, /pricing, /admin) qua Cloudflare Pages Worker bundle (.output/public/_worker.js/index.js)', async () => {
+  it('AC1, AC2, AC5: SSR render cả 4 route (/, /history, /pricing, /admin/topups) qua Cloudflare Pages Worker bundle (.output/public/_worker.js/index.js)', async () => {
     // Giả lập backend ở ranh giới HTTP: SSR gọi API thật nên test cần phản hồi mẫu.
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async (input) => {
@@ -545,11 +545,10 @@ describe('@flowvis/web — Story 1.4 Nuxt 4 mobile-first & API client', () => {
         ],
       },
       {
-        path: '/admin',
+        path: '/admin/topups',
         mustInclude: [
-          'data-testid="page-admin"',
+          'data-testid="page-admin-topups"',
           'data-testid="admin-left-sidebar"',
-          'BANK_REF',
         ],
       },
     ];
@@ -797,7 +796,7 @@ describe('@flowvis/web — Story 1.9 đăng nhập, ToS và phiên', () => {
             };
           },
         });
-        for (const name of ['Icon', 'ApiErrorBanner', 'FeatureCard', 'FeatureWorkspaceDialog']) {
+        for (const name of ['Icon', 'ApiErrorBanner', 'FeatureCard', 'FeatureWorkspaceDialog', 'BaseInput']) {
           app.component(name, { ssrRender(_c, push) { push('<span></span>'); } });
         }
         app.component('NuxtLink', {

@@ -29,15 +29,15 @@ describe('pages/admin/topups.vue: script setup nối nút bấm tới thao tác 
     dir = fs.mkdtempSync(path.join(webRoot, 'test', '.tmp-adm-page-'));
     const w = (name, code) => fs.writeFileSync(path.join(dir, name), code, 'utf8');
 
-    w('imports.mjs', `export const definePageMeta = () => {};
-import { ref } from 'vue';
-export const useAsyncData = () => ({ status: ref('success'), pending: ref(false), data: ref({ role: 'admin' }) });`);
-    w('use-api-client.mjs', `export const ME_KEY = 'me'; export const useApiClient = () => ({ client: { getMe: async () => ({ role: 'admin' }) } });`);
-    w('use-auth-dialog.mjs', `export const useAuthDialog = () => ({ open() {} });`);
+    w('imports.mjs', `export const definePageMeta = () => {};`);
+    w('use-admin-access.mjs', `import { ref } from 'vue';
+export const useAdminAccess = () => ({ isMePending: ref(false), isAdmin: ref(true) });`);
+    w('use-cursor-pager.mjs', `export { useCursorPager } from ${JSON.stringify(pathToFileURL(path.join(webRoot, 'composables/useCursorPager.ts')).href)};`);
+    w('admin-ui.mjs', `export const ui = {};`);
     w('modal.mjs', `export default {};`);
     w('catalog.mjs', `export const formatNumberVi = String; export const formatVndVi = String;`);
     w('api-client.mjs', `export { MotionApiClientError, resolveApiErrorMessageVi } from ${JSON.stringify(pathToFileURL(path.join(webRoot, 'utils/api-client.ts')).href)};`);
-    w('topup-utils.mjs', `export const formatTopupTimestampVi = String; export const getTopupStatusBadgeClass = () => ''; export const getTopupStatusLabelVi = String; export const isOverdue = () => false;`);
+    w('topup-utils.mjs', `export const formatTopupTimestampVi = String; export const getTopupStatusLabelVi = String; export const isOverdue = () => false;`);
     w('use-admin-topups.mjs', `import { ref } from 'vue';
 const rec = (name) => async (...args) => {
   const s = globalThis.__adm; s.calls.push([name, ...args]);
@@ -55,13 +55,14 @@ export const useAdminTopups = () => ({
     let code = compileScript(descriptor, { id: 'adm-page-test' }).content;
     const map = {
       '#imports': 'imports.mjs',
-      '~/composables/useApiClient': 'use-api-client.mjs',
+      '~/composables/useAdminAccess': 'use-admin-access.mjs',
+      '~/composables/useCursorPager': 'use-cursor-pager.mjs',
       '~/composables/useAdminTopups': 'use-admin-topups.mjs',
-      '~/composables/useAuthDialog': 'use-auth-dialog.mjs',
       '~/components/AdminTopupActionModal.vue': 'modal.mjs',
       '~/utils/catalog': 'catalog.mjs',
       '~/utils/topup': 'topup-utils.mjs',
       '~/utils/api-client': 'api-client.mjs',
+      '~/utils/admin-ui': 'admin-ui.mjs',
     };
     for (const [spec, file] of Object.entries(map)) {
       const before = code;

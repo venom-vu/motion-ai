@@ -347,6 +347,13 @@ export class TopupsService {
     return rows[0]?.n ?? 0;
   }
 
+  /** Số tài khoản có ít nhất một đơn nạp đã duyệt. */
+  async countPayingUsers(): Promise<number> {
+    const rows = await this.prisma.$queryRaw<Array<{ n: number }>>`
+      SELECT COUNT(DISTINCT user_id)::int AS n FROM topups WHERE status = 'approved'`;
+    return rows[0]?.n ?? 0;
+  }
+
   /** Trong các tài khoản (id + created_at), tập id có đơn `approved` trong `days` ngày kể từ created_at. */
   async accountsWithApprovedWithin(accounts: Array<{ id: string; createdAt: Date }>, days: number): Promise<Set<string>> {
     if (accounts.length === 0) return new Set();

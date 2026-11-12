@@ -5,6 +5,7 @@ import type {
   AdminStatsResponse,
   AdminTaskLookupResponse,
   AdminUser,
+  AdminUserStatsResponse,
   LedgerEntry,
   OpsStatusResponse,
 } from '@flowvis/contracts';
@@ -150,6 +151,24 @@ export function useAdminOps() {
       statsErrorVi.value = resolveAdminErrorMessageVi(err);
     } finally {
       isStatsLoading.value = false;
+    }
+  }
+
+  /* --------------------------- Số lượng tài khoản --------------------------- */
+  const userStats = ref<AdminUserStatsResponse | null>(null);
+  const isUserStatsLoading = ref(false);
+  const userStatsErrorVi = ref<string | null>(null);
+
+  async function fetchUserStats(days = 30): Promise<void> {
+    if (isUserStatsLoading.value) return;
+    isUserStatsLoading.value = true;
+    userStatsErrorVi.value = null;
+    try {
+      userStats.value = await client.getAdminUserStats(days);
+    } catch (err: unknown) {
+      userStatsErrorVi.value = resolveAdminErrorMessageVi(err);
+    } finally {
+      isUserStatsLoading.value = false;
     }
   }
 
@@ -411,6 +430,10 @@ export function useAdminOps() {
     isStatsLoading,
     statsErrorVi,
     fetchStats,
+    userStats,
+    isUserStatsLoading,
+    userStatsErrorVi,
+    fetchUserStats,
     user,
     ledger,
     ledgerHasMore,

@@ -5,12 +5,14 @@ import {
   AdminUserLedgerQuerySchema,
   AdminUserLockRequestSchema,
   AdminUserSearchQuerySchema,
+  AdminUserStatsQuerySchema,
   ApiErrorCode,
   getApiErrorMessageVi,
   getValidationReasonMessageVi,
   type AdminAdjustResponse,
   type AdminUser,
   type AdminUserLedgerResponse,
+  type AdminUserStatsResponse,
 } from '@flowvis/contracts';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
@@ -53,6 +55,14 @@ export class AdminUsersController {
     const p = AdminUserSearchQuerySchema.safeParse(query);
     if (!p.success) throw validationError();
     return this.users.findByEmail(p.data.email);
+  }
+
+  // Khai báo trước ':id' để 'stats' không bị hiểu là id.
+  @Get('stats')
+  async stats(@Query() query: unknown): Promise<AdminUserStatsResponse> {
+    const p = AdminUserStatsQuerySchema.safeParse(query);
+    if (!p.success) throw validationError();
+    return this.users.stats(p.data.days);
   }
 
   @Get(':id')

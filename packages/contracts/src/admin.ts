@@ -38,6 +38,29 @@ export type AdminUserSearchQuery = z.infer<typeof AdminUserSearchQuerySchema>;
 export const AdminUserSearchResponseSchema = AdminUserSchema;
 export type AdminUserSearchResponse = AdminUser;
 
+/** GET /admin/users/stats — số lượng tài khoản; `days` là độ dài chuỗi tài khoản mới theo ngày (giờ VN). */
+export const AdminUserStatsQuerySchema = z.object({
+  days: z.coerce.number().int().min(7).max(90).default(30),
+});
+export type AdminUserStatsQuery = z.infer<typeof AdminUserStatsQuerySchema>;
+
+const countField = z.number().int().nonnegative();
+
+export const AdminUserStatsResponseSchema = z.object({
+  total: countField,
+  active: countField,
+  locked: countField,
+  admins: countField,
+  /** Tài khoản đã từng có Task. */
+  withTasks: countField,
+  /** Tài khoản đã có ít nhất một đơn nạp được duyệt. */
+  paying: countField,
+  byTier: z.array(z.object({ tier: AccountTierSchema, count: countField })),
+  /** Tài khoản mới theo ngày, cũ nhất trước, đủ `days` ngày (ngày không có ai là 0). */
+  signupsByDay: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), count: countField })),
+});
+export type AdminUserStatsResponse = z.infer<typeof AdminUserStatsResponseSchema>;
+
 /** GET /admin/users/{id} */
 export const AdminUserGetResponseSchema = AdminUserSchema;
 export type AdminUserGetResponse = AdminUser;

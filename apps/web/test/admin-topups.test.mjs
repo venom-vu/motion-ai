@@ -23,6 +23,7 @@ import {
   isOverdue,
 } from '../utils/topup.ts';
 import { formatNumberVi, formatVndVi } from '../utils/catalog.ts';
+import { compileSsr, renderAdminPage, staticPager } from './admin-sfc-helpers.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -683,6 +684,20 @@ export const useApiClient = () => ({
             _push('<span class="mock-lucide-icon"></span>');
           },
         });
+        app.component('BaseInput', {
+          inheritAttrs: false,
+          ssrRender(ctx, push) {
+            const testid = ctx.$attrs['data-testid'] ? ` data-testid="${ctx.$attrs['data-testid']}"` : '';
+            push(`<input${testid} />`);
+          },
+        });
+        app.component('BaseTextarea', {
+          inheritAttrs: false,
+          ssrRender(ctx, push) {
+            const testid = ctx.$attrs['data-testid'] ? ` data-testid="${ctx.$attrs['data-testid']}"` : '';
+            push(`<textarea${testid}></textarea>`);
+          },
+        });
         return await renderToString(app);
       } finally {
         if (fs.existsSync(tmpFile)) {
@@ -997,9 +1012,13 @@ export const useApiClient = () => ({
 
     it('trang tuân thủ vùng chạm >= 48px, không emoji và hỗ trợ màn hình chuẩn 360px', () => {
       // Vùng chạm tối thiểu 48px
+      // Nút dùng class chung trong utils/admin-ui.ts, nơi khai báo vùng chạm 48px
+      const rawAdminUi = fs.readFileSync(path.join(webRoot, 'utils/admin-ui.ts'), 'utf8');
+      assert.match(rawAdminUi, /min-h-\[48px\]\s+min-w-\[48px\]/);
+      assert.match(rawPageVue, /:class="ui\.btn/);
       const touchMatches = rawPageVue.match(/min-h-\[48px\]\s+min-w-\[48px\]/g);
       assert.ok(
-        touchMatches && touchMatches.length >= 6,
+        touchMatches && touchMatches.length >= 2,
         'Các nút tương tác trên trang admin topups phải có vùng chạm >= 48px',
       );
 
@@ -1012,39 +1031,14 @@ export const useApiClient = () => ({
         'Trang admin topups không được chứa emoji trong UI chrome',
       );
 
-      // Có cấu trúc bảng cho desktop và danh sách thẻ 1 cột cho mobile
+      // Danh sách dạng bảng (cuộn ngang trên màn hình hẹp) và có phân trang
       assert.match(rawPageVue, /data-testid="admin-topup-row"/);
-      assert.match(rawPageVue, /data-testid="admin-topup-card"/);
+      assert.match(rawPageVue, /<AdminPager/);
     });
 
     async function compileAndRenderPage(setupData) {
-      const { descriptor } = parse(rawPageVue);
-      const compiled = compileTemplate({
-        id: `test-admin-page-${Date.now()}`,
-        filename: 'pages/admin/topups.vue',
-        source: descriptor.template.content,
-        ssr: true,
-        ssrCssVars: [],
-      });
-      assert.equal(
-        compiled.errors.length,
-        0,
-        `Template pages/admin/topups.vue lỗi: ${compiled.errors.join('; ')}`,
-      );
-
-      const tmpFile = path.join(
-        webRoot,
-        'test',
-        `.tmp-admin-page-${Date.now()}-${Math.random().toString(36).slice(2)}.mjs`,
-      );
-      fs.writeFileSync(tmpFile, compiled.code, 'utf8');
-
-      try {
-        const { ssrRender } = await import(pathToFileURL(tmpFile).href);
-        const app = createSSRApp({
-          ssrRender,
-          setup() {
-            return {
+      const ssrRender = await compileSsr('pages/admin/topups.vue');
+      const data = {
               formatVndVi,
               formatNumberVi,
               formatTopupTimestampVi,
@@ -1082,34 +1076,12 @@ export const useApiClient = () => ({
               setStatusFilter: () => {},
               openActionModal: () => {},
               handleReturnToPending: () => {},
-              ...setupData,
-            };
-          },
-        });
-        app.component('Icon', {
-          props: ['name'],
-          ssrRender(_ctx, _push) {
-            _push('<span class="mock-lucide-icon"></span>');
-          },
-        });
-        app.component('NuxtLink', {
-          props: ['to'],
-          ssrRender(_ctx, _push, _parent, _attrs, setAttrs, slots) {
-            _push(`<a href="${_ctx.to}">`);
-            slots.default?.();
-            _push('</a>');
-          },
-        });
-        app.component('AdminTopupActionModal', {
-          props: ['open'],
-          ssrRender() {},
-        });
-        return await renderToString(app);
-      } finally {
-        if (fs.existsSync(tmpFile)) {
-          fs.unlinkSync(tmpFile);
-        }
-      }
+                      ...setupData,
+      };
+      data.pager ??= staticPager(data.topups, { hasMore: data.hasMore });
+      return renderAdminPage(ssrRender, data, {
+        AdminTopupActionModal: { props: ['open'], ssrRender() {} },
+      });
     }
 
     it('người dùng role user hoặc khách chưa đăng nhập nhận màn hình 403 Forbidden, không để lộ dữ liệu', async () => {
@@ -1119,7 +1091,7 @@ export const useApiClient = () => ({
       });
 
       assert.match(htmlUser, /data-testid="admin-forbidden-state"/);
-      assert.match(htmlUser, /403 — TRUY CẬP BỊ TỪ CHỐI/);
+      assert.match(htmlUser, /403 — Truy cập bị từ chối/);
       assert.match(htmlUser, /data-testid="admin-forbidden-login-button"/);
       assert.match(htmlUser, /Đăng nhập/);
       assert.equal(
@@ -1147,7 +1119,7 @@ export const useApiClient = () => ({
         stats: { pending: 1, overdue: 1, needsReview: 1, resolved: 0 },
       });
 
-      assert.match(html, /DANH SÁCH ĐƠN NẠP VIETQR/);
+      assert.match(html, /Danh sách đơn nạp VietQR/);
       assert.match(html, /data-testid="filter-tab-pending"/);
       assert.match(html, /data-testid="filter-tab-needs_review"/);
       assert.match(html, /data-testid="overdue-badge"/);
@@ -1198,7 +1170,7 @@ export const useApiClient = () => ({
       assert.match(html, /data-testid="admin-auth-loading-state"/);
       assert.match(html, /Đang kiểm tra quyền quản trị viên\.\.\./);
       assert.doesNotMatch(html, /data-testid="admin-forbidden-state"/);
-      assert.doesNotMatch(html, /403 — TRUY CẬP BỊ TỪ CHỐI/);
+      assert.doesNotMatch(html, /403 — Truy cập bị từ chối/);
     });
 
     it('isOverdue chỉ hiển thị nhãn QUÁ HẠN cho đơn có trạng thái pending, không hiển thị trên đơn expired, approved hay awaiting_transfer', async () => {
@@ -1213,9 +1185,9 @@ export const useApiClient = () => ({
         isOverdue: isOverdue,
       });
 
-      // Chỉ xuất hiện đúng 2 badge QUÁ HẠN (1 trong hàng desktop của pending, 1 trong thẻ mobile của pending)
+      // Chỉ xuất hiện đúng 1 badge QUÁ HẠN (hàng của đơn pending; bảng dùng chung cho mọi màn hình)
       const matches = html.match(/QUÁ HẠN/g) || [];
-      assert.equal(matches.length, 2, 'QUÁ HẠN chỉ được xuất hiện trên đơn pending');
+      assert.equal(matches.length, 1, 'QUÁ HẠN chỉ được xuất hiện trên đơn pending');
     });
 
     it('đơn nạp ở trạng thái awaiting_transfer hiển thị nhãn Chờ chuyển khoản ở cột thao tác desktop và thẻ mobile', async () => {
@@ -1235,7 +1207,7 @@ export const useApiClient = () => ({
       assert.doesNotMatch(html, /Đã hoàn tất/);
     });
 
-    it('phân trang cursor gặp lỗi hiển thị banner lỗi loadMoreErrorVi và nút Thử tải lại', async () => {
+    it('phân trang cursor gặp lỗi hiển thị banner lỗi loadMoreErrorVi và nút Sau để thử tải lại', async () => {
       const html = await compileAndRenderPage({
         isAdmin: true,
         isMePending: false,
@@ -1246,7 +1218,9 @@ export const useApiClient = () => ({
 
       assert.match(html, /data-testid="load-more-error-banner"/);
       assert.match(html, /Không thể kết nối máy chủ để tải tiếp danh sách\./);
-      assert.match(html, /Thử tải lại/);
+      assert.match(html, /thử tải lại/);
+      assert.match(html, /data-testid="admin-pager-next"/);
+      assert.doesNotMatch(html, /data-testid="admin-pager-next"[^>]*\sdisabled(?![:\w-])/);
     });
 
     it('sidebar admin.vue chứa mục điều hướng /admin/topups với icon lucide:receipt', () => {
@@ -1339,11 +1313,10 @@ export const useApiClient = () => ({
             return {
               route: { path: currentPath },
               adminNavItems: [
-                { to: '/admin', labelVi: 'Tổng quan vận hành', icon: 'lucide:activity' },
+                { to: '/admin/stats', labelVi: 'Thống kê', icon: 'lucide:bar-chart-3' },
                 { to: '/admin/topups', labelVi: 'Duyệt đơn VietQR', icon: 'lucide:receipt' },
-                { to: '/pricing', labelVi: 'Cấu hình gói nạp', icon: 'lucide:credit-card' },
-                { to: '/history', labelVi: 'Đối soát sổ cái', icon: 'lucide:database' },
-                { to: '/', labelVi: 'Về Kho Công Cụ AI', icon: 'lucide:arrow-up-left' },
+                { to: '/admin/ops', labelVi: 'Trạng thái hệ thống', icon: 'lucide:server-cog' },
+                { to: '/admin/users', labelVi: 'Tài khoản', icon: 'lucide:users' },
               ],
               IconComponent: {
                 props: ['name'],
@@ -1369,42 +1342,53 @@ export const useApiClient = () => ({
       }
     }
 
-    it('kết xuất HTML layout admin chuẩn phong cách Vercel: sidebar 220px, font monospace, header và link điều hướng', async () => {
+    it('kết xuất HTML layout admin chuẩn phong cách Vercel: sidebar 220px, font Geist, header và link điều hướng', async () => {
       const html = await compileAndRenderLayout('/admin/topups');
 
       assert.match(html, /data-testid="layout-admin"/);
       assert.match(html, /data-testid="admin-left-sidebar"/);
-      assert.match(html, /MOTION OPS/);
-      assert.match(html, /v0\.1/);
-      assert.match(html, /Bảng điều khiển quản trị viên/);
-      assert.match(html, /2 Lane GPU • Sẵn sàng/);
+      assert.match(html, /Quản trị/);
+      // Menu chỉ còn mục đã hoàn thiện
+      assert.doesNotMatch(html, /Cấu hình gói nạp|Đối soát sổ cái|Tổng quan vận hành/);
+      // Layout khai báo đủ 6 trang quản trị đã tách
+      // Thống kê đứng đầu menu, theo sau là các trang còn lại
+      const order = ['/admin/stats', '/admin/topups', '/admin/ops', '/admin/users', '/admin/takedown', '/admin/audit'];
+      const positions = order.map((to) => rawLayoutAdmin.indexOf(`to: '${to}'`));
+      assert.ok(positions.every((p) => p >= 0), 'Layout phải khai báo đủ 6 trang quản trị');
+      assert.deepEqual([...positions].sort((a, b) => a - b), positions, 'Thứ tự menu phải bắt đầu bằng Thống kê');
+      // Header cố định, phần thân chừa chỗ cho header
+      assert.match(rawLayoutAdmin, /<header[^>]*class="fixed inset-x-0 top-0/);
+      assert.match(rawLayoutAdmin, /pt-16/);
+      // Sidebar cố định trên desktop, nội dung chừa 220px bên trái
+      assert.match(rawLayoutAdmin, /data-testid="admin-left-sidebar"[\s\S]*?lg:fixed lg:bottom-0 lg:left-0 lg:top-16 lg:w-\[220px\]/);
+      assert.match(rawLayoutAdmin, /lg:pl-\[220px\]/);
 
       // Link /admin/topups đang active
       assert.match(
         html,
-        /href="\/admin\/topups"[^>]*class="[^"]*border border-cyber-border bg-cyber-surface text-cyber-text[^"]*"/,
+        /href="\/admin\/topups"[^>]*class="[^"]*bg-\[#1A1A1A\] font-medium text-\[#EDEDED\][^"]*"/,
       );
 
-      // Link /admin không active
+      // Link /admin/ops không active
       assert.match(
         html,
-        /href="\/admin"[^>]*class="[^"]*text-cyber-muted hover:bg-cyber-surface\/50 hover:text-cyber-text[^"]*"/,
+        /href="\/admin\/ops"[^>]*class="[^"]*text-\[#B4B4B4\] hover:bg-\[#1A1A1A\]\/60 hover:text-\[#EDEDED\][^"]*"/,
       );
     });
 
-    it('khi chuyển route sang /admin, link /admin trở thành active và /admin/topups trở về trạng thái inactive', async () => {
-      const html = await compileAndRenderLayout('/admin');
+    it('khi chuyển route sang /admin/ops, link /admin/ops trở thành active và /admin/topups trở về trạng thái inactive', async () => {
+      const html = await compileAndRenderLayout('/admin/ops');
 
-      // Link /admin đang active
+      // Link /admin/ops đang active
       assert.match(
         html,
-        /href="\/admin"[^>]*class="[^"]*border border-cyber-border bg-cyber-surface text-cyber-text[^"]*"/,
+        /href="\/admin\/ops"[^>]*class="[^"]*bg-\[#1A1A1A\] font-medium text-\[#EDEDED\][^"]*"/,
       );
 
       // Link /admin/topups không active
       assert.match(
         html,
-        /href="\/admin\/topups"[^>]*class="[^"]*text-cyber-muted hover:bg-cyber-surface\/50 hover:text-cyber-text[^"]*"/,
+        /href="\/admin\/topups"[^>]*class="[^"]*text-\[#B4B4B4\] hover:bg-\[#1A1A1A\]\/60 hover:text-\[#EDEDED\][^"]*"/,
       );
     });
   });

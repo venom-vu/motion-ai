@@ -25,6 +25,7 @@ import type {
   AdminTaskLookupResponse,
   AdminUser,
   AdminUserLedgerResponse,
+  AdminUserStatsResponse,
   AdminUserSearchResponse,
 } from './admin.js';
 import type {
@@ -777,6 +778,25 @@ export const MOCK_ADMIN_USER: AdminUser = {
 export const MOCK_ADMIN_USER_LOCKED: AdminUser = {
   ...MOCK_ADMIN_USER,
   lockedAt: '2026-11-10T09:00:00.000Z',
+};
+
+export const MOCK_ADMIN_USER_STATS_RESPONSE: AdminUserStatsResponse = {
+  total: 128,
+  active: 125,
+  locked: 3,
+  admins: 2,
+  withTasks: 74,
+  paying: 19,
+  byTier: [
+    { tier: 'FREE', count: 109 },
+    { tier: 'Starter', count: 11 },
+    { tier: 'Pro', count: 6 },
+    { tier: 'Creator', count: 2 },
+  ],
+  signupsByDay: Array.from({ length: 30 }, (_, i) => ({
+    date: new Date(Date.UTC(2026, 9, 13 + i)).toISOString().slice(0, 10),
+    count: [2, 5, 3, 0, 4, 6, 1][i % 7],
+  })),
 };
 
 export const MOCK_ADMIN_USER_SEARCH_RESPONSE: AdminUserSearchResponse = MOCK_ADMIN_USER;
