@@ -32,6 +32,8 @@ x-smoke-env: &smoke-env
   TOPUP_FAKE_NOW: ${TOPUP_FAKE_NOW:-}
   TOPUP_SWEEP_INTERVAL: ${TOPUP_SWEEP_INTERVAL:-}
   MOTION_SMOKE: "1"
+  # Story 6.10: email nhận báo cáo vi phạm cho bản build FE dùng trong smoke vận hành (API không đọc biến này).
+  NUXT_PUBLIC_REPORT_EMAIL: ${NUXT_PUBLIC_REPORT_EMAIL:-abuse@smoke.test}
 
 services:
   nestjs-api:

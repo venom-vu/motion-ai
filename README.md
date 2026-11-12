@@ -81,3 +81,15 @@ Smoke nạp tiền VietQR (`apps/api/test/smoke-topup.test.mjs`) chạy bằng `
 ## Smoke test Motion Control (Story 5.9)
 
 Smoke `apps/api/test/smoke-motion-control.test.mjs` chạy bằng `RUN_COMPOSE_E2E=1 pnpm --filter @flowvis/api test` (cần Docker và `ffmpeg`/`ffprobe` trên máy chạy test để sinh video mẫu). Kịch bản: thành công 10 giây (500 credit), `NO_POSE`, vượt Cap Starter (`TRIM_EXCEEDS_CAP`), ví FREE (hai video 5 giây rồi `INSUFFICIENT_CREDIT`), hai Task song song, quá hạn (`RH_DEADLINE_MS` rút ngắn), kết quả lệch độ dài 10,4 giây (thành công) và 10,6 giây (`OUTPUT_INVALID`), chia sẻ `/s/<token>`, `/info`, `/poster`, dọn thư mục tạm và `reconcile.js`. Gói Tier lấy qua luồng nạp tiền thật (Admin duyệt). Smoke chỉ gọi HTTP API, không đo SLA hay tải ffmpeg trên VPS. Ở Epic 6 cần đối chiếu `nodeId`/`fieldName` của workflow Motion (đang `[ASSUMPTION]` trong `pipeline-config.ts`) và chạy benchmark ffmpeg. Chi tiết: `deploy/README.md`.
+
+## Smoke test vận hành và runbook Admin (Story 6.10)
+
+Smoke `apps/api/test/smoke-ops.test.mjs` chạy bằng `RUN_COMPOSE_E2E=1 pnpm --filter @flowvis/api test` (cần Docker). Stack bốn container có ngắt mạch thật bật (không đặt `OPS_BREAKER_DISABLED`); RunningHub, R2, Google và Discord được giả trong tiến trình test (helper `apps/api/test/helpers/smoke-fakes.mjs`). Kịch bản: ngắt mạch 5 lỗi liên tiếp (503 `PAUSED` ở 3 route tạo Task, Discord đúng một cảnh báo), mở lại, ngưỡng 15% trên 20 Task (30 `NO_POSE` không kích hoạt), khóa/mở khóa tài khoản, cộng bù idempotent, gỡ nội dung, sao lưu giữ 7 bản và lỗi `pg_dump`, restore-drill, dựng lại hàng đợi sau khi xóa Redis, rồi `reconcile.js` phải thoát 0. Chân trang được kiểm bằng HTML SSR của bản build Nuxt (`apps/web/test/footer-ssr.test.mjs`, không dùng trình duyệt). Mock và phản hồi BE thật được đối chiếu qua schema `@flowvis/contracts`.
+
+### Runbook Admin (trang `/admin/ops`)
+
+- **Ngắt mạch kích hoạt** (hệ thống tạm dừng nhận Task mới, người dùng thấy biểu ngữ bảo trì): xem `lastBreakerTrigger` (quy tắc và số liệu) và log worker; xử lý nguyên nhân (RunningHub, R2, ffmpeg), rồi bấm "Mở lại nhận Task" (`POST /admin/ops/resume`). Lỗi cũ không tính lại sau khi mở.
+- **Hết ngân sách RunningHub** (`rhBudgetExhausted`): nạp coin RunningHub, kiểm tra `rhBalance`, rồi mở lại. Trong lúc tạm dừng, đăng nhập, nạp credit, lịch sử và tải kết quả vẫn dùng được; Task bị ảnh hưởng đã `failed` `RH_BUDGET` và RELEASED 100%.
+- **Sao lưu lỗi** (Discord `ops.backup_failed`, hoặc quá 36 giờ không có bản thành công): xem `lastBackup`, kiểm tra `pg_dump`/R2 trong log worker; bản cũ không bị xóa khi lỗi. Chạy lại bằng lịch 03:00 hoặc xác nhận qua `deploy/RESTORE.md` (có lệnh restore-drill).
+- **Đơn nạp quá hạn**: vào `/admin/topups`, đối chiếu `bank_ref` với sao kê; duyệt đơn `needs_review`/`expired` đúng số tiền, hoặc bỏ qua. Không có đường tự hoàn credit Task đã `succeeded`; dùng cộng bù (`ADJUST`) kèm lý do.
+- **Vi phạm nội dung**: tra cứu theo mã Task hoặc `shareUrl`, bấm gỡ (thu hồi liên kết, xóa `in/` và `out/` trên R2, số dư không đổi); khóa tài khoản nếu cần. Người dùng báo cáo qua `mailto:` ở chân trang.

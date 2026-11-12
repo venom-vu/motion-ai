@@ -345,3 +345,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-6-8-fe-trang-van-hanh-admin.md`
   summary: Polling trạng thái của `/admin/ops` nên dừng khi mất quyền admin hoặc gặp 401/403.
   evidence: `watch(isAdmin)` chỉ khởi động, không dừng; `refreshStatus` lỗi vẫn lặp mỗi 30 giây.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-10-integration-noi-fe-voi-be-va-smoke-test-van-hanh.md`
+  summary: Smoke vận hành chưa phủ nhánh `rhBudgetExhausted`, cảnh báo sao lưu quá 36 giờ, biểu ngữ bảo trì và viewport 360 px trên trình duyệt thật; so khớp mock với phản hồi thật mới ở khóa cấp cao của ops status.
+  evidence: Reviewer verification-gap và edge-case nêu; ngoài các AC của Story 6.10 nên không sửa ở đây.
