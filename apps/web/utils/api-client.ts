@@ -12,6 +12,26 @@ import {
   AdminTopupRejectResponseSchema,
   AdminTopupReturnToPendingRequestSchema,
   AdminTopupReturnToPendingResponseSchema,
+  AdminAdjustRequestSchema,
+  AdminAdjustResponseSchema,
+  AdminAuditQuerySchema,
+  AdminAuditResponseSchema,
+  AdminStatsQuerySchema,
+  AdminStatsResponseSchema,
+  AdminTaskLookupQuerySchema,
+  AdminTaskLookupResponseSchema,
+  AdminTaskTakedownRequestSchema,
+  AdminTaskTakedownResponseSchema,
+  AdminUserIdParamsSchema,
+  AdminUserLedgerQuerySchema,
+  AdminUserLedgerResponseSchema,
+  AdminUserLockRequestSchema,
+  AdminUserLockResponseSchema,
+  AdminUserSearchQuerySchema,
+  AdminUserSearchResponseSchema,
+  AdminUserUnlockResponseSchema,
+  OpsResumeResponseSchema,
+  OpsStatusResponseSchema,
   ApiErrorCode,
   AuthGoogleCallbackQuerySchema,
   AuthGoogleCallbackResponseSchema,
@@ -61,6 +81,19 @@ import {
   getReasonCodeMessageVi,
   getValidationReasonMessageVi,
   motionPrice,
+  type AdminAdjustRequest,
+  type AdminAdjustResponse,
+  type AdminAuditQuery,
+  type AdminAuditResponse,
+  type AdminStatsQuery,
+  type AdminStatsResponse,
+  type AdminTaskLookupQuery,
+  type AdminTaskLookupResponse,
+  type AdminTaskTakedownResponse,
+  type AdminUser,
+  type AdminUserLedgerQuery,
+  type AdminUserLedgerResponse,
+  type OpsStatusResponse,
   type AdminTopup,
   type AdminTopupApproveExpiredRequest,
   type AdminTopupApproveExpiredResponse,
@@ -134,6 +167,19 @@ export {
   MotionCreateRequestSchema,
   MotionCreateResponseSchema,
   ShareInfoResponseSchema,
+  type AdminAdjustRequest,
+  type AdminAdjustResponse,
+  type AdminAuditQuery,
+  type AdminAuditResponse,
+  type AdminStatsQuery,
+  type AdminStatsResponse,
+  type AdminTaskLookupQuery,
+  type AdminTaskLookupResponse,
+  type AdminTaskTakedownResponse,
+  type AdminUser,
+  type AdminUserLedgerQuery,
+  type AdminUserLedgerResponse,
+  type OpsStatusResponse,
   type AdminTopup,
   type AdminTopupApproveExpiredRequest,
   type AdminTopupApproveExpiredResponse,
@@ -246,6 +292,23 @@ export function resolveApiErrorMessageVi(errorOrCode: unknown): string {
   }
 
   return getApiErrorMessageVi(null);
+}
+
+/**
+ * Thông báo tiếng Việt cho lỗi thao tác Admin: `VALIDATION_FAILED` kèm `details.reason`
+ * được ánh xạ qua bảng của contracts; các lỗi khác dùng bảng `API_ERROR_MESSAGES_VI`.
+ */
+export function resolveAdminErrorMessageVi(err: unknown): string {
+  if (
+    err instanceof MotionApiClientError &&
+    err.code === ApiErrorCode.VALIDATION_FAILED &&
+    err.details &&
+    typeof err.details.reason === 'string'
+  ) {
+    const cap = typeof err.details.cap === 'number' ? err.details.cap : null;
+    return getValidationReasonMessageVi(err.details.reason, cap);
+  }
+  return resolveApiErrorMessageVi(err);
 }
 
 export interface PresignedUploadOptions {
@@ -956,6 +1019,198 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
           signal: options?.signal,
         },
         (payload) => AdminTopupReturnToPendingResponseSchema.parse(payload),
+      );
+    },
+
+    async getOpsStatus(options?: { signal?: AbortSignal }): Promise<OpsStatusResponse> {
+      return requestLive(
+        '/admin/ops/status',
+        { method: 'GET', signal: options?.signal },
+        (payload) => OpsStatusResponseSchema.parse(payload),
+      );
+    },
+
+    async resumeOps(options?: { signal?: AbortSignal }): Promise<OpsStatusResponse> {
+      return requestLive(
+        '/admin/ops/resume',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+          signal: options?.signal,
+        },
+        (payload) => OpsResumeResponseSchema.parse(payload),
+      );
+    },
+
+    async getAdminStats(
+      rawQuery: AdminStatsQuery | (Omit<AdminStatsQuery, 'scope'> & { scope?: AdminStatsQuery['scope'] }),
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminStatsResponse> {
+      const query = AdminStatsQuerySchema.parse(rawQuery);
+      const params = new URLSearchParams();
+      params.set('from', query.from);
+      params.set('to', query.to);
+      params.set('scope', query.scope);
+      if (query.motionPricePerSecond != null) {
+        params.set('motionPricePerSecond', String(query.motionPricePerSecond));
+      }
+      if (query.imagePrice != null) {
+        params.set('imagePrice', String(query.imagePrice));
+      }
+      return requestLive(
+        `/admin/stats?${params.toString()}`,
+        { method: 'GET', signal: options?.signal },
+        (payload) => AdminStatsResponseSchema.parse(payload),
+      );
+    },
+
+    async searchAdminUser(
+      email: string,
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminUser> {
+      const query = AdminUserSearchQuerySchema.parse({ email });
+      return requestLive(
+        `/admin/users?email=${encodeURIComponent(query.email)}`,
+        { method: 'GET', signal: options?.signal },
+        (payload) => AdminUserSearchResponseSchema.parse(payload),
+      );
+    },
+
+    async getAdminUserLedger(
+      id: string,
+      rawQuery?: Partial<AdminUserLedgerQuery>,
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminUserLedgerResponse> {
+      AdminUserIdParamsSchema.parse({ id });
+      const query = AdminUserLedgerQuerySchema.parse(rawQuery ?? {});
+      const params = new URLSearchParams();
+      params.set('pageSize', String(query.pageSize));
+      if (query.cursor) {
+        params.set('cursor', query.cursor);
+      }
+      return requestLive(
+        `/admin/users/${encodeURIComponent(id)}/ledger?${params.toString()}`,
+        { method: 'GET', signal: options?.signal },
+        (payload) => AdminUserLedgerResponseSchema.parse(payload),
+      );
+    },
+
+    async lockUser(
+      id: string,
+      rawRequest: { reason: string },
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminUser> {
+      AdminUserIdParamsSchema.parse({ id });
+      const data = AdminUserLockRequestSchema.parse(rawRequest);
+      return requestLive(
+        `/admin/users/${encodeURIComponent(id)}/lock`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          signal: options?.signal,
+        },
+        (payload) => AdminUserLockResponseSchema.parse(payload),
+      );
+    },
+
+    async unlockUser(
+      id: string,
+      rawRequest: { reason: string },
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminUser> {
+      AdminUserIdParamsSchema.parse({ id });
+      const data = AdminUserLockRequestSchema.parse(rawRequest);
+      return requestLive(
+        `/admin/users/${encodeURIComponent(id)}/unlock`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          signal: options?.signal,
+        },
+        (payload) => AdminUserUnlockResponseSchema.parse(payload),
+      );
+    },
+
+    async adjustUser(
+      id: string,
+      rawRequest: AdminAdjustRequest,
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminAdjustResponse> {
+      AdminUserIdParamsSchema.parse({ id });
+      const data = AdminAdjustRequestSchema.parse(rawRequest);
+      return requestLive(
+        `/admin/users/${encodeURIComponent(id)}/adjust`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          signal: options?.signal,
+        },
+        (payload) => AdminAdjustResponseSchema.parse(payload),
+      );
+    },
+
+    async lookupAdminTask(
+      rawQuery: AdminTaskLookupQuery,
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminTaskLookupResponse> {
+      const query = AdminTaskLookupQuerySchema.parse(rawQuery);
+      const params = new URLSearchParams();
+      if (query.taskId) {
+        params.set('taskId', query.taskId);
+      }
+      if (query.shareUrl) {
+        params.set('shareUrl', query.shareUrl);
+      }
+      return requestLive(
+        `/admin/tasks/lookup?${params.toString()}`,
+        { method: 'GET', signal: options?.signal },
+        (payload) => AdminTaskLookupResponseSchema.parse(payload),
+      );
+    },
+
+    async takedownTask(
+      id: string,
+      rawRequest: { reason: string },
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminTaskTakedownResponse> {
+      TaskIdParamsSchema.parse({ id });
+      const data = AdminTaskTakedownRequestSchema.parse(rawRequest);
+      return requestLive(
+        `/admin/tasks/${encodeURIComponent(id)}/takedown`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          signal: options?.signal,
+        },
+        (payload) => AdminTaskTakedownResponseSchema.parse(payload),
+      );
+    },
+
+    async listAdminAudit(
+      rawQuery?: Partial<AdminAuditQuery>,
+      options?: { signal?: AbortSignal },
+    ): Promise<AdminAuditResponse> {
+      const query = AdminAuditQuerySchema.parse(rawQuery ?? {});
+      const params = new URLSearchParams();
+      if (query.action) {
+        params.set('action', query.action);
+      }
+      if (query.target) {
+        params.set('target', query.target);
+      }
+      params.set('pageSize', String(query.pageSize));
+      if (query.cursor) {
+        params.set('cursor', query.cursor);
+      }
+      return requestLive(
+        `/admin/audit?${params.toString()}`,
+        { method: 'GET', signal: options?.signal },
+        (payload) => AdminAuditResponseSchema.parse(payload),
       );
     },
   };

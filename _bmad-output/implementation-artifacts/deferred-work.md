@@ -338,3 +338,10 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-6-7-be-sao-luu-postgresql-len-r2.md`
   summary: Ghi quyết định ngoài MVP: mã hóa phía ứng dụng cho bản sao lưu và khóa R2 riêng cho `db-backup/`.
   evidence: `deploy/README.md` đã nêu việc này nằm ngoài MVP theo AC; chưa có mục theo dõi để làm ở giai đoạn sau.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-8-fe-trang-van-hanh-admin.md`
+  summary: Hộp xác nhận `/admin/ops` cần truy cập bàn phím (aria-labelledby, focus trap, Esc, khôi phục focus).
+  evidence: Review 6.8 thấy `role="dialog"` thiếu các thuộc tính này; cùng mẫu có thể có ở modal khác nên nên xử lý chung.
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-8-fe-trang-van-hanh-admin.md`
+  summary: Polling trạng thái của `/admin/ops` nên dừng khi mất quyền admin hoặc gặp 401/403.
+  evidence: `watch(isAdmin)` chỉ khởi động, không dừng; `refreshStatus` lỗi vẫn lặp mỗi 30 giây.

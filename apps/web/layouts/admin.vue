@@ -15,6 +15,11 @@ const adminNavItems = [
     icon: 'lucide:receipt',
   },
   {
+    to: '/admin/ops',
+    labelVi: 'Vận hành hệ thống',
+    icon: 'lucide:server-cog',
+  },
+  {
     to: '/pricing',
     labelVi: 'Cấu hình gói nạp',
     icon: 'lucide:credit-card',
