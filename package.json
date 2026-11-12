@@ -10,7 +10,7 @@
     "lint": "eslint eslint.config.mjs scripts && pnpm -r run lint",
     "typecheck": "pnpm --filter @flowvis/contracts run build && pnpm -r run typecheck",
     "build": "pnpm --filter @flowvis/contracts run build && pnpm --filter @flowvis/api run build && pnpm --filter @flowvis/web run build",
-    "test": "node --test scripts/check-branch-boundaries.test.mjs && pnpm -r run test",
+    "test": "node --test scripts/check-branch-boundaries.test.mjs scripts/prelaunch/lib.test.mjs && pnpm -r run test",
     "check:boundaries": "node scripts/check-branch-boundaries.mjs"
   },
   "devDependencies": {

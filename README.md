@@ -93,3 +93,17 @@ Smoke `apps/api/test/smoke-ops.test.mjs` chạy bằng `RUN_COMPOSE_E2E=1 pnpm -
 - **Sao lưu lỗi** (Discord `ops.backup_failed`, hoặc quá 36 giờ không có bản thành công): xem `lastBackup`, kiểm tra `pg_dump`/R2 trong log worker; bản cũ không bị xóa khi lỗi. Chạy lại bằng lịch 03:00 hoặc xác nhận qua `deploy/RESTORE.md` (có lệnh restore-drill).
 - **Đơn nạp quá hạn**: vào `/admin/topups`, đối chiếu `bank_ref` với sao kê; duyệt đơn `needs_review`/`expired` đúng số tiền, hoặc bỏ qua. Không có đường tự hoàn credit Task đã `succeeded`; dùng cộng bù (`ADJUST`) kèm lý do.
 - **Vi phạm nội dung**: tra cứu theo mã Task hoặc `shareUrl`, bấm gỡ (thu hồi liên kết, xóa `in/` và `out/` trên R2, số dư không đổi); khóa tài khoản nếu cần. Người dùng báo cáo qua `mailto:` ở chân trang.
+
+## Cổng trước khi bật VietQR thương mại (Story 6.11)
+
+> **Không bật VietQR thương mại khi `docs/prelaunch-report.md` còn bất kỳ dòng nào chưa đạt** (hoặc chưa chạy) mà chưa có quyết định chấp nhận rủi ro bằng văn bản và chữ ký PM.
+
+Năm bước chạy với Discord, VPS và RunningHub thật, mỗi bước một lệnh tại gốc repo (cần build `@flowvis/api` trước; bí mật chỉ đặt qua biến môi trường, không commit). Mỗi script in một dòng JSON để dán vào báo cáo; mã thoát `0` đạt, `1` không đạt, `2` lỗi chạy (riêng `--sensitive` của bước 4 chỉ ghi nhận: `0` hoặc `2`).
+
+1. Discord: `node scripts/prelaunch/step1-discord.mjs` (cần `DISCORD_WEBHOOK_URL`; `--compose` để chạy trong container worker).
+2. ffmpeg trên host VPS: `node scripts/prelaunch/step2-ffmpeg.mjs <clip-20s-1080p.mp4>`.
+3. RunningHub: `node scripts/prelaunch/step3-runninghub.mjs` (cần `RUNNINGHUB_API_KEY`, `RH_BALANCE_ENDPOINT`), chép kết quả vào `docs/runninghub-api-notes.md`.
+4. Benchmark 20 mẫu: `node scripts/prelaunch/step4-benchmark.mjs --manifest <manifest ngoài repo>` (cần `PRELAUNCH_API_URL`, `PRELAUNCH_BENCH_JWT`, `PRELAUNCH_ADMIN_JWT`; nên đặt `PRELAUNCH_BENCH_REFRESH_TOKEN`/`PRELAUNCH_ADMIN_REFRESH_TOKEN` để script tự làm mới access token 15 phút; mẫu manifest ở `scripts/prelaunch/benchmark-manifest.example.json`; mẫu nhạy cảm chạy riêng với `--sensitive`).
+5. Khôi phục: `node scripts/prelaunch/step5-restore.mjs` (sao lưu thủ công lên R2 rồi `restore-drill`, in RTO).
+
+Ngưỡng mặc định (`[ASSUMPTION]`, ghi đè bằng biến `PRELAUNCH_*`): cắt ≤ 60 s, `/health` p95 < 1 s, `intensity` 3,3,5,5,8, biên gộp Creator ≥ 70% theo kịch bản nạp lẻ. Hướng dẫn đầy đủ và các mục duyệt thủ công: `docs/prelaunch-checklist.md`; mẫu báo cáo: `docs/prelaunch-report.md`. Không commit ảnh/video mẫu hay ảnh nhạy cảm.

@@ -1,0 +1,169 @@
+{
+  "$comment": "Mẫu manifest benchmark Story 6.11. Chép ra ngoài repo, sửa đường dẫn tới file thật (ngoài repo, không commit ảnh/video). Đường dẫn tương đối giải theo thư mục chứa manifest. Mục sensitive:true không tính vào 20 mẫu, chỉ chạy với --sensitive.",
+  "samples": [
+    {
+      "id": "face-1-goc-nghieng-1",
+      "pipeline": "face_swap",
+      "source": "/srv/flowvis-bench/face-1-source.jpg",
+      "target": "/srv/flowvis-bench/face-1-target.jpg"
+    },
+    {
+      "id": "face-2-goc-nghieng-2",
+      "pipeline": "face_swap",
+      "source": "/srv/flowvis-bench/face-2-source.jpg",
+      "target": "/srv/flowvis-bench/face-2-target.jpg"
+    },
+    {
+      "id": "face-3-du-sang-1",
+      "pipeline": "face_swap",
+      "source": "/srv/flowvis-bench/face-3-source.jpg",
+      "target": "/srv/flowvis-bench/face-3-target.jpg"
+    },
+    {
+      "id": "face-4-du-sang-2",
+      "pipeline": "face_swap",
+      "source": "/srv/flowvis-bench/face-4-source.jpg",
+      "target": "/srv/flowvis-bench/face-4-target.jpg"
+    },
+    {
+      "id": "face-5-ban-than-1",
+      "pipeline": "face_swap",
+      "source": "/srv/flowvis-bench/face-5-source.jpg",
+      "target": "/srv/flowvis-bench/face-5-target.jpg"
+    },
+    {
+      "id": "body-1-i3",
+      "pipeline": "body_retouch",
+      "image": "/srv/flowvis-bench/body-1.jpg",
+      "intensity": 3
+    },
+    {
+      "id": "body-2-i3",
+      "pipeline": "body_retouch",
+      "image": "/srv/flowvis-bench/body-2.jpg",
+      "intensity": 3
+    },
+    {
+      "id": "body-3-i5",
+      "pipeline": "body_retouch",
+      "image": "/srv/flowvis-bench/body-3.jpg",
+      "intensity": 5
+    },
+    {
+      "id": "body-4-i5",
+      "pipeline": "body_retouch",
+      "image": "/srv/flowvis-bench/body-4.jpg",
+      "intensity": 5
+    },
+    {
+      "id": "body-5-i8",
+      "pipeline": "body_retouch",
+      "image": "/srv/flowvis-bench/body-5.jpg",
+      "intensity": 8
+    },
+    {
+      "id": "motion-1-3s",
+      "pipeline": "motion_control",
+      "character": "/srv/flowvis-bench/motion-1-character.jpg",
+      "video": "/srv/flowvis-bench/motion-1.mp4",
+      "trimStart": 0,
+      "trimEnd": 3,
+      "aspectRatio": "9:16"
+    },
+    {
+      "id": "motion-2-3s",
+      "pipeline": "motion_control",
+      "character": "/srv/flowvis-bench/motion-2-character.jpg",
+      "video": "/srv/flowvis-bench/motion-2.mp4",
+      "trimStart": 0,
+      "trimEnd": 3,
+      "aspectRatio": "9:16"
+    },
+    {
+      "id": "motion-3-5s",
+      "pipeline": "motion_control",
+      "character": "/srv/flowvis-bench/motion-3-character.jpg",
+      "video": "/srv/flowvis-bench/motion-3.mp4",
+      "trimStart": 0,
+      "trimEnd": 5,
+      "aspectRatio": "9:16"
+    },
+    {
+      "id": "motion-4-5s",
+      "pipeline": "motion_control",
+      "character": "/srv/flowvis-bench/motion-4-character.jpg",
+      "video": "/srv/flowvis-bench/motion-4.mp4",
+      "trimStart": 0,
+      "trimEnd": 5,
+      "aspectRatio": "9:16"
+    },
+    {
+      "id": "motion-5-5s",
+      "pipeline": "motion_control",
+      "character": "/srv/flowvis-bench/motion-5-character.jpg",
+      "video": "/srv/flowvis-bench/motion-5.mp4",
+      "trimStart": 0,
+      "trimEnd": 5,
+      "aspectRatio": "9:16"
+    },
+    {
+      "id": "motion-6-10s",
+      "pipeline": "motion_control",
+      "character": "/srv/flowvis-bench/motion-6-character.jpg",
+      "video": "/srv/flowvis-bench/motion-6.mp4",
+      "trimStart": 0,
+      "trimEnd": 10,
+      "aspectRatio": "9:16"
+    },
+    {
+      "id": "motion-7-10s",
+      "pipeline": "motion_control",
+      "character": "/srv/flowvis-bench/motion-7-character.jpg",
+      "video": "/srv/flowvis-bench/motion-7.mp4",
+      "trimStart": 0,
+      "trimEnd": 10,
+      "aspectRatio": "9:16"
+    },
+    {
+      "id": "motion-8-15s",
+      "pipeline": "motion_control",
+      "character": "/srv/flowvis-bench/motion-8-character.jpg",
+      "video": "/srv/flowvis-bench/motion-8.mp4",
+      "trimStart": 0,
+      "trimEnd": 15,
+      "aspectRatio": "9:16"
+    },
+    {
+      "id": "motion-9-15s",
+      "pipeline": "motion_control",
+      "character": "/srv/flowvis-bench/motion-9-character.jpg",
+      "video": "/srv/flowvis-bench/motion-9.mp4",
+      "trimStart": 0,
+      "trimEnd": 15,
+      "aspectRatio": "9:16"
+    },
+    {
+      "id": "motion-10-20s",
+      "pipeline": "motion_control",
+      "character": "/srv/flowvis-bench/motion-10-character.jpg",
+      "video": "/srv/flowvis-bench/motion-10.mp4",
+      "trimStart": 0,
+      "trimEnd": 20,
+      "aspectRatio": "9:16"
+    },
+    {
+      "id": "sensitive-1-body",
+      "pipeline": "body_retouch",
+      "image": "/srv/flowvis-bench/sensitive/sensitive-1.jpg",
+      "intensity": 5,
+      "sensitive": true
+    },
+    {
+      "id": "sensitive-2-face",
+      "pipeline": "face_swap",
+      "source": "/srv/flowvis-bench/sensitive/sensitive-2-source.jpg",
+      "target": "/srv/flowvis-bench/sensitive/sensitive-2-target.jpg",
+      "sensitive": true
+    }
+  ]
+}

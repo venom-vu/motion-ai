@@ -349,3 +349,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-6-10-integration-noi-fe-voi-be-va-smoke-test-van-hanh.md`
   summary: Smoke vận hành chưa phủ nhánh `rhBudgetExhausted`, cảnh báo sao lưu quá 36 giờ, biểu ngữ bảo trì và viewport 360 px trên trình duyệt thật; so khớp mock với phản hồi thật mới ở khóa cấp cao của ops status.
   evidence: Reviewer verification-gap và edge-case nêu; ngoài các AC của Story 6.10 nên không sửa ở đây.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-6-11-ops-cong-truoc-khi-bat-vietqr-thuong-mai.md`
+  summary: Gắn fixture `/admin/stats` trong `scripts/prelaunch/lib.test.mjs` với `AdminStatsResponseSchema` của `@flowvis/contracts` để đổi tên `pack`/`scenario` không làm cổng benchmark fail âm thầm.
+  evidence: `evaluateBenchmark` lọc chuỗi `'creator'`/`'retail'` cố định; fixture viết tay, không parse qua contracts. Thất bại kiểu fail-closed nên chưa chặn.
