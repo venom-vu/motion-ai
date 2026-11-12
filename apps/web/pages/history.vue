@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, watch } from 'vue';
 import { clearNuxtData, useAsyncData } from '#imports';
 import type { WalletLedgerResponse } from '@flowvis/contracts';
 import { useApiClient } from '~/composables/useApiClient';
 import { useAuth } from '~/composables/useAuth';
 import { useAuthDialog } from '~/composables/useAuthDialog';
+import { useCursorPager } from '~/composables/useCursorPager';
 import { resolveApiErrorMessageVi } from '~/utils/api-client';
 import { isUnauthorizedError } from '~/utils/auth-session';
 import { formatSignedCreditsVi } from '~/utils/catalog';
@@ -12,6 +13,8 @@ import {
   createWalletLedgerPagination,
   formatTimestampVi,
 } from '~/utils/wallet-ledger';
+import { badgeClass, getLedgerTypeTone } from '~/utils/status-badge';
+import { USER_TABLE_PAGE_SIZE, userTable } from '~/utils/user-table';
 
 const { client, accessToken } = useApiClient();
 const { isAuthenticated, sessionChecked } = useAuth();
@@ -109,53 +112,23 @@ const ledgerErrorVi = computed<string | null>(() => {
   return resolveApiErrorMessageVi(ledgerAsync.error.value);
 });
 
-const bottomSentinel = ref<HTMLElement | null>(null);
-let observer: IntersectionObserver | null = null;
+const {
+  page,
+  pageCount,
+  pageItems,
+  canPrev,
+  canNext,
+  isPaging,
+  next: nextPage,
+  prev: prevPage,
+  goTo: goToPage,
+  reset: resetPage,
+} = useCursorPager(entries, hasMore, loadMore, USER_TABLE_PAGE_SIZE);
 
-function setupObserver(): void {
-  if (typeof IntersectionObserver === 'undefined') {
-    return;
-  }
-  observer?.disconnect();
-  observer = new IntersectionObserver(
-    (observerEntries) => {
-      const first = observerEntries[0];
-      if (
-        first?.isIntersecting &&
-        hasMore.value &&
-        !loadingMore.value &&
-        !loadMoreErrorVi.value &&
-        !ledgerAsync.pending.value
-      ) {
-        void loadMore();
-      }
-    },
-    { rootMargin: '200px' },
-  );
-  if (bottomSentinel.value) {
-    observer.observe(bottomSentinel.value);
-  }
+async function handleRefresh(): Promise<void> {
+  resetPage();
+  await refreshLedger();
 }
-
-onMounted(() => {
-  setupObserver();
-});
-
-watch(bottomSentinel, (newEl, oldEl) => {
-  if (oldEl && observer) {
-    observer.unobserve(oldEl);
-  }
-  if (newEl && observer) {
-    observer.observe(newEl);
-  }
-});
-
-onBeforeUnmount(() => {
-  if (observer) {
-    observer.disconnect();
-    observer = null;
-  }
-});
 </script>
 
 <template>
@@ -174,7 +147,7 @@ onBeforeUnmount(() => {
         data-testid="refresh-ledger-button"
         class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-bg px-4 py-2.5 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet disabled:opacity-50"
         :disabled="ledgerAsync.pending.value || loadingMore"
-        @click="refreshLedger"
+        @click="handleRefresh"
       >
         <Icon
           name="lucide:refresh-cw"
@@ -271,7 +244,7 @@ onBeforeUnmount(() => {
           data-testid="history-retry-button"
           class="touch-target mt-6 inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-bg px-6 py-2.5 text-sm font-semibold text-cyber-text transition hover:border-cyber-violet disabled:opacity-50"
           :disabled="ledgerAsync.pending.value || loadingMore"
-          @click="refreshLedger"
+          @click="handleRefresh"
         >
           <Icon
             name="lucide:refresh-cw"
@@ -301,48 +274,58 @@ onBeforeUnmount(() => {
         </p>
       </div>
 
-      <!-- Danh sách bút toán -->
+      <!-- Bảng bút toán có phân trang -->
       <template v-else-if="entries.length > 0">
-        <ul class="divide-y divide-cyber-border" data-testid="ledger-list">
-          <li
-            v-for="item in entries"
-            :key="item.id"
-            :data-testid="`ledger-entry-${item.id}`"
-            class="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center sm:px-6"
-          >
-            <div class="min-w-0 space-y-1">
-              <div class="flex flex-wrap items-center gap-2">
-                <span
-                  class="rounded-md border border-cyber-violet/40 bg-cyber-violet/15 px-2.5 py-0.5 font-mono text-xs font-semibold text-cyber-text"
-                >
-                  {{ item.labelVi }}
-                </span>
-                <span class="font-mono text-xs text-cyber-muted">
-                  {{ formatTimestampVi(item.createdAt) }}
-                </span>
-              </div>
-              <p class="break-words text-sm text-cyber-text">
-                {{ item.note || 'Giao dịch sổ cái hệ thống' }}
-              </p>
-            </div>
-
-            <div class="shrink-0 font-mono text-sm font-bold sm:text-right">
-              <span
-                :class="
-                  item.amount > 0
-                    ? 'text-cyber-success'
-                    : item.amount < 0
-                      ? 'text-cyber-warning'
-                      : 'text-cyber-muted'
-                "
+        <div :class="userTable.wrap">
+          <table :class="userTable.table" data-testid="ledger-list">
+            <thead>
+              <tr>
+                <th scope="col" :class="userTable.th">Thời gian</th>
+                <th scope="col" :class="userTable.th">Loại</th>
+                <th scope="col" :class="userTable.th">Nội dung</th>
+                <th scope="col" :class="[userTable.th, 'text-right']">Biến động</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="item in pageItems"
+                :key="item.id"
+                :data-testid="`ledger-entry-${item.id}`"
+                :class="userTable.row"
               >
-                {{ formatSignedCreditsVi(item.amount) }}
-              </span>
-            </div>
-          </li>
-        </ul>
+                <td :class="[userTable.td, 'whitespace-nowrap font-mono text-xs text-cyber-muted']">
+                  {{ formatTimestampVi(item.createdAt) }}
+                </td>
+                <td :class="[userTable.td, 'whitespace-nowrap']">
+                  <span
+                    :data-testid="`ledger-type-${item.type}`"
+                    :class="badgeClass(getLedgerTypeTone(item.type))"
+                  >
+                    {{ item.labelVi }}
+                  </span>
+                </td>
+                <td :class="[userTable.td, 'break-words']">
+                  {{ item.note || 'Giao dịch sổ cái hệ thống' }}
+                </td>
+                <td :class="[userTable.td, 'whitespace-nowrap text-right font-mono font-bold']">
+                  <span
+                    :class="
+                      item.amount > 0
+                        ? 'text-cyber-success'
+                        : item.amount < 0
+                          ? 'text-cyber-warning'
+                          : 'text-cyber-muted'
+                    "
+                  >
+                    {{ formatSignedCreditsVi(item.amount) }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-        <!-- Spinner khi tải thêm -->
+        <!-- Spinner khi tải thêm trang từ máy chủ -->
         <div
           v-if="loadingMore"
           role="status"
@@ -359,44 +342,32 @@ onBeforeUnmount(() => {
           v-if="loadMoreErrorVi"
           role="alert"
           data-testid="load-more-error"
-          class="border-t border-cyber-border p-4"
+          :class="userTable.footer"
         >
           <ApiErrorBanner
             :message-vi="loadMoreErrorVi"
             :dismissible="false"
-            @retry="loadMore"
+            @retry="nextPage"
           />
         </div>
 
-        <!-- Nút dự phòng Tải thêm khi chưa chạm sentinel -->
-        <div
-          v-if="hasMore && !loadingMore && !loadMoreErrorVi"
-          class="flex justify-center border-t border-cyber-border p-4"
-        >
-          <button
-            type="button"
-            data-testid="load-more-button"
-            class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-bg px-5 py-2.5 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet disabled:opacity-50"
-            :disabled="Boolean(ledgerAsync.pending.value)"
-            @click="loadMore"
-          >
-            <Icon name="lucide:arrow-down" class="h-4 w-4" />
-            <span>Tải thêm lịch sử</span>
-          </button>
+        <div :class="userTable.footer">
+          <UserPager
+            :page="page"
+            :page-count="pageCount"
+            :has-more="hasMore"
+            :can-prev="canPrev"
+            :can-next="canNext"
+            :loading="isPaging || loadingMore"
+            @prev="prevPage"
+            @next="nextPage"
+            @goto="goToPage"
+          />
         </div>
-
-        <!-- Sentinel cuộn đáy vô tận -->
-        <div
-          v-if="hasMore"
-          ref="bottomSentinel"
-          data-testid="bottom-sentinel"
-          class="h-1 w-full"
-          aria-hidden="true"
-        />
 
         <!-- Thông báo đã hiển thị toàn bộ -->
         <div
-          v-if="!hasMore && entries.length > 0 && !ledgerAsync.pending.value"
+          v-if="!hasMore && page === pageCount && !ledgerAsync.pending.value"
           data-testid="all-loaded-notice"
           class="border-t border-cyber-border p-4 text-center font-mono text-xs text-cyber-muted"
         >

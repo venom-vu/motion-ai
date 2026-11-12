@@ -93,7 +93,10 @@ export const useTopup = () => ({
   confirmTransfer: async () => {}, fetchTopups: async () => { globalThis.__pr.calls.push(['fetchTopups']); }, loadMore: async () => {},
 });`,
         '~/utils/catalog': `export const formatNumberVi = String; export const formatVndVi = String;`,
-        '~/utils/topup': `export const formatTopupTimestampVi = String; export const getTopupStatusBadgeClass = () => ''; export const getTopupStatusLabelVi = String;`,
+        '~/utils/topup': `export const formatTopupTimestampVi = String;`,
+        '~/utils/status-badge': `export const badgeClass = String; export const getTopupPackBadge = () => ({}); export const getTopupStatusBadge = () => ({});`,
+        '~/composables/useCursorPager': `export { useCursorPager } from ${JSON.stringify(pathToFileURL(path.join(webRoot, 'composables/useCursorPager.ts')).href)};`,
+        '~/utils/user-table': `export { USER_TABLE_PAGE_SIZE, userTable } from ${JSON.stringify(pathToFileURL(path.join(webRoot, 'utils/user-table.ts')).href)};`,
       },
       dir,
     );

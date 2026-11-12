@@ -29,6 +29,12 @@ import {
   isQrExpired,
   OFF_HOURS_MESSAGE_VI,
 } from '../utils/topup.ts';
+import { userTable } from '../utils/user-table.ts';
+import {
+  badgeClass,
+  getTopupPackBadge,
+  getTopupStatusBadge,
+} from '../utils/status-badge.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -985,6 +991,20 @@ export const useApiClient = () => ({
                 confirmTransfer: () => {},
                 fetchTopups: () => {},
                 loadMore: () => {},
+                page: 1,
+                pageCount: 1,
+                pageItems: topups,
+                canPrev: false,
+                canNext: false,
+                isPaging: false,
+                nextPage: () => {},
+                prevPage: () => {},
+                goToPage: () => {},
+                handleRefreshTopups: () => {},
+                userTable,
+                badgeClass,
+                getTopupPackBadge,
+                getTopupStatusBadge,
                 formatNumberVi: (n) => String(n),
                 formatVndVi: (n) => `${n?.toLocaleString('vi-VN')} VNĐ`,
                 formatTopupTimestampVi: () => '07/11/2026 10:00',
@@ -1012,6 +1032,12 @@ export const useApiClient = () => ({
           app.component('VietQRModal', {
             props: ['open'],
             ssrRender() {},
+          });
+          app.component('UserPager', {
+            props: ['page', 'pageCount', 'hasMore', 'canPrev', 'canNext', 'loading'],
+            ssrRender(_ctx, push) {
+              push('<nav data-testid="user-pager"></nav>');
+            },
           });
 
           return renderToString(app);
@@ -1044,6 +1070,8 @@ export const useApiClient = () => ({
         assert.match(authedHtml, /Lịch Sử Đơn Nạp Credit/);
         assert.match(authedHtml, /data-testid="topup-orders-list"/);
         assert.match(authedHtml, /NAP P4N8T2WD/);
+        assert.match(authedHtml, /data-testid="topup-orders-list"[^]*<table/);
+        assert.match(authedHtml, /data-testid="user-pager"/);
       } finally {
         if (fs.existsSync(tmpFile)) {
           fs.unlinkSync(tmpFile);

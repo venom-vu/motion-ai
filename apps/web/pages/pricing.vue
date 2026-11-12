@@ -3,14 +3,17 @@ import { onMounted, ref, watch } from 'vue';
 import type { Topup, TopupPackId } from '@flowvis/contracts';
 import { useAuth } from '~/composables/useAuth';
 import { useAuthDialog } from '~/composables/useAuthDialog';
+import { useCursorPager } from '~/composables/useCursorPager';
 import { usePricingConfig } from '~/composables/usePricingConfig';
 import { useTopup } from '~/composables/useTopup';
 import { formatNumberVi, formatVndVi } from '~/utils/catalog';
+import { formatTopupTimestampVi } from '~/utils/topup';
 import {
-  formatTopupTimestampVi,
-  getTopupStatusBadgeClass,
-  getTopupStatusLabelVi,
-} from '~/utils/topup';
+  badgeClass,
+  getTopupPackBadge,
+  getTopupStatusBadge,
+} from '~/utils/status-badge';
+import { USER_TABLE_PAGE_SIZE, userTable } from '~/utils/user-table';
 
 const { isAuthenticated } = useAuth();
 const { open: openAuthDialog } = useAuthDialog();
@@ -48,6 +51,24 @@ const {
 } = useTopup();
 
 const creatingPackId = ref<TopupPackId | null>(null);
+
+const {
+  page,
+  pageCount,
+  pageItems,
+  canPrev,
+  canNext,
+  isPaging,
+  next: nextPage,
+  prev: prevPage,
+  goTo: goToPage,
+  reset: resetPage,
+} = useCursorPager(topups, hasMore, loadMore, USER_TABLE_PAGE_SIZE);
+
+function handleRefreshTopups(): void {
+  resetPage();
+  void fetchTopups();
+}
 
 onMounted(() => {
   if (isAuthenticated.value) {
@@ -331,7 +352,7 @@ function dismissCreateError(): void {
             data-testid="refresh-topups-button"
             :disabled="isLoadingList || isLoadingMore"
             class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-1.5 rounded-xl border border-cyber-border bg-cyber-bg px-4 py-2 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet disabled:cursor-not-allowed disabled:opacity-50"
-            @click="fetchTopups()"
+            @click="handleRefreshTopups"
           >
             <Icon
               name="lucide:refresh-cw"
@@ -435,98 +456,95 @@ function dismissCreateError(): void {
         </p>
       </div>
 
-      <!-- Danh sách đơn nạp -->
+      <!-- Bảng đơn nạp có phân trang -->
       <div v-else data-testid="topup-orders-list">
-        <div class="divide-y divide-cyber-border">
-          <article
-            v-for="order in topups"
-            :key="order.id"
-            :data-testid="`order-card-${order.code}`"
-            class="flex cursor-pointer flex-col justify-between gap-3 p-4 transition hover:bg-cyber-bg/50 sm:flex-row sm:items-center sm:px-6"
-            @click="handleOpenOrder(order)"
-          >
-            <div class="min-w-0 space-y-1.5">
-              <div class="flex flex-wrap items-center gap-2">
-                <span class="font-mono text-sm font-bold text-cyber-text">
+        <div :class="userTable.wrap">
+          <table :class="userTable.table">
+            <thead>
+              <tr>
+                <th scope="col" :class="userTable.th">Mã đơn</th>
+                <th scope="col" :class="userTable.th">Thời gian</th>
+                <th scope="col" :class="userTable.th">Gói</th>
+                <th scope="col" :class="userTable.th">Trạng thái</th>
+                <th scope="col" :class="[userTable.th, 'text-right']">Số tiền</th>
+                <th scope="col" :class="[userTable.th, 'text-right']">Credit</th>
+                <th scope="col" :class="[userTable.th, 'text-right']">Chi tiết</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="order in pageItems"
+                :key="order.id"
+                :data-testid="`order-card-${order.code}`"
+                :class="[userTable.row, 'cursor-pointer']"
+                @click="handleOpenOrder(order)"
+              >
+                <td :class="[userTable.td, 'whitespace-nowrap font-mono font-bold']">
                   NAP {{ order.code }}
-                </span>
-                <span
-                  class="rounded-md border border-cyber-violet/40 bg-cyber-violet/15 px-2.5 py-0.5 font-mono text-xs font-semibold capitalize text-cyber-text"
-                >
-                  Gói {{ order.pack }}
-                </span>
-                <span
-                  class="rounded-full border px-2.5 py-0.5 font-mono text-xs font-semibold"
-                  :class="getTopupStatusBadgeClass(order.status)"
-                >
-                  {{ getTopupStatusLabelVi(order.status) }}
-                </span>
-                <span class="font-mono text-xs text-cyber-muted">
+                </td>
+                <td :class="[userTable.td, 'whitespace-nowrap font-mono text-xs text-cyber-muted']">
                   {{ formatTopupTimestampVi(order.createdAt) }}
-                </span>
-              </div>
-
-              <!-- Lý do từ chối hoặc ghi chú nếu có -->
-              <p
-                v-if="order.rejectReason"
-                class="text-xs font-medium text-cyber-danger"
-              >
-                Lý do từ chối: {{ order.rejectReason }}
-              </p>
-              <p
-                v-if="order.note"
-                class="text-xs font-medium text-cyber-warning"
-              >
-                Ghi chú: {{ order.note }}
-              </p>
-            </div>
-
-            <div
-              class="flex flex-wrap items-center justify-between gap-3 sm:justify-end"
-            >
-              <div class="flex items-center gap-2.5 font-mono sm:flex-col sm:items-end sm:gap-0.5">
-                <span class="text-sm font-bold text-cyber-cyan">
+                </td>
+                <td :class="[userTable.td, 'whitespace-nowrap']">
+                  <span :class="badgeClass(getTopupPackBadge(order.pack).tone)">
+                    {{ getTopupPackBadge(order.pack).label }}
+                  </span>
+                </td>
+                <td :class="userTable.td">
+                  <span
+                    :data-testid="`topup-status-${order.status}`"
+                    :class="badgeClass(getTopupStatusBadge(order.status).tone)"
+                  >
+                    {{ getTopupStatusBadge(order.status).label }}
+                  </span>
+                  <!-- Lý do từ chối hoặc ghi chú nếu có -->
+                  <p
+                    v-if="order.rejectReason"
+                    class="mt-1.5 max-w-xs text-xs font-medium text-cyber-danger"
+                  >
+                    Lý do từ chối: {{ order.rejectReason }}
+                  </p>
+                  <p
+                    v-if="order.note"
+                    class="mt-1.5 max-w-xs text-xs font-medium text-cyber-warning"
+                  >
+                    Ghi chú: {{ order.note }}
+                  </p>
+                </td>
+                <td :class="[userTable.td, 'whitespace-nowrap text-right font-mono font-bold text-cyber-cyan']">
                   {{ formatVndVi(order.amountVnd) }}
-                </span>
-                <span class="text-xs font-bold text-cyber-success">
+                </td>
+                <td :class="[userTable.td, 'whitespace-nowrap text-right font-mono text-xs font-bold text-cyber-success']">
                   +{{ formatNumberVi(order.credits) }} CR
-                </span>
-              </div>
-
-              <button
-                type="button"
-                data-testid="view-order-detail-button"
-                class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-1.5 rounded-xl border border-cyber-border bg-cyber-bg px-3.5 py-2 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet"
-                @click.stop="handleOpenOrder(order)"
-              >
-                <span>Xem chi tiết</span>
-                <Icon name="lucide:chevron-right" class="h-4 w-4" />
-              </button>
-            </div>
-          </article>
+                </td>
+                <td :class="[userTable.td, 'text-right']">
+                  <button
+                    type="button"
+                    data-testid="view-order-detail-button"
+                    class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-cyber-border bg-cyber-bg px-3.5 py-2 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet"
+                    @click.stop="handleOpenOrder(order)"
+                  >
+                    <span>Xem chi tiết</span>
+                    <Icon name="lucide:chevron-right" class="h-4 w-4" />
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
-        <!-- Nút Tải thêm phân trang cursor -->
-        <div
-          v-if="hasMore"
-          class="flex justify-center border-t border-cyber-border p-4"
-        >
-          <button
-            type="button"
-            data-testid="load-more-topups-button"
-            :disabled="isLoadingMore"
-            class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-bg px-5 py-2.5 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet disabled:opacity-50"
-            @click="loadMore"
-          >
-            <Icon
-              :name="isLoadingMore ? 'lucide:loader-2' : 'lucide:arrow-down'"
-              class="h-4 w-4"
-              :class="{ 'animate-spin': isLoadingMore }"
-            />
-            <span>{{
-              isLoadingMore ? 'Đang tải thêm...' : 'Tải thêm đơn nạp'
-            }}</span>
-          </button>
+        <div :class="userTable.footer">
+          <UserPager
+            :page="page"
+            :page-count="pageCount"
+            :has-more="hasMore"
+            :can-prev="canPrev"
+            :can-next="canNext"
+            :loading="isPaging || isLoadingMore"
+            @prev="prevPage"
+            @next="nextPage"
+            @goto="goToPage"
+          />
         </div>
       </div>
     </section>

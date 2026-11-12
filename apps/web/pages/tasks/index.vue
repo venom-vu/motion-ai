@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { clearNuxtData, refreshNuxtData, useAsyncData, useHead } from '#imports';
 import type { Task, TaskListResponse } from '@flowvis/contracts';
 import { ME_KEY, useApiClient } from '~/composables/useApiClient';
 import { useAuth } from '~/composables/useAuth';
 import { useAuthDialog } from '~/composables/useAuthDialog';
+import { useCursorPager } from '~/composables/useCursorPager';
 import { resolveApiErrorMessageVi } from '~/utils/api-client';
 import { isUnauthorizedError } from '~/utils/auth-session';
+import { USER_TABLE_PAGE_SIZE, userTable } from '~/utils/user-table';
 
 useHead({
   title: 'Lịch Sử Tác Vụ — flowvis',
@@ -41,11 +43,17 @@ const actionErrorVi = ref<string | null>(null);
 watch(
   () => tasksAsync.data.value,
   (newData) => {
-    if (newData) {
-      items.value = [...newData.items];
-      nextCursor.value = newData.nextCursor ?? null;
-      hasMore.value = Boolean(newData.hasMore);
+    if (!newData) return;
+    // Làm mới định kỳ chỉ tải lại trang đầu: giữ các trang sau đã tải nếu trang đầu vẫn nối liền với chúng.
+    const lastId = newData.items[newData.items.length - 1]?.id;
+    const boundary = lastId ? items.value.findIndex((t) => t.id === lastId) : -1;
+    if (newData.hasMore && boundary !== -1 && boundary < items.value.length - 1) {
+      items.value = [...newData.items, ...items.value.slice(boundary + 1)];
+      return;
     }
+    items.value = [...newData.items];
+    nextCursor.value = newData.nextCursor ?? null;
+    hasMore.value = Boolean(newData.hasMore);
   },
   { immediate: true },
 );
@@ -131,37 +139,23 @@ async function handleCancelTask(taskId: string): Promise<void> {
   }
 }
 
-// Tự động tải thêm khi cuộn xuống đáy màn hình
-const sentinelRef = ref<HTMLElement | null>(null);
-let observer: IntersectionObserver | null = null;
+const {
+  page,
+  pageCount,
+  pageItems,
+  canPrev,
+  canNext,
+  isPaging,
+  next: nextPage,
+  prev: prevPage,
+  goTo: goToPage,
+  reset: resetPage,
+} = useCursorPager(items, hasMore, loadMore, USER_TABLE_PAGE_SIZE);
 
-function setupObserver(el: HTMLElement | null): void {
-  if (observer) {
-    observer.disconnect();
-    observer = null;
-  }
-  if (typeof IntersectionObserver !== 'undefined' && el) {
-    observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && hasMore.value && !loadingMore.value) {
-          void loadMore();
-        }
-      },
-      { rootMargin: '200px' },
-    );
-    observer.observe(el);
-  }
+function handleRefresh(): void {
+  resetPage();
+  void tasksAsync.refresh();
 }
-
-watch(sentinelRef, (newEl) => {
-  setupObserver(newEl);
-});
-
-onMounted(() => {
-  if (sentinelRef.value) {
-    setupObserver(sentinelRef.value);
-  }
-});
 
 // Tự động cập nhật danh sách khi có tác vụ đang chờ/xử lý
 let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -184,10 +178,6 @@ watch(
 );
 
 onBeforeUnmount(() => {
-  if (observer) {
-    observer.disconnect();
-    observer = null;
-  }
   if (pollTimer) {
     clearInterval(pollTimer);
     pollTimer = null;
@@ -232,7 +222,7 @@ onBeforeUnmount(() => {
           aria-label="Làm mới danh sách tác vụ"
           :disabled="Boolean(tasksAsync.pending.value)"
           class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-1.5 rounded-xl border border-cyber-violet/50 bg-cyber-violet/15 px-4 py-2 text-xs font-semibold text-cyber-text transition hover:bg-cyber-violet/25 disabled:cursor-not-allowed disabled:opacity-50"
-          @click="() => tasksAsync.refresh()"
+          @click="handleRefresh"
         >
           <Icon
             name="lucide:refresh-cw"
@@ -285,13 +275,22 @@ onBeforeUnmount(() => {
     <div
       v-if="tasksAsync.pending.value && !items.length"
       data-testid="tasks-skeleton"
-      class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+      role="status"
+      aria-busy="true"
+      class="divide-y divide-cyber-border overflow-hidden rounded-2xl border border-cyber-border bg-cyber-surface"
     >
       <div
-        v-for="i in 4"
+        v-for="i in 5"
         :key="i"
-        class="h-44 animate-pulse rounded-2xl border border-cyber-border bg-cyber-surface/50"
-      />
+        class="flex animate-pulse items-center justify-between gap-4 p-4 sm:px-6"
+      >
+        <div class="flex items-center gap-3">
+          <div class="h-8 w-8 rounded-lg bg-cyber-border/70" />
+          <div class="h-4 w-40 rounded bg-cyber-border/50" />
+        </div>
+        <div class="h-5 w-24 rounded-full bg-cyber-border/50" />
+        <div class="h-9 w-28 rounded-xl bg-cyber-border/60" />
+      </div>
     </div>
 
     <!-- Trạng thái: Chưa đăng nhập -->
@@ -375,72 +374,62 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Trạng thái: Có dữ liệu -->
-    <div v-else class="space-y-4">
+    <section
+      v-else
+      class="overflow-hidden rounded-2xl border border-cyber-border bg-cyber-surface"
+    >
+      <div :class="userTable.wrap">
+        <table :class="userTable.table" data-testid="tasks-list">
+          <thead>
+            <tr>
+              <th scope="col" :class="userTable.th">Tác vụ</th>
+              <th scope="col" :class="userTable.th">Thời gian</th>
+              <th scope="col" :class="userTable.th">Trạng thái</th>
+              <th scope="col" :class="[userTable.th, 'text-right']">Chi phí</th>
+              <th scope="col" :class="[userTable.th, 'text-right']">Hành động</th>
+            </tr>
+          </thead>
+          <tbody>
+            <TaskHistoryRow
+              v-for="task in pageItems"
+              :key="task.id"
+              :task="task"
+              :cancelling="cancellingTaskId === task.id"
+              @cancel="handleCancelTask"
+            />
+          </tbody>
+        </table>
+      </div>
+
       <div
-        data-testid="tasks-list"
-        class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+        v-if="loadMoreErrorVi"
+        data-testid="load-more-error"
+        role="alert"
+        class="flex items-center justify-between gap-3 border-t border-cyber-border bg-cyber-danger/10 px-4 py-3 text-xs text-cyber-danger sm:px-6"
       >
-        <TaskHistoryCard
-          v-for="task in items"
-          :key="task.id"
-          :task="task"
-          :cancelling="cancellingTaskId === task.id"
-          @cancel="handleCancelTask"
+        <span>{{ loadMoreErrorVi }}</span>
+        <button
+          type="button"
+          class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center font-semibold text-cyber-cyan hover:underline"
+          @click="nextPage"
+        >
+          Thử tải lại
+        </button>
+      </div>
+
+      <div :class="userTable.footer">
+        <UserPager
+          :page="page"
+          :page-count="pageCount"
+          :has-more="hasMore"
+          :can-prev="canPrev"
+          :can-next="canNext"
+          :loading="isPaging || loadingMore"
+          @prev="prevPage"
+          @next="nextPage"
+          @goto="goToPage"
         />
       </div>
-
-      <!-- Vùng tải thêm khi cuộn -->
-      <div ref="sentinelRef" class="py-2">
-        <div
-          v-if="loadingMore"
-          data-testid="loading-more-spinner"
-          class="flex items-center justify-center gap-2 py-4 text-xs font-semibold text-cyber-muted"
-        >
-          <Icon name="lucide:loader-circle" class="h-4 w-4 animate-spin text-cyber-violet" />
-          <span>Đang tải thêm tác vụ...</span>
-        </div>
-
-        <div
-          v-else-if="loadMoreErrorVi"
-          data-testid="load-more-error"
-          class="flex flex-col items-center gap-2 py-4 text-center"
-        >
-          <p class="text-xs text-cyber-danger">
-            {{ loadMoreErrorVi }}
-          </p>
-          <button
-            type="button"
-            class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-1.5 rounded-xl border border-cyber-border bg-cyber-surface px-4 py-2 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet"
-            @click="loadMore"
-          >
-            <Icon name="lucide:refresh-cw" class="h-3.5 w-3.5" />
-            <span>Thử tải lại</span>
-          </button>
-        </div>
-
-        <div
-          v-else-if="hasMore"
-          class="flex justify-center py-4"
-        >
-          <button
-            type="button"
-            data-testid="load-more-button"
-            class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl border border-cyber-border bg-cyber-surface px-5 py-2.5 text-xs font-semibold text-cyber-text transition hover:border-cyber-violet"
-            @click="loadMore"
-          >
-            <span>Tải thêm tác vụ</span>
-            <Icon name="lucide:chevron-down" class="h-4 w-4" />
-          </button>
-        </div>
-
-        <p
-          v-else-if="items.length > 5"
-          data-testid="all-tasks-loaded"
-          class="py-4 text-center font-mono text-xs text-cyber-muted"
-        >
-          Đã hiển thị toàn bộ lịch sử tác vụ.
-        </p>
-      </div>
-    </div>
+    </section>
   </div>
 </template>

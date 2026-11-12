@@ -45,9 +45,15 @@ export function useCursorPager<T>(
     if (canPrev.value) page.value -= 1;
   }
 
+  /** Nhảy tới một trang đã tải. */
+  function goTo(target: number): void {
+    if (isPaging.value) return;
+    page.value = Math.min(Math.max(1, Math.trunc(target)), pageCount.value);
+  }
+
   function reset(): void {
     page.value = 1;
   }
 
-  return { page, pageCount, pageItems, canPrev, canNext, isPaging, next, prev, reset };
+  return { page, pageCount, pageItems, canPrev, canNext, isPaging, next, prev, goTo, reset };
 }

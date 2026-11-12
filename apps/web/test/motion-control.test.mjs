@@ -457,7 +457,7 @@ describe('@flowvis/web — Story 5.8 Motion Control', () => {
       assert.match(share, /\/poster/);
       assert.match(share, /og:video/);
       assert.match(share, /<video/);
-      const card = read('components/TaskHistoryCard.vue');
+      const card = read('components/TaskHistoryRow.vue');
       assert.match(card, /lucide:clapperboard/);
       assert.match(card, /posterUrl/);
       assert.match(card, /durationSeconds/);
@@ -634,14 +634,15 @@ describe('@flowvis/web — Story 5.8 Motion Control', () => {
       delete globalThis.__fwd;
     });
 
-    it('(b) TaskHistoryCard video: có thumb, poster src, độ dài; getTaskResult reject thì dùng icon clapperboard', async () => {
-      const ssrRender = await ssrRenderOf('components/TaskHistoryCard.vue');
+    it('(b) TaskHistoryRow video: có thumb, poster src, độ dài; getTaskResult reject thì dùng icon clapperboard', async () => {
+      const ssrRender = await ssrRenderOf('components/TaskHistoryRow.vue');
       const make = async (getTaskResult) => {
         globalThis.__hooks = { mounted: [], unmount: [] };
         globalThis.__hc = { client: { getTaskResult } };
-        const comp = await loadSetup('components/TaskHistoryCard.vue', {
+        const comp = await loadSetup('components/TaskHistoryRow.vue', {
           '~/composables/useApiClient': 'export const useApiClient = () => ({ client: globalThis.__hc.client });',
           '~/utils/task-format': `export * from ${JSON.stringify(pathToFileURL(path.join(webRoot, 'utils/task-format.ts')).href)};`,
+          '~/utils/status-badge': `export * from ${JSON.stringify(pathToFileURL(path.join(webRoot, 'utils/status-badge.ts')).href)};`,
         });
         const props = reactive({
           task: { ...MOCK_MOTION_TASK_SUCCEEDED, createdAt: new Date().toISOString() },
