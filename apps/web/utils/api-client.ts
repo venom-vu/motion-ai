@@ -32,6 +32,7 @@ import {
   AdminUserUnlockResponseSchema,
   OpsResumeResponseSchema,
   OpsStatusResponseSchema,
+  SystemStatusResponseSchema,
   ApiErrorCode,
   AuthGoogleCallbackQuerySchema,
   AuthGoogleCallbackResponseSchema,
@@ -541,6 +542,12 @@ export function createMotionApiClient(options: MotionApiClientOptions = {}) {
     async getPricingConfig(): Promise<PricingConfigResponse> {
       return requestLive('/config/pricing', { method: 'GET' }, (data) =>
         PricingConfigResponseSchema.parse(data),
+      );
+    },
+
+    async getSystemStatus(): Promise<{ intakePaused: boolean }> {
+      return requestLive('/system/status', { method: 'GET' }, (data) =>
+        SystemStatusResponseSchema.parse(data),
       );
     },
 

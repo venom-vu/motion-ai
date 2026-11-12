@@ -1,3 +1,5 @@
+import { useSystemStatus } from '~/composables/useSystemStatus';
+import { isPausedError } from '~/utils/system-status';
 import { computed, ref, watch } from 'vue';
 import {
   MOTION_ASPECT_RATIO_DEFAULT,
@@ -38,6 +40,7 @@ export function useMotionControl() {
   const aspectRatio = ref<MotionAspectRatio>(MOTION_ASPECT_RATIO_DEFAULT);
   const prompt = ref<string>('');
   const activeTask = ref<Task | null>(null);
+  const { intakePaused, markPaused } = useSystemStatus();
   const isSubmitting = ref<boolean>(false);
   const submitErrorVi = ref<string | null>(null);
   // Cap do server vừa báo (TRIM_EXCEEDS_CAP); luôn lấy giá trị nhỏ hơn với Cap từ cấu hình.
@@ -94,7 +97,8 @@ export function useMotionControl() {
 
   const canSubmit = computed<boolean>(() =>
     Boolean(
-      isAuthenticated.value &&
+      !intakePaused.value &&
+        isAuthenticated.value &&
         characterKey.value &&
         videoKey.value &&
         capUsable.value &&
@@ -148,6 +152,7 @@ export function useMotionControl() {
         }
       }
     }
+    if (isPausedError(error)) markPaused();
     submitErrorVi.value = resolveApiErrorMessageVi(error);
   }
 
@@ -217,6 +222,7 @@ export function useMotionControl() {
     hasEnoughBalance,
     insufficientNoteVi,
     canSubmit,
+    intakePaused,
     onTrimChange,
     submit,
     reset,

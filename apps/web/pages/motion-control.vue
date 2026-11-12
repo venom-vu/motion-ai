@@ -32,6 +32,7 @@ const {
   hasEnoughBalance,
   insufficientNoteVi,
   canSubmit,
+  intakePaused,
   onTrimChange,
   submit,
   reset,
@@ -44,6 +45,7 @@ const {
     class="mx-auto max-w-4xl space-y-6 py-2 sm:py-4"
     data-testid="page-motion-control"
   >
+    <MaintenanceBanner />
     <div class="flex items-center justify-between">
       <NuxtLink
         to="/"
@@ -107,6 +109,7 @@ const {
           </div>
           <ImageUploader
             v-model="characterKey"
+            :maintenance-note="intakePaused"
             id-prefix="motion-character-image"
             label-vi="Chọn ảnh nhân vật"
             description-vi="Ảnh toàn thân rõ dáng, JPG/PNG/WebP ≤ 10 MB"
@@ -260,7 +263,7 @@ const {
           <button
             type="button"
             data-testid="create-motion-button"
-            :disabled="!canSubmit"
+            :disabled="!canSubmit || intakePaused"
             class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl bg-cyber-violet px-6 py-3 text-sm font-semibold text-cyber-text transition hover:bg-cyber-violet/90 disabled:cursor-not-allowed disabled:opacity-50"
             @click="submit"
           >

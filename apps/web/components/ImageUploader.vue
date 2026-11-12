@@ -19,6 +19,7 @@ const props = withDefaults(
     descriptionVi?: string;
     idPrefix?: string;
     disabled?: boolean;
+    maintenanceNote?: boolean;
       initialPreviewUrl?: string | null;
   }>(),
   {
@@ -28,6 +29,7 @@ const props = withDefaults(
       'JPG, PNG, WebP ≤ 10 MB, cạnh ngắn ≥ 512px, tỷ lệ 1:2 đến 2:1',
     idPrefix: 'image-uploader',
     disabled: false,
+    maintenanceNote: false,
       initialPreviewUrl: null,
   },
 );
@@ -809,5 +811,21 @@ const isUploading = computed(
         </div>
       </div>
     </div>
+    <p
+      v-if="maintenanceNote"
+      data-testid="uploader-maintenance-note"
+      class="text-[11px] font-semibold text-cyber-warning"
+    >
+      Hệ thống đang bảo trì: bạn vẫn tải ảnh được nhưng chưa thể tạo tác vụ mới.
+    </p>
+    <p class="text-[11px] text-cyber-muted" data-testid="uploader-tos-note">
+      Khi tải lên, bạn cam kết theo
+      <NuxtLink
+        to="/terms"
+        target="_blank"
+        rel="noopener"
+        class="text-cyber-cyan underline"
+      >Điều khoản dịch vụ</NuxtLink>.
+    </p>
   </div>
 </template>

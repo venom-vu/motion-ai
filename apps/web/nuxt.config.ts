@@ -1,7 +1,15 @@
+import { assertReportEmail } from './scripts/assert-report-email.mjs';
+
 export default defineNuxtConfig({
   compatibilityDate: '2025-01-01',
   srcDir: '.',
   devtools: { enabled: false },
+  hooks: {
+    // Build production bắt buộc có email nhận báo cáo vi phạm.
+    'nitro:build:before': () => {
+      assertReportEmail(process.env.NUXT_PUBLIC_REPORT_EMAIL, process.env.NODE_ENV);
+    },
+  },
   modules: ['@nuxtjs/tailwindcss', '@nuxt/icon'],
   css: ['~/assets/css/main.css'],
   nitro: {
@@ -15,6 +23,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || 'http://localhost:8080',
+      reportEmail: process.env.NUXT_PUBLIC_REPORT_EMAIL || '',
     },
   },
   icon: {

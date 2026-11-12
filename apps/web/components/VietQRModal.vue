@@ -260,6 +260,16 @@ function handleRecreate(): void {
           <span>{{ confirmErrorVi }}</span>
         </div>
 
+        <p class="text-[11px] text-cyber-muted" data-testid="vietqr-tos-note">
+          Khi nạp tiền, bạn cam kết theo
+          <NuxtLink
+            to="/terms"
+            target="_blank"
+            rel="noopener"
+            class="text-cyber-cyan underline"
+          >Điều khoản dịch vụ</NuxtLink>.
+        </p>
+
         <!-- Trạng thái 1: awaiting_transfer (Chờ chuyển khoản - Bố cục 2 cột ngang) -->
         <template v-if="topup.status === 'awaiting_transfer'">
           <div

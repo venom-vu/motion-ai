@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useSystemStatus } from '~/composables/useSystemStatus';
+import { isPausedError } from '~/utils/system-status';
 import { computed, ref } from 'vue';
 import type { Task } from '@flowvis/contracts';
 import { usePricingConfig } from '~/composables/usePricingConfig';
@@ -30,6 +32,7 @@ const targetKey = ref<string | null>(null);
 
 // Trạng thái tác vụ
 const activeTask = ref<Task | null>(null);
+const { intakePaused, markPaused } = useSystemStatus();
 const isSubmitting = ref<boolean>(false);
 const submitErrorVi = ref<string | null>(null);
 
@@ -51,7 +54,8 @@ const hasEnoughBalance = computed<boolean>(() => {
 // 4. Không trong trạng thái đang gửi (isSubmitting)
 const canSubmit = computed<boolean>(() => {
   return Boolean(
-    isAuthenticated.value &&
+    !intakePaused.value &&
+          isAuthenticated.value &&
       sourceKey.value &&
       targetKey.value &&
         hasEnoughBalance.value &&
@@ -78,6 +82,7 @@ async function handleSubmit(): Promise<void> {
     // Cập nhật lại số dư ví sau khi tạo task
     void refreshAll();
   } catch (error: unknown) {
+    if (isPausedError(error)) markPaused();
     submitErrorVi.value = resolveApiErrorMessageVi(error);
   } finally {
     isSubmitting.value = false;
@@ -96,6 +101,7 @@ function handleReset(): void {
     class="mx-auto max-w-4xl space-y-6 py-2 sm:py-4"
     data-testid="page-face-swap"
   >
+    <MaintenanceBanner />
     <!-- Thanh điều hướng phụ quay về Kho công cụ AI -->
     <div class="flex items-center justify-between">
       <NuxtLink
@@ -175,10 +181,11 @@ function handleReset(): void {
 
           <ImageUploader
             v-model="sourceKey"
+            :maintenance-note="intakePaused"
             id-prefix="source-face"
             label-vi="Chọn ảnh mặt nguồn"
             description-vi="Ảnh chân dung rõ mặt, JPG/PNG/WebP ≤ 10 MB"
-                  />
+          />
         </div>
 
         <!-- Ô tải 2: Ảnh đích -->
@@ -204,10 +211,11 @@ function handleReset(): void {
 
           <ImageUploader
             v-model="targetKey"
+            :maintenance-note="intakePaused"
             id-prefix="target-face"
             label-vi="Chọn ảnh đích"
             description-vi="Ảnh có người rõ dáng, JPG/PNG/WebP ≤ 10 MB"
-                  />
+          />
         </div>
       </div>
 
@@ -285,7 +293,7 @@ function handleReset(): void {
           <button
             type="button"
             data-testid="create-face-swap-button"
-            :disabled="!canSubmit"
+            :disabled="!canSubmit || intakePaused"
             class="touch-target inline-flex min-h-[48px] min-w-[48px] items-center justify-center gap-2 rounded-xl bg-cyber-violet px-6 py-3 text-sm font-semibold text-cyber-text transition hover:bg-cyber-violet/90 disabled:cursor-not-allowed disabled:opacity-50"
             @click="handleSubmit"
           >

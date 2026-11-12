@@ -18,10 +18,12 @@ const { me } = usePricingConfig();
     />
 
     <main
-      class="mx-auto w-full max-w-7xl flex-1 px-4 pb-24 pt-5 sm:px-6 lg:px-8 lg:pb-12"
+      class="mx-auto w-full max-w-7xl flex-1 px-4 pb-6 pt-5 sm:px-6 lg:px-8 lg:pb-8"
     >
       <slot />
     </main>
+
+    <AppFooter />
 
     <AppBottomNav />
     <AuthDialog />

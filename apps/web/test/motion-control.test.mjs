@@ -8,6 +8,7 @@ import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc';
 import { createSSRApp, reactive, ref } from 'vue';
 import { renderToString } from '@vue/server-renderer';
 import {
+  API_ERROR_MESSAGES_VI,
   ApiErrorCode,
   MOCK_ME_RESPONSE,
   MOCK_MOTION_CREATE_REQUEST,
@@ -34,11 +35,15 @@ const apiClientUrl = pathToFileURL(path.join(webRoot, 'utils/api-client.ts')).hr
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'motion-ctl-'));
 
 /** Nạp composable useMotionControl với client giả và cấu hình giá giả. */
+globalThis.__sysStatus = ref(false);
+
 async function loadComposable() {
   let code = read('composables/useMotionControl.ts');
   const stubs = {
     '~/composables/useApiClient': `export const useApiClient = () => ({ client: globalThis.__mc.client });`,
     '~/composables/usePricingConfig': `export const usePricingConfig = () => globalThis.__mc.pricing;`,
+    '~/composables/useSystemStatus': `const intakePaused = globalThis.__sysStatus; export const useSystemStatus = () => ({ intakePaused, markPaused: () => { intakePaused.value = true; }, refresh: async () => {} });`,
+    '~/utils/system-status': `export * from ${JSON.stringify(pathToFileURL(path.join(webRoot, 'utils/system-status.ts')).href)};`,
     '~/utils/api-client': `export * from ${JSON.stringify(apiClientUrl)};`,
   };
   for (const [spec, source] of Object.entries(stubs)) {
@@ -56,6 +61,7 @@ async function loadComposable() {
 }
 
 function setup({ me = MOCK_ME_RESPONSE, cap = 10, createImpl } = {}) {
+  globalThis.__sysStatus.value = false;
   const meRef = ref(me);
   const capRef = ref(cap);
   const calls = { create: [], refresh: 0 };
@@ -240,6 +246,35 @@ describe('@flowvis/web — Story 5.8 Motion Control', () => {
       await mc.submit();
       assert.equal(calls.create.length, 0);
       assert.equal(mc.characterKey.value, MOCK_MOTION_CREATE_REQUEST.characterKey);
+    });
+  });
+
+  describe('useMotionControl — bảo trì (PAUSED)', () => {
+    it('intakePaused=true: canSubmit=false và submit không gửi POST', async () => {
+      const { calls } = setup();
+      const mc = mod.useMotionControl();
+      fillValid(mc);
+      assert.equal(mc.canSubmit.value, true);
+      globalThis.__sysStatus.value = true;
+      assert.equal(mc.canSubmit.value, false);
+      await mc.submit();
+      assert.equal(calls.create.length, 0);
+    });
+
+    it('503 PAUSED: đặt intakePaused cục bộ, hiện thông báo và không làm mới ví', async () => {
+      const { calls } = setup({
+        createImpl: () => {
+          throw new MotionApiClientError({ status: 503, code: ApiErrorCode.PAUSED });
+        },
+      });
+      const mc = mod.useMotionControl();
+      fillValid(mc);
+      await mc.submit();
+      assert.equal(globalThis.__sysStatus.value, true);
+      assert.equal(mc.intakePaused.value, true);
+      assert.equal(mc.submitErrorVi.value, API_ERROR_MESSAGES_VI[ApiErrorCode.PAUSED]);
+      assert.equal(calls.refresh, 0);
+      assert.equal(mc.canSubmit.value, false);
     });
   });
 

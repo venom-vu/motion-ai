@@ -320,6 +320,7 @@ describe('@flowvis/web — Story 4.4 Trang Body Retouch và thanh mức điều 
     let pageComp;
 
     before(async () => {
+      globalThis.__sysStatus = ref(false);
       dir = fs.mkdtempSync(path.join(webRoot, 'test', '.tmp-br-page-'));
       globalThis.useHead = (headInput) => {
         globalThis.__brPage?.heads.push(headInput);
@@ -329,6 +330,8 @@ describe('@flowvis/web — Story 4.4 Trang Body Retouch và thanh mức điều 
         {
           '~/composables/usePricingConfig': `export const usePricingConfig = () => globalThis.__brPage.pricingConfig;`,
           '~/composables/useApiClient': `export const useApiClient = () => ({ client: globalThis.__brPage.client });`,
+          '~/composables/useSystemStatus': `const intakePaused = globalThis.__sysStatus; export const useSystemStatus = () => ({ intakePaused, markPaused: () => { intakePaused.value = true; }, refresh: async () => {} });`,
+          '~/utils/system-status': `export * from '${pathToFileURL(path.join(webRoot, 'utils/system-status.ts')).href}';`,
           '~/composables/useAuthDialog': `export const useAuthDialog = () => ({ open: (...args) => globalThis.__brPage.calls.push(['openAuthDialog', ...args]) });`,
           '~/utils/api-client': `export {
             ApiErrorCode,
@@ -348,6 +351,7 @@ describe('@flowvis/web — Story 4.4 Trang Body Retouch và thanh mức điều 
     after(() => {
       fs.rmSync(dir, { recursive: true, force: true });
       delete globalThis.__brPage;
+      delete globalThis.__sysStatus;
       delete globalThis.useHead;
     });
 
@@ -356,6 +360,7 @@ describe('@flowvis/web — Story 4.4 Trang Body Retouch và thanh mức điều 
       pricingVal = MOCK_PRICING_CONFIG_RESPONSE,
       createImpl,
     } = {}) {
+      globalThis.__sysStatus.value = false;
       const meRef = ref(meVal);
       const pricingRef = ref(pricingVal);
       const calls = [];
@@ -578,6 +583,27 @@ describe('@flowvis/web — Story 4.4 Trang Body Retouch và thanh mức điều 
       assert.equal(state.canSubmit.value, false);
       await state.handleSubmit();
       assert.equal(globalThis.__brPage.calls.length, 0);
+    });
+
+    it('bảo trì: intakePaused=true khóa canSubmit; 503 PAUSED đặt intakePaused và không làm mới ví', async () => {
+      const { state, calls } = setupPage();
+      state.imageKey.value = MOCK_BODY_RETOUCH_CREATE_REQUEST.imageKey;
+      assert.equal(state.canSubmit.value, true);
+      globalThis.__sysStatus.value = true;
+      assert.equal(state.canSubmit.value, false);
+      await state.handleSubmit();
+      assert.equal(calls.length, 0);
+
+      const paused = setupPage({
+        createImpl: () => {
+          throw new MotionApiClientError({ status: 503, code: ApiErrorCode.PAUSED });
+        },
+      });
+      paused.state.imageKey.value = MOCK_BODY_RETOUCH_CREATE_REQUEST.imageKey;
+      await paused.state.handleSubmit();
+      assert.equal(globalThis.__sysStatus.value, true);
+      assert.equal(paused.state.submitErrorVi.value, API_ERROR_MESSAGES_VI[ApiErrorCode.PAUSED]);
+      assert.equal(paused.calls.some((c) => c[0] === 'refreshAll'), false);
     });
 
     it('I/O Matrix Row 5: chống bấm đúp (isSubmitting), chỉ gửi đúng 1 request POST /tasks/body-retouch với { imageKey, intensity: 8 } và làm mới ví', async () => {
